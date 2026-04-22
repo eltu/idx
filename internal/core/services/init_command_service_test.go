@@ -90,6 +90,7 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
 		{Name: ".git", Path: filepath.Join(rootDir, ".git"), IsDir: true},
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
 		{Name: ".gitignore", Path: filepath.Join(rootDir, ".gitignore"), IsDir: false},
 		{Name: "allowed.txt", Path: filepath.Join(rootDir, "allowed.txt"), IsDir: false},
 		{Name: "child", Path: childDir, IsDir: true},
@@ -112,22 +113,22 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	rootIndexPath := filepath.Join(rootDir, ".index")
+	rootIndexPath := filepath.Join(rootDir, ".idx", "index.idx")
 	if tree.writes[rootIndexPath] != ".gitignore\nallowed.txt\nchild/\nempty/\n" {
 		t.Fatalf("unexpected root index content %q", tree.writes[rootIndexPath])
 	}
 
-	childIndexPath := filepath.Join(childDir, ".index")
+	childIndexPath := filepath.Join(childDir, ".idx", "index.idx")
 	if tree.writes[childIndexPath] != "nested.txt\n" {
 		t.Fatalf("unexpected child index content %q", tree.writes[childIndexPath])
 	}
 
-	emptyIndexPath := filepath.Join(emptyDir, ".index")
+	emptyIndexPath := filepath.Join(emptyDir, ".idx", "index.idx")
 	if tree.writes[emptyIndexPath] != "" {
 		t.Fatalf("expected empty index content, got %q", tree.writes[emptyIndexPath])
 	}
 
-	vendorIndexPath := filepath.Join(vendorDir, ".index")
+	vendorIndexPath := filepath.Join(vendorDir, ".idx", "index.idx")
 	if _, ok := tree.writes[vendorIndexPath]; ok {
 		t.Fatalf("did not expect index for ignored directory %q", vendorIndexPath)
 	}
@@ -149,7 +150,7 @@ func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
 func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
-	tree.existing[filepath.Join(rootDir, ".index")] = true
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
 	output := &capturingTextOutput{}
 	service := services.NewInitCommandService(tree, matcherFactory, output)

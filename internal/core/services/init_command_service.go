@@ -32,7 +32,7 @@ func (service InitCommandService) Run() error {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
-	currentIndexPath := filepath.Join(currentDir, ".index")
+	currentIndexPath := indexFilePath(currentDir)
 	hasIndex, err := service.projectTree.Exists(currentIndexPath)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (service InitCommandService) indexDirectory(directoryPath string, projectRo
 }
 
 func (service InitCommandService) writeIndex(directoryPath string, entries []domain.DirectoryEntry) error {
-	indexPath := filepath.Join(directoryPath, ".index")
+	indexPath := indexFilePath(directoryPath)
 	content := buildIndexContent(entries)
 
 	if err := service.projectTree.WriteFile(indexPath, []byte(content)); err != nil {
@@ -106,7 +106,7 @@ func filterEntries(entries []domain.DirectoryEntry, projectRoot string, matcher 
 	allowedEntries := make([]domain.DirectoryEntry, 0, len(entries))
 
 	for _, entry := range entries {
-		if entry.Name == ".git" || entry.Name == ".index" {
+		if entry.Name == ".git" || entry.Name == ".idx" {
 			continue
 		}
 
@@ -162,4 +162,8 @@ func indexLine(entry domain.DirectoryEntry) string {
 	}
 
 	return entry.Name
+}
+
+func indexFilePath(directoryPath string) string {
+	return filepath.Join(directoryPath, ".idx", "index.idx")
 }
