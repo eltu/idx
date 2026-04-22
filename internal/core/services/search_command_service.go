@@ -69,7 +69,8 @@ func (service SearchCommandService) Run(query string) error {
 		return err
 	}
 
-	results, err := service.rankedResults(indexedDirectories, query)
+	terms := uniqueQueryTerms(query)
+	results, err := service.rankedResults(indexedDirectories, terms)
 	if err != nil {
 		return err
 	}
@@ -78,17 +79,17 @@ func (service SearchCommandService) Run(query string) error {
 		return service.output.WriteLine("Nenhum resultado encontrado.")
 	}
 
-	return service.writeResults(results, projectRoot)
+	return service.writeResults(results, projectRoot, terms)
 }
 
-func (service SearchCommandService) writeResults(results []searchResult, projectRoot string) error {
+func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string) error {
 	for _, result := range results {
 		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 		if err != nil {
 			return err
 		}
 
-		header := fmt.Sprintf("%s (score: %.4f)", projectRelativePath, result.score)
+		header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath), result.score)
 		if err := service.output.WriteLine(header); err != nil {
 			return err
 		}
@@ -98,10 +99,15 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 			if i == len(result.matchedLines)-1 {
 				prefix = "└──"
 			}
-			entry := fmt.Sprintf("%s %d: %s", prefix, ml.lineNumber, ml.content)
+			highlighted := highlightTermsInLine(ml.content, terms)
+			entry := fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(ml.lineNumber), highlighted)
 			if err := service.output.WriteLine(entry); err != nil {
 				return err
 			}
+		}
+
+		if err := service.output.WriteLine(""); err != nil {
+			return err
 		}
 	}
 
@@ -146,8 +152,7 @@ func (service SearchCommandService) collectIndexedDirectories(directoryPath stri
 	return nil
 }
 
-func (service SearchCommandService) rankedResults(directories []string, query string) ([]searchResult, error) {
-	terms := uniqueQueryTerms(query)
+func (service SearchCommandService) rankedResults(directories []string, terms []string) ([]searchResult, error) {
 	results, err := service.parallelDirectoryResults(directories, terms)
 	if err != nil {
 		return nil, err
