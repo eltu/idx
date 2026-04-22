@@ -2,7 +2,8 @@
 .index
 
 # Compiled binaries
-idx
+/idx
+/idx.exe
 /bin/
 
 # Go build and test cache
