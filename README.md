@@ -1,0 +1,184 @@
+# idx
+
+BM25-based code and text search CLI with per-directory indexes.
+
+The goal of `idx` is to provide fast and relevant search for Git projects while keeping indexing costs low by storing one `.idx/index.idx` per directory.
+
+## Core ideas
+
+- Recursive indexing per directory (one BM25 corpus per folder).
+- Global project search by loading every discovered index.
+- BM25 ranking with proximity bonus between terms.
+- Per-directory score normalization for fairer cross-directory comparison.
+- Tree-like output showing all matching lines with whole-word token matching.
+
+## Requirements
+
+- Go `1.24+`
+- A Git repository (required to resolve the project root from `.git`).
+
+## Build and run
+
+Build binary:
+
+```bash
+go build -o idx ./cmd/idx
+```
+
+Run with Go:
+
+```bash
+go run cmd/idx/main.go <command>
+```
+
+Run compiled binary:
+
+```bash
+./idx <command>
+```
+
+## Available commands
+
+### 1) `init`
+
+Creates `.idx/index.idx` files starting from the current directory and traversing subdirectories recursively.
+
+- Ignores `.git` and `.idx`.
+- Respects `.gitignore` rules.
+- If an index already exists in the current directory, it does not reindex and reports that the project is already indexed.
+
+Usage:
+
+```bash
+idx init
+```
+
+Success output:
+
+```text
+✅ Index created. You can now run idx search.
+```
+
+Output when an index already exists in the current directory:
+
+```text
+ℹ️ Este projeto ja possui indice. Voce pode executar idx search.
+```
+
+### 2) `search <terms...>`
+
+Searches terms across the whole project (all directories containing `.idx/index.idx`).
+
+Usage:
+
+```bash
+idx search tree
+idx search module idx
+idx search bm25 tokenizer
+```
+
+Current behavior:
+
+- Multi-term query with AND semantics for ranking: documents must contain all terms to score.
+- BM25 score with proximity bonus between consecutive terms.
+- Per-directory score normalized to `[0, 1]` before global aggregation.
+- Line matching is whole-word/token only (no mid-word substring matches).
+- Returns all lines in each file that contain at least one query term.
+- File paths are shown relative to the project root.
+
+Output format:
+
+```text
+<file> (score: <0.0000..1.0000>)
+├── <line>: <content>
+└── <line>: <content>
+```
+
+Example:
+
+```text
+internal/adapters/repository/os_project_tree.go (score: 1.0000)
+├── 19: func (tree OSProjectTree) CurrentDir() (string, error) {
+└── 28: func (tree OSProjectTree) FindGitRoot(startDir string) (string, error) {
+```
+
+When no results are found:
+
+```text
+Nenhum resultado encontrado.
+```
+
+### 3) `destroy`
+
+Removes all `.idx` directories recursively from the project.
+
+Usage:
+
+```bash
+idx destroy
+```
+
+Rules:
+
+- Must run from the Git project root.
+- Running outside the root returns an explicit error.
+
+Success output:
+
+```text
+🧹 Index metadata removed from project.
+```
+
+## Tokenization
+
+Current tokenization rules:
+
+- Lowercase normalization.
+- Removes punctuation and splits by whitespace.
+- Keeps letters, numbers, and `_` as token characters.
+- Removes common English stop words.
+- Removes tokens shorter than 2 characters.
+
+Quick examples:
+
+- `foo.bar` -> `foo`, `bar`
+- `path/to/file` -> `path`, `to`, `file`
+- `snake_case` -> `snake_case`
+
+## Recommended workflow
+
+1. In your Git project, run `idx init` once.
+2. Use `idx search <terms>` during day-to-day development.
+3. Re-run `idx init` whenever you want to regenerate indexes.
+4. Run `idx destroy` to clean index metadata.
+
+## Benchmark
+
+`idx` vs `grep` comparison:
+
+- File: `docs/benchmarks/search-vs-grep.md`
+- Command:
+
+```bash
+go test ./internal/core/services -run '^$' -bench BenchmarkSearchVsGrep -benchmem
+```
+
+## Common errors
+
+No command:
+
+```text
+missing command: got [...], expected one of [init destroy search]
+```
+
+Invalid command:
+
+```text
+unsupported command "<cmd>": expected one of [init destroy search]
+```
+
+`search` without terms:
+
+```text
+missing search query: got [...], expected idx search <terms>
+```
