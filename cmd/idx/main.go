@@ -18,7 +18,7 @@ func main() {
 	indexRepo := repository.NewBinaryIndexRepository(projectTree)
 	initCommand := services.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo)
 	destroyCommand := services.NewDestroyCommandService(projectTree, writer)
-	searchCommand := services.NewSearchCommandService(projectTree, writer, indexRepo)
+	searchCommand := services.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
 	runner := cli.NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand)
 
 	if err := runner.Run(); err != nil {
