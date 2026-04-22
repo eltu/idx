@@ -37,6 +37,9 @@
 
 - Follow the Go project layout convention (`https://go.dev/doc/modules/layout`) and Hexagonal Architecture principles.
 - Prefer small focused modules over god files.
+- Architecture decisions must be recorded under `docs/adr/` using sequential files like `0001-short-title.md`.
+- When a change introduces a persistent technical decision or tradeoff, update an existing ADR or add a new one in `docs/adr/`.
+- Root-level ad hoc decision documents are discouraged; decision records belong in `docs/adr/`.
 - Predictable paths:
 ```
 .
@@ -53,6 +56,11 @@
 │       └── repository/      # Output (Postgres, Redis, S3)
 └── go.mod
 ```
+
+## Current Decisions
+
+- ADR 0001: BM25 inverted index is generated per directory and indexes file contents only.
+- ADR 0002: Index files are stored in binary GOB format by default to reduce disk and memory overhead.
 
 ## Formatting
 

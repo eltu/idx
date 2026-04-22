@@ -82,11 +82,48 @@ func (matcher fakeIgnoreMatcher) Matches(path string) (bool, error) {
 	return matcher.ignoredPaths[path], nil
 }
 
+type fakeFileReader struct {
+	files map[string]string
+}
+
+func (reader fakeFileReader) ReadFile(path string) (string, error) {
+	content, ok := reader.files[path]
+	if !ok {
+		return "", errors.New("file not found")
+	}
+	return content, nil
+}
+
+type fakeBM25Indexer struct {
+	indices map[string]*domain.InvertedIndex
+}
+
+func (indexer *fakeBM25Indexer) BuildIndex(documents map[string]string) (*domain.InvertedIndex, error) {
+	index := domain.NewInvertedIndex()
+	for docName := range documents {
+		index.AddDocument(docName, 10)
+	}
+	index.DocumentCount = len(documents)
+	index.CalculateAverageDocLen()
+	return index, nil
+}
+
+type fakeIndexRepository struct {
+	savedIndices map[string]*domain.InvertedIndex
+}
+
+func (repo *fakeIndexRepository) SaveIndex(directoryPath string, index *domain.InvertedIndex) error {
+	repo.savedIndices[directoryPath] = index
+	return nil
+}
+
 type fakeTextOutput struct{}
 
 func (output fakeTextOutput) WriteLine(text string) error {
 	return nil
 }
+
+
 
 func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
@@ -113,31 +150,53 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 		"ignored.log": true,
 		"vendor/":     true,
 	}}
-	service := services.NewInitCommandService(tree, matcherFactory, fakeTextOutput{})
+
+	fileReader := fakeFileReader{files: map[string]string{
+		filepath.Join(rootDir, ".gitignore"):  "*.log\nvendor/",
+		filepath.Join(rootDir, "allowed.txt"): "hello world test",
+		filepath.Join(childDir, "nested.txt"): "nested content here",
+	}}
+
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, &capturingTextOutput{}, fileReader, indexer, indexRepo)
 
 	err := service.Run()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	rootIndexPath := filepath.Join(rootDir, ".idx", "index.idx")
-	if tree.writes[rootIndexPath] != ".gitignore\nallowed.txt\nchild/\nempty/\n" {
-		t.Fatalf("unexpected root index content %q", tree.writes[rootIndexPath])
+	// Verify root directory index was created
+	if _, ok := indexRepo.savedIndices[rootDir]; !ok {
+		t.Fatalf("expected index for root directory, got nothing")
 	}
 
-	childIndexPath := filepath.Join(childDir, ".idx", "index.idx")
-	if tree.writes[childIndexPath] != "nested.txt\n" {
-		t.Fatalf("unexpected child index content %q", tree.writes[childIndexPath])
+	// Verify root index has 2 files (not the ignored one)
+	rootIndex := indexRepo.savedIndices[rootDir]
+	if rootIndex.DocumentCount != 2 {
+		t.Fatalf("expected root index to have 2 documents, got %d", rootIndex.DocumentCount)
 	}
 
-	emptyIndexPath := filepath.Join(emptyDir, ".idx", "index.idx")
-	if tree.writes[emptyIndexPath] != "" {
-		t.Fatalf("expected empty index content, got %q", tree.writes[emptyIndexPath])
+	// Verify child directory index was created
+	if _, ok := indexRepo.savedIndices[childDir]; !ok {
+		t.Fatalf("expected index for child directory, got nothing")
 	}
 
-	vendorIndexPath := filepath.Join(vendorDir, ".idx", "index.idx")
-	if _, ok := tree.writes[vendorIndexPath]; ok {
-		t.Fatalf("did not expect index for ignored directory %q", vendorIndexPath)
+	// Verify child index has 1 file
+	childIndex := indexRepo.savedIndices[childDir]
+	if childIndex.DocumentCount != 1 {
+		t.Fatalf("expected child index to have 1 document, got %d", childIndex.DocumentCount)
+	}
+
+	// Verify empty directory index was created (even if empty)
+	if _, ok := indexRepo.savedIndices[emptyDir]; !ok {
+		t.Fatalf("expected index for empty directory, got nothing")
+	}
+
+	// Verify vendor directory index was NOT created (ignored)
+	if _, ok := indexRepo.savedIndices[vendorDir]; ok {
+		t.Fatalf("did not expect index for ignored directory %q", vendorDir)
 	}
 }
 
@@ -146,7 +205,11 @@ func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
 	tree := newFakeProjectTree(rootDir, "")
 	tree.gitRootErr = errors.New("directory \"/repo\" is not inside a git project: expected a path with a .git entry in the current directory or one of its parents")
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
-	service := services.NewInitCommandService(tree, matcherFactory, fakeTextOutput{})
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, &capturingTextOutput{}, fileReader, indexer, indexRepo)
 
 	err := service.Run()
 	if err == nil {
@@ -160,7 +223,11 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
 	output := &capturingTextOutput{}
-	service := services.NewInitCommandService(tree, matcherFactory, output)
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
 
 	err := service.Run()
 	if err != nil {
@@ -175,8 +242,8 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 		t.Fatalf("unexpected output message %q", output.lines[0])
 	}
 
-	if len(tree.writes) != 0 {
-		t.Fatalf("expected no index writes, got %d writes", len(tree.writes))
+	if len(indexRepo.savedIndices) != 0 {
+		t.Fatalf("expected no index saves, got %d", len(indexRepo.savedIndices))
 	}
 }
 

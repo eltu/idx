@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -14,15 +13,26 @@ type InitCommandService struct {
 	projectTree    ports.ProjectTree
 	matcherFactory ports.IgnoreMatcherFactory
 	output         ports.TextOutput
+	fileReader     ports.FileReader
+	indexer        ports.BM25Indexer
+	indexRepo      IndexRepository
+}
+
+// IndexRepository defines saving index to storage.
+type IndexRepository interface {
+	SaveIndex(directoryPath string, index *domain.InvertedIndex) error
 }
 
 // NewInitCommandService builds the init use case.
-// Example: service := NewInitCommandService(projectTree, matcherFactory, output)
-func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput) InitCommandService {
+// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo)
+func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo IndexRepository) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
 		output:         output,
+		fileReader:     fileReader,
+		indexer:        indexer,
+		indexRepo:      indexRepo,
 	}
 }
 
@@ -70,19 +80,54 @@ func (service InitCommandService) indexDirectory(directoryPath string, projectRo
 		return err
 	}
 
-	if err := service.writeIndex(directoryPath, allowedEntries); err != nil {
-		return err
+	// Separate files and directories
+	fileEntries := make([]domain.DirectoryEntry, 0)
+	dirEntries := make([]domain.DirectoryEntry, 0)
+	for _, entry := range allowedEntries {
+		if entry.IsDir {
+			dirEntries = append(dirEntries, entry)
+		} else {
+			fileEntries = append(fileEntries, entry)
+		}
 	}
 
-	return service.indexChildren(allowedEntries, projectRoot, matcher)
+	// Build BM25 index from files in this directory only
+	if len(fileEntries) > 0 {
+		if err := service.buildAndSaveIndex(directoryPath, fileEntries); err != nil {
+			return err
+		}
+	} else {
+		// Even empty directories get an empty index
+		emptyIndex := domain.NewInvertedIndex()
+		if err := service.indexRepo.SaveIndex(directoryPath, emptyIndex); err != nil {
+			return err
+		}
+	}
+
+	// Recursively index subdirectories
+	return service.indexChildren(dirEntries, projectRoot, matcher)
 }
 
-func (service InitCommandService) writeIndex(directoryPath string, entries []domain.DirectoryEntry) error {
-	indexPath := indexFilePath(directoryPath)
-	content := buildIndexContent(entries)
+func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry) error {
+	// Read all files and build documents map
+	documents := make(map[string]string)
+	for _, entry := range fileEntries {
+		content, err := service.fileReader.ReadFile(entry.Path)
+		if err != nil {
+			return err
+		}
+		documents[entry.Name] = content
+	}
 
-	if err := service.projectTree.WriteFile(indexPath, []byte(content)); err != nil {
-		return fmt.Errorf("failed to write index file %q: got error %v, expected a writable path", indexPath, err)
+	// Build BM25 index
+	index, err := service.indexer.BuildIndex(documents)
+	if err != nil {
+		return fmt.Errorf("failed to build BM25 index for %q: got error %v, expected valid document content", directoryPath, err)
+	}
+
+	// Save index
+	if err := service.indexRepo.SaveIndex(directoryPath, index); err != nil {
+		return err
 	}
 
 	return nil
@@ -141,27 +186,6 @@ func matchPath(relativePath string, isDir bool) string {
 	}
 
 	return normalizedPath
-}
-
-func buildIndexContent(entries []domain.DirectoryEntry) string {
-	if len(entries) == 0 {
-		return ""
-	}
-
-	lines := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		lines = append(lines, indexLine(entry))
-	}
-
-	return strings.Join(lines, "\n") + "\n"
-}
-
-func indexLine(entry domain.DirectoryEntry) string {
-	if entry.IsDir {
-		return entry.Name + "/"
-	}
-
-	return entry.Name
 }
 
 func indexFilePath(directoryPath string) string {

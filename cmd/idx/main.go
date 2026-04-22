@@ -13,7 +13,10 @@ func main() {
 	writer := cli.NewLineWriter(os.Stdout)
 	projectTree := repository.NewOSProjectTree()
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
-	initCommand := services.NewInitCommandService(projectTree, matcherFactory, writer)
+	fileReader := repository.NewOSFileReader()
+	indexer := services.NewBM25IndexService()
+	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	initCommand := services.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo)
 	destroyCommand := services.NewDestroyCommandService(projectTree, writer)
 	runner := cli.NewCommandRunner(os.Args, initCommand, destroyCommand)
 
