@@ -3,6 +3,8 @@ package services_test
 import (
 	"errors"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"idx/internal/core/domain"
@@ -10,26 +12,55 @@ import (
 )
 
 type fakeSearchIndexRepository struct {
-	index   *domain.InvertedIndex
+	indices map[string]*domain.InvertedIndex
 	loadErr error
 	loaded  []string
+	mu      sync.Mutex
 }
 
 func (repo *fakeSearchIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
+	repo.mu.Lock()
 	repo.loaded = append(repo.loaded, directoryPath)
+	repo.mu.Unlock()
+
 	if repo.loadErr != nil {
 		return nil, repo.loadErr
 	}
 
-	return repo.index, nil
+	index := repo.indices[directoryPath]
+	if index == nil {
+		return nil, errors.New("index not found")
+	}
+
+	return index, nil
+}
+
+type fakeSearchFileReader struct {
+	files map[string]string
+}
+
+func (reader fakeSearchFileReader) ReadFile(path string) (string, error) {
+	content, exists := reader.files[path]
+	if !exists {
+		return "", errors.New("file not found")
+	}
+
+	return content, nil
 }
 
 func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := newFakeProjectTree(rootDir, rootDir)
+	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{index: searchableIndexWithPartialMatch()}
-	service := services.NewSearchCommandService(tree, output, repo)
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):   "go search guide",
+		filepath.Join(rootDir, "readme.md"):  "go content\nsearch topic",
+		filepath.Join(rootDir, "go.mod"):     "module idx",
+		filepath.Join(rootDir, "AGENTS.md"):  "idx",
+		filepath.Join(rootDir, ".gitignore"): "module",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.Run("go search")
 	if err != nil {
@@ -40,46 +71,71 @@ func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 		t.Fatalf("expected load for %q, got %v", rootDir, repo.loaded)
 	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 output lines, got %d", len(output.lines))
+	// guide.md (score 1.0000): 1 file header + 1 matching line
+	// readme.md (score 0.0000): 1 file header + 2 matching lines (go / search on separate lines)
+	if len(output.lines) != 5 {
+		t.Fatalf("expected 5 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if output.lines[0] != "./guide.md (score: 0.8996)" {
-		t.Fatalf("expected best result first, got %q", output.lines[0])
+	if output.lines[0] != "./guide.md (score: 1.0000)" {
+		t.Fatalf("expected best result file header first, got %q", output.lines[0])
 	}
 
-	if output.lines[1] != "./readme.md (score: 0.5921)" {
-		t.Fatalf("expected second result, got %q", output.lines[1])
+	if output.lines[1] != "└── 1: go search guide" {
+		t.Fatalf("expected guide.md matched line, got %q", output.lines[1])
+	}
+
+	if output.lines[2] != "./readme.md (score: 0.0000)" {
+		t.Fatalf("expected second result file header, got %q", output.lines[2])
+	}
+
+	if output.lines[3] != "├── 1: go content" {
+		t.Fatalf("expected readme.md first matched line, got %q", output.lines[3])
+	}
+
+	if output.lines[4] != "└── 2: search topic" {
+		t.Fatalf("expected readme.md second matched line, got %q", output.lines[4])
 	}
 }
 
 func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := newFakeProjectTree(rootDir, rootDir)
+	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{index: searchableIndexWithPartialMatch()}
-	service := services.NewSearchCommandService(tree, output, repo)
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):   "go search guide",
+		filepath.Join(rootDir, "readme.md"):  "go content\nsearch topic",
+		filepath.Join(rootDir, "go.mod"):     "module idx",
+		filepath.Join(rootDir, "AGENTS.md"):  "idx",
+		filepath.Join(rootDir, ".gitignore"): "module",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.Run("module idx")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 1 {
-		t.Fatalf("expected 1 output line, got %d", len(output.lines))
+	// file header + 1 matched line
+	if len(output.lines) != 2 {
+		t.Fatalf("expected 2 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if output.lines[0] != "./go.mod (score: 1.9906)" {
+	if output.lines[0] != "./go.mod (score: 1.0000)" {
 		t.Fatalf("expected only full match result, got %q", output.lines[0])
 	}
 }
 
 func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := newFakeProjectTree(rootDir, rootDir)
+	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{index: searchableIndex()}
-	service := services.NewSearchCommandService(tree, output, repo)
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndex()}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}, repo)
 
 	err := service.Run("python")
 	if err != nil {
@@ -97,9 +153,9 @@ func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
 
 func TestSearchCommandServiceRunReturnsLoadError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := newFakeProjectTree(rootDir, rootDir)
+	tree := searchTreeWithIndexes(rootDir, nil)
 	repo := &fakeSearchIndexRepository{loadErr: errors.New("boom")}
-	service := services.NewSearchCommandService(tree, &capturingTextOutput{}, repo)
+	service := services.NewSearchCommandService(tree, &capturingTextOutput{}, fakeSearchFileReader{files: map[string]string{}}, repo)
 
 	err := service.Run("go")
 	if err == nil {
@@ -109,10 +165,58 @@ func TestSearchCommandServiceRunReturnsLoadError(t *testing.T) {
 
 func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := newFakeProjectTree(rootDir, rootDir)
+	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{index: searchableIndexWithProximity()}
-	service := services.NewSearchCommandService(tree, output, repo)
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithProximity()}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "near.txt"): "module idx",
+		filepath.Join(rootDir, "far.txt"):  "module\nidx",
+	}}, repo)
+
+	err := service.Run("module idx")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// near.txt: header + 1 line; far.txt: header + 2 lines
+	if len(output.lines) != 5 {
+		t.Fatalf("expected 5 output lines, got %d: %v", len(output.lines), output.lines)
+	}
+
+	if output.lines[0] != "./near.txt (score: 1.0000)" {
+		t.Fatalf("expected nearby terms file first, got %q", output.lines[0])
+	}
+
+	if output.lines[1] != "└── 1: module idx" {
+		t.Fatalf("expected near.txt matched line, got %q", output.lines[1])
+	}
+
+	if output.lines[2] != "./far.txt (score: 0.0000)" {
+		t.Fatalf("expected far terms file second, got %q", output.lines[2])
+	}
+
+	if output.lines[3] != "├── 1: module" {
+		t.Fatalf("expected far.txt first line, got %q", output.lines[3])
+	}
+
+	if output.lines[4] != "└── 2: idx" {
+		t.Fatalf("expected far.txt second line, got %q", output.lines[4])
+	}
+}
+
+func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	childDir := filepath.Join(rootDir, "internal", "core")
+	tree := searchTreeWithIndexes(rootDir, []string{filepath.Join("internal", "core")})
+	tree.currentDir = childDir
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{
+		rootDir:  searchableIndex(),
+		childDir: searchableIndexForRelativePath(),
+	}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+		filepath.Join(childDir, "go.mod"): "module idx",
+	}}, repo)
 
 	err := service.Run("module idx")
 	if err != nil {
@@ -120,38 +224,91 @@ func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 	}
 
 	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 output lines, got %d", len(output.lines))
+		t.Fatalf("expected 2 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if output.lines[0] != "./near.txt (score: 3.5000)" {
-		t.Fatalf("expected nearby terms first, got %q", output.lines[0])
-	}
-
-	if output.lines[1] != "./far.txt (score: 2.0300)" {
-		t.Fatalf("expected far terms second, got %q", output.lines[1])
+	if output.lines[0] != "internal/core/go.mod (score: 1.0000)" {
+		t.Fatalf("expected project-relative path output, got %q", output.lines[0])
 	}
 }
 
-func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
+func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	childDir := filepath.Join(rootDir, "internal", "core")
-	tree := newFakeProjectTree(childDir, rootDir)
+	childDir := filepath.Join(rootDir, "docs")
+	tree := searchTreeWithIndexes(rootDir, []string{"docs"})
 	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{index: searchableIndexForRelativePath()}
-	service := services.NewSearchCommandService(tree, output, repo)
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{
+		rootDir:  searchableIndexWithSingleResult("root.md", 1.0, 1.0, []int{1}, []int{2}),
+		childDir: searchableIndexWithSingleResult("guide.md", 1.0, 1.0, []int{5}, []int{6}),
+	}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "root.md"):   "module idx",
+		filepath.Join(childDir, "guide.md"): "module idx",
+	}}, repo)
 
 	err := service.Run("module idx")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 1 {
-		t.Fatalf("expected 1 output line, got %d", len(output.lines))
+	// 2 files, each with header + 1 matched line
+	if len(output.lines) != 4 {
+		t.Fatalf("expected 4 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if output.lines[0] != "internal/core/go.mod (score: 3.5000)" {
-		t.Fatalf("expected project-relative path output, got %q", output.lines[0])
+	if output.lines[0] != "docs/guide.md (score: 1.0000)" {
+		t.Fatalf("expected child directory file header, got %q", output.lines[0])
 	}
+
+	if output.lines[2] != "./root.md (score: 1.0000)" {
+		t.Fatalf("expected root directory file header, got %q", output.lines[2])
+	}
+}
+
+func searchTreeWithIndexes(rootDir string, indexRelativeDirs []string) *fakeProjectTree {
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{}
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	for _, relativeDir := range indexRelativeDirs {
+		directoryPath := rootDir
+		for _, part := range splitRelativePath(relativeDir) {
+			nextDir := filepath.Join(directoryPath, part)
+			appendDirectoryEntry(tree, directoryPath, nextDir, part)
+			if _, exists := tree.readDirMap[nextDir]; !exists {
+				tree.readDirMap[nextDir] = []domain.DirectoryEntry{}
+			}
+			directoryPath = nextDir
+		}
+
+		tree.existing[filepath.Join(directoryPath, ".idx", "index.idx")] = true
+	}
+
+	return tree
+}
+
+func splitRelativePath(path string) []string {
+	normalizedPath := strings.ReplaceAll(path, "\\", "/")
+	parts := make([]string, 0)
+	for _, part := range strings.Split(normalizedPath, "/") {
+		if part == "" {
+			continue
+		}
+
+		parts = append(parts, part)
+	}
+
+	return parts
+}
+
+func appendDirectoryEntry(tree *fakeProjectTree, parentDir string, directoryPath string, name string) {
+	entries := tree.readDirMap[parentDir]
+	for _, entry := range entries {
+		if entry.Path == directoryPath {
+			return
+		}
+	}
+
+	tree.readDirMap[parentDir] = append(tree.readDirMap[parentDir], domain.DirectoryEntry{Name: name, Path: directoryPath, IsDir: true})
 }
 
 func searchableIndex() *domain.InvertedIndex {
@@ -244,6 +401,17 @@ func searchableIndexForRelativePath() *domain.InvertedIndex {
 			"go.mod": {TF: 1, Positions: []int{2}},
 		},
 	}
+
+	return index
+}
+
+func searchableIndexWithSingleResult(fileName string, moduleIDF float64, idxIDF float64, modulePositions []int, idxPositions []int) *domain.InvertedIndex {
+	index := domain.NewInvertedIndex()
+	index.Documents[fileName] = &domain.DocStats{Length: 5}
+	index.DocumentCount = 1
+	index.AverageDocLength = 5
+	index.Terms["module"] = &domain.TermStats{IDF: moduleIDF, Docs: map[string]*domain.DocTermStats{fileName: {TF: 1, Positions: modulePositions}}}
+	index.Terms["idx"] = &domain.TermStats{IDF: idxIDF, Docs: map[string]*domain.DocTermStats{fileName: {TF: 1, Positions: idxPositions}}}
 
 	return index
 }
