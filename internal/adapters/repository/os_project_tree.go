@@ -75,6 +75,14 @@ func (tree OSProjectTree) Exists(path string) (bool, error) {
 	return false, fmt.Errorf("failed to check path %q existence: got error %v, expected a readable filesystem", path, err)
 }
 
+func (tree OSProjectTree) RemoveAll(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("failed to remove path %q: got error %v, expected a removable directory tree", path, err)
+	}
+
+	return nil
+}
+
 func (tree OSProjectTree) WriteFile(path string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create parent directory for %q: got error %v, expected a writable path", path, err)
