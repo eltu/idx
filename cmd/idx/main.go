@@ -14,7 +14,8 @@ func main() {
 	projectTree := repository.NewOSProjectTree()
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	initCommand := services.NewInitCommandService(projectTree, matcherFactory, writer)
-	runner := cli.NewCommandRunner(os.Args, initCommand)
+	destroyCommand := services.NewDestroyCommandService(projectTree, writer)
+	runner := cli.NewCommandRunner(os.Args, initCommand, destroyCommand)
 
 	if err := runner.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())

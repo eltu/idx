@@ -2,32 +2,37 @@ package cli
 
 import "fmt"
 
-type initCommand interface {
+type runnableCommand interface {
 	Run() error
 }
 
 type CommandRunner struct {
-	arguments   []string
-	initCommand initCommand
+	arguments      []string
+	initCommand    runnableCommand
+	destroyCommand runnableCommand
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
-// Example: runner := NewCommandRunner(os.Args, initCommand)
-func NewCommandRunner(arguments []string, initCommand initCommand) CommandRunner {
+// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand)
+func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCommand runnableCommand) CommandRunner {
 	return CommandRunner{
-		arguments:   arguments,
-		initCommand: initCommand,
+		arguments:      arguments,
+		initCommand:    initCommand,
+		destroyCommand: destroyCommand,
 	}
 }
 
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [init]", runner.arguments)
+		return fmt.Errorf("missing command: got %v, expected one of [init destroy]", runner.arguments)
 	}
 
-	if runner.arguments[1] != "init" {
-		return fmt.Errorf("unsupported command %q: expected one of [init]", runner.arguments[1])
+	switch runner.arguments[1] {
+	case "init":
+		return runner.initCommand.Run()
+	case "destroy":
+		return runner.destroyCommand.Run()
+	default:
+		return fmt.Errorf("unsupported command %q: expected one of [init destroy]", runner.arguments[1])
 	}
-
-	return runner.initCommand.Run()
 }

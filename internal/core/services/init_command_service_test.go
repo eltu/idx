@@ -15,6 +15,7 @@ type fakeProjectTree struct {
 	gitRoot    string
 	readDirMap map[string][]domain.DirectoryEntry
 	existing   map[string]bool
+	removed    []string
 	writes     map[string]string
 	gitRootErr error
 }
@@ -25,6 +26,7 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 		gitRoot:    gitRoot,
 		readDirMap: map[string][]domain.DirectoryEntry{},
 		existing:   map[string]bool{},
+		removed:    []string{},
 		writes:     map[string]string{},
 	}
 }
@@ -52,6 +54,11 @@ func (tree *fakeProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, erro
 
 func (tree *fakeProjectTree) Exists(path string) (bool, error) {
 	return tree.existing[path], nil
+}
+
+func (tree *fakeProjectTree) RemoveAll(path string) error {
+	tree.removed = append(tree.removed, path)
+	return nil
 }
 
 func (tree *fakeProjectTree) WriteFile(path string, content []byte) error {
