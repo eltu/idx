@@ -5,15 +5,15 @@ import "math"
 // InvertedIndex represents a BM25 inverted index for a directory of files.
 // It maps terms to documents and frequencies for relevance scoring.
 type InvertedIndex struct {
-	DocumentCount    int                    `json:"documentCount"`
-	AverageDocLength float64                `json:"averageDocLength"`
-	Terms            map[string]*TermStats  `json:"terms"`
-	Documents        map[string]*DocStats   `json:"documents"`
+	DocumentCount    int                   `json:"documentCount"`
+	AverageDocLength float64               `json:"averageDocLength"`
+	Terms            map[string]*TermStats `json:"terms"`
+	Documents        map[string]*DocStats  `json:"documents"`
 }
 
 // TermStats holds statistical data for a single term across all documents.
 type TermStats struct {
-	IDF  float64                `json:"idf"`  // Inverse document frequency
+	IDF  float64                  `json:"idf"`  // Inverse document frequency
 	Docs map[string]*DocTermStats `json:"docs"` // docName -> term frequency in that doc
 }
 
@@ -87,5 +87,7 @@ func idfScore(docCount int, docFreq int) float64 {
 	if docFreq == 0 {
 		return 0
 	}
-	return math.Log(float64(docCount-docFreq+1) / float64(docFreq+1))
+
+	base := (float64(docCount) - float64(docFreq) + 0.5) / (float64(docFreq) + 0.5)
+	return math.Log1p(base)
 }
