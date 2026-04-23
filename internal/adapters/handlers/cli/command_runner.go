@@ -98,6 +98,8 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 			options.PrettyJSON = true
 		case "--matches-only", "--macthes-only":
 			options.MatchesOnly = true
+		case "--files-only":
+			options.FilesOnly = true
 		case "--limit":
 			parsedLimit, err := parseLimitOption(arguments, index)
 			if err != nil {

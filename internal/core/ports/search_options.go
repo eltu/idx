@@ -11,5 +11,6 @@ type SearchOptions struct {
 	Context     int
 	PrettyJSON  bool
 	MatchesOnly bool
+	FilesOnly   bool
 	Limit       int
 }

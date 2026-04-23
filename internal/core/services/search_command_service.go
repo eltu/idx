@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 
 	"idx/internal/core/domain"
@@ -103,11 +104,11 @@ func (service SearchCommandService) writeEmptySearchResults(options ports.Search
 
 func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions) error {
 	if options.Format == ports.SearchOutputJSON {
-		return service.writeResultsJSON(results, projectRoot, options.PrettyJSON)
+		return service.writeResultsJSON(results, projectRoot, options)
 	}
 
 	useANSI := true
-	return service.writeResults(results, projectRoot, terms, useANSI)
+	return service.writeResults(results, projectRoot, terms, useANSI, options)
 }
 
 func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
@@ -133,11 +134,47 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 
 func applySearchResultOptions(results []searchResult, options ports.SearchOptions) []searchResult {
 	filtered := results
-	if options.MatchesOnly {
+	if options.FilesOnly {
+		filtered = filesOnlyResults(filtered)
+	} else if options.MatchesOnly {
 		filtered = matchesOnlyResults(filtered)
 	}
 
 	return limitedResults(filtered, options.Limit)
+}
+
+func filesOnlyResults(results []searchResult) []searchResult {
+	// Use map to deduplicate by full path, keeping highest score.
+	uniqueFiles := make(map[string]searchResult)
+	for _, result := range results {
+		fullPath := result.directoryPath + "/" + result.fileName
+		if existing, exists := uniqueFiles[fullPath]; exists {
+			// Keep the result with the higher score
+			if result.score > existing.score {
+				uniqueFiles[fullPath] = searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: []matchedLine{}, score: result.score}
+			}
+		} else {
+			uniqueFiles[fullPath] = searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: []matchedLine{}, score: result.score}
+		}
+	}
+
+	// Convert map back to slice, maintaining order by score.
+	filtered := make([]searchResult, 0, len(uniqueFiles))
+	for _, result := range uniqueFiles {
+		filtered = append(filtered, result)
+	}
+
+	// Sort by score descending, then by filename.
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].score != filtered[j].score {
+			return filtered[i].score > filtered[j].score
+		}
+		iPath := filtered[i].directoryPath + "/" + filtered[i].fileName
+		jPath := filtered[j].directoryPath + "/" + filtered[j].fileName
+		return iPath < jPath
+	})
+
+	return filtered
 }
 
 func matchesOnlyResults(results []searchResult) []searchResult {
@@ -175,7 +212,24 @@ func limitedResults(results []searchResult, limit int) []searchResult {
 	return results[:limit]
 }
 
-func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool) error {
+func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {
+	if options.FilesOnly {
+		// For --files-only, just output the paths, one per line.
+		for _, result := range results {
+			projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
+			if err != nil {
+				return err
+			}
+
+			if err := service.output.WriteLine(projectRelativePath); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// Standard output with matches and context.
 	for _, result := range results {
 		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 		if err != nil {
