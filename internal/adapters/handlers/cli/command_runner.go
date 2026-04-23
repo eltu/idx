@@ -35,6 +35,8 @@ func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCo
 	}
 }
 
+// Run dispatches the CLI command based on the first argument.
+// Example: err := runner.Run()
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
 		return fmt.Errorf("missing command: got %v, expected one of [init destroy search]", runner.arguments)
@@ -77,26 +79,17 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		argument := arguments[index]
 		switch argument {
 		case "--format":
-			if index+1 >= len(arguments) {
-				return "", options, fmt.Errorf("missing --format value: got %q, expected one of [%s %s]", argument, ports.SearchOutputText, ports.SearchOutputJSON)
-			}
-
-			selectedFormat := arguments[index+1]
-			if selectedFormat != ports.SearchOutputText && selectedFormat != ports.SearchOutputJSON {
-				return "", options, fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", selectedFormat, ports.SearchOutputText, ports.SearchOutputJSON)
+			selectedFormat, err := parseFormatOption(arguments, index)
+			if err != nil {
+				return "", options, err
 			}
 
 			options.Format = selectedFormat
 			index++
 		case "--context":
-			if index+1 >= len(arguments) {
-				return "", options, fmt.Errorf("missing --context value: got %q, expected a non-negative integer", argument)
-			}
-
-			contextValue := arguments[index+1]
-			parsedContext, err := strconv.Atoi(contextValue)
-			if err != nil || parsedContext < 0 {
-				return "", options, fmt.Errorf("invalid --context value %q: expected a non-negative integer", contextValue)
+			parsedContext, err := parseContextOption(arguments, index)
+			if err != nil {
+				return "", options, err
 			}
 
 			options.Context = parsedContext
@@ -104,17 +97,60 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--json-pretty":
 			options.PrettyJSON = true
 		default:
-			if strings.HasPrefix(argument, "--") {
-				return "", options, fmt.Errorf("unsupported search option %q: expected --format <text|json>, --context <n>, or --json-pretty", argument)
+			if err := validateSearchOption(argument); err != nil {
+				return "", options, err
 			}
 
 			queryTerms = append(queryTerms, argument)
 		}
 	}
 
-	if options.PrettyJSON && options.Format != ports.SearchOutputJSON {
-		return "", options, fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, options.Format)
+	if err := validatePrettyJSONOption(options); err != nil {
+		return "", options, err
 	}
 
 	return strings.Join(queryTerms, " "), options, nil
+}
+
+func parseFormatOption(arguments []string, index int) (string, error) {
+	if index+1 >= len(arguments) {
+		return "", fmt.Errorf("missing --format value: got %q, expected one of [%s %s]", arguments[index], ports.SearchOutputText, ports.SearchOutputJSON)
+	}
+
+	selectedFormat := arguments[index+1]
+	if selectedFormat != ports.SearchOutputText && selectedFormat != ports.SearchOutputJSON {
+		return "", fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", selectedFormat, ports.SearchOutputText, ports.SearchOutputJSON)
+	}
+
+	return selectedFormat, nil
+}
+
+func parseContextOption(arguments []string, index int) (int, error) {
+	if index+1 >= len(arguments) {
+		return 0, fmt.Errorf("missing --context value: got %q, expected a non-negative integer", arguments[index])
+	}
+
+	contextValue := arguments[index+1]
+	parsedContext, err := strconv.Atoi(contextValue)
+	if err != nil || parsedContext < 0 {
+		return 0, fmt.Errorf("invalid --context value %q: expected a non-negative integer", contextValue)
+	}
+
+	return parsedContext, nil
+}
+
+func validateSearchOption(argument string) error {
+	if strings.HasPrefix(argument, "--") {
+		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --context <n>, or --json-pretty", argument)
+	}
+
+	return nil
+}
+
+func validatePrettyJSONOption(options ports.SearchOptions) error {
+	if options.PrettyJSON && options.Format != ports.SearchOutputJSON {
+		return fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, options.Format)
+	}
+
+	return nil
 }
