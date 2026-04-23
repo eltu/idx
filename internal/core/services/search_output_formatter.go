@@ -13,20 +13,32 @@ const (
 	ansiLightGreen = "\033[92m"
 )
 
-// coloredFilePath wraps path in light-blue ANSI codes for terminal display.
-func coloredFilePath(path string) string {
+// coloredFilePath wraps path in light-blue ANSI codes for terminal display when enabled.
+func coloredFilePath(path string, useANSI bool) string {
+	if !useANSI {
+		return path
+	}
+
 	return ansiLightBlue + path + ansiReset
 }
 
-// coloredLineNumber wraps a line number in light-green ANSI codes.
-func coloredLineNumber(n int) string {
+// coloredLineNumber wraps a line number in light-green ANSI codes when enabled.
+func coloredLineNumber(n int, useANSI bool) string {
+	if !useANSI {
+		return fmt.Sprintf("%d", n)
+	}
+
 	return fmt.Sprintf("%s%d%s", ansiLightGreen, n, ansiReset)
 }
 
 // highlightTermsInLine wraps each whole-word match
 // Matching is case-insensitive; original casing is preserved in the output.
 // Example: highlightTermsInLine("go search guide", []string{"go"}) → "\033[1;33mgo\033[0m search guide"
-func highlightTermsInLine(line string, terms []string) string {
+func highlightTermsInLine(line string, terms []string, useANSI bool) string {
+	if !useANSI {
+		return line
+	}
+
 	lower := strings.ToLower(line)
 
 	type span struct{ start, end int }

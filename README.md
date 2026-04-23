@@ -75,6 +75,9 @@ Usage:
 idx search tree
 idx search module idx
 idx search bm25 tokenizer
+idx search module idx --format json
+idx search module idx --format json --json-pretty
+idx search module idx --context 2
 ```
 
 Current behavior:
@@ -85,6 +88,10 @@ Current behavior:
 - Line matching is whole-word/token only (no mid-word substring matches).
 - Returns all lines in each file that contain at least one query term.
 - File paths are shown relative to the project root.
+- Optional `--format json` outputs a machine-readable JSON array.
+- Optional `--json-pretty` pretty-prints JSON output for humans (requires `--format json`).
+- Optional `--context <N>` includes `N` surrounding lines before/after each match.
+- Without options, output stays in the current human-friendly tree format.
 
 Output format:
 
