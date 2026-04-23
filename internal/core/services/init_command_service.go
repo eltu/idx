@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 
@@ -42,11 +43,24 @@ func (service InitCommandService) Run() error {
 	return service.runIndex()
 }
 
-func (service InitCommandService) RunWithInspect(inspect bool) error {
-	if inspect {
-		return service.runInspect()
+func (service InitCommandService) Inspect(indexPath string) error {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
-	return service.runIndex()
+
+	targetDirectory := filepath.Clean(filepath.Join(currentDir, filepath.FromSlash(path.Clean(indexPath))))
+	targetIndexPath := indexFilePath(targetDirectory)
+	hasIndex, err := service.projectTree.Exists(targetIndexPath)
+	if err != nil {
+		return err
+	}
+
+	if !hasIndex {
+		return fmt.Errorf("no index found at %q: run idx index first", targetIndexPath)
+	}
+
+	return service.writeInspectIndex(targetDirectory)
 }
 
 func (service InitCommandService) runIndex() error {
@@ -80,25 +94,6 @@ func (service InitCommandService) runIndex() error {
 	}
 
 	return service.output.WriteLine("✅ Index created. You can now run idx search.")
-}
-
-func (service InitCommandService) runInspect() error {
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-
-	currentIndexPath := indexFilePath(currentDir)
-	hasIndex, err := service.projectTree.Exists(currentIndexPath)
-	if err != nil {
-		return err
-	}
-
-	if !hasIndex {
-		return fmt.Errorf("no index found at %q: run idx index first", currentIndexPath)
-	}
-
-	return service.writeInspectIndex(currentDir)
 }
 
 func (service InitCommandService) writeInspectIndex(directoryPath string) error {

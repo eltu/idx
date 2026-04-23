@@ -51,7 +51,7 @@ JSON is retained only as a secondary reference/debug format in code, and binary 
 ## Operational Notes
 
 - The default repository is `BinaryIndexRepository`.
-- `idx index --debug` inspects the current directory binary index by decoding it and printing JSON.
+- `idx inspect <path>` inspects a directory binary index by decoding `<path>/.idx/index.idx` and printing JSON.
 - Re-running `idx index` regenerates indices in the binary format.
 
 ## Follow-Up Options

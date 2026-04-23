@@ -75,7 +75,7 @@ Run compiled binary:
 
 ## Available commands
 
-### 1) `index [--debug]`
+### 1) `index`
 
 Creates `.idx/index.idx` files starting from the current directory and traversing subdirectories recursively.
 
@@ -87,7 +87,6 @@ Usage:
 
 ```bash
 idx index
-idx index --debug
 ```
 
 Compatibility note: `idx init` remains available as an alias for `idx index`.
@@ -104,9 +103,24 @@ Output when an index already exists in the current directory:
 ℹ️ Este projeto ja possui indice. Voce pode executar idx search.
 ```
 
-Debug mode (`--debug`) prints the current directory index as pretty JSON after indexing (or when an index already exists).
+### 2) `inspect <path>`
 
-### 2) `search <terms...>`
+Reads the binary index at the provided path and prints it as pretty JSON.
+
+Usage:
+
+```bash
+idx inspect internal/
+idx inspect .
+```
+
+Rules:
+
+- The provided path is resolved from the current working directory.
+- The command expects an index file at `<path>/.idx/index.idx`.
+- This command is read-only and never creates or rewrites indexes.
+
+### 3) `search <terms...>`
 
 Searches terms across the whole project (all directories containing `.idx/index.idx`).
 
@@ -163,7 +177,7 @@ When no results are found:
 Nenhum resultado encontrado.
 ```
 
-### 3) `destroy`
+### 4) `destroy`
 
 Removes all `.idx` directories recursively from the project.
 
@@ -225,13 +239,13 @@ go test ./internal/core/services -run '^$' -bench BenchmarkSearchVsGrep -benchme
 No command:
 
 ```text
-missing command: got [...], expected one of [index init destroy search]
+missing command: got [...], expected one of [index init inspect destroy search]
 ```
 
 Invalid command:
 
 ```text
-unsupported command "<cmd>": expected one of [index init destroy search]
+unsupported command "<cmd>": expected one of [index init inspect destroy search]
 ```
 
 `search` without terms:
