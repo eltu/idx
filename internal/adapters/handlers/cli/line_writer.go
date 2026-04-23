@@ -10,7 +10,7 @@ type LineWriter struct {
 }
 
 // NewLineWriter adapts an io.Writer to the core output port.
-// Example: writer := NewLineWriter(os.Stdout)
+// Example: writer := NewLineWriter(os.Stdout).
 func NewLineWriter(target io.Writer) LineWriter {
 	return LineWriter{target: target}
 }

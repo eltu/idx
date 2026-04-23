@@ -11,7 +11,7 @@ import (
 type OSProjectTree struct{}
 
 // NewOSProjectTree builds the filesystem adapter used by init.
-// Example: projectTree := NewOSProjectTree()
+// Example: projectTree := NewOSProjectTree().
 func NewOSProjectTree() OSProjectTree {
 	return OSProjectTree{}
 }
@@ -84,11 +84,11 @@ func (tree OSProjectTree) RemoveAll(path string) error {
 }
 
 func (tree OSProjectTree) WriteFile(path string, content []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return fmt.Errorf("failed to create parent directory for %q: got error %v, expected a writable path", path, err)
 	}
 
-	if err := os.WriteFile(path, content, 0644); err != nil {
+	if err := os.WriteFile(path, content, 0600); err != nil {
 		return fmt.Errorf("failed to write file %q: got error %v, expected a writable path", path, err)
 	}
 

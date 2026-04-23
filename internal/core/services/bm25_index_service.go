@@ -15,7 +15,7 @@ func NewBM25IndexService() BM25IndexService {
 }
 
 // BuildIndex constructs a BM25 inverted index from a map of documents.
-// Example: index, _ := service.BuildIndex(map[string]string{"file.txt": "hello world"})
+// Example: index, _ := service.BuildIndex(map[string]string{"file.txt": "hello world"}).
 func (service BM25IndexService) BuildIndex(documents map[string]string) (*domain.InvertedIndex, error) {
 	if len(documents) == 0 {
 		return domain.NewInvertedIndex(), nil

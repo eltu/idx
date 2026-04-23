@@ -71,7 +71,7 @@ type fakeIgnoreMatcherFactory struct {
 }
 
 func (factory fakeIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatcher, error) {
-	return fakeIgnoreMatcher{ignoredPaths: factory.ignoredPaths}, nil
+	return fakeIgnoreMatcher(factory), nil
 }
 
 type fakeIgnoreMatcher struct {
@@ -94,9 +94,7 @@ func (reader fakeFileReader) ReadFile(path string) (string, error) {
 	return content, nil
 }
 
-type fakeBM25Indexer struct {
-	indices map[string]*domain.InvertedIndex
-}
+type fakeBM25Indexer struct{}
 
 func (indexer *fakeBM25Indexer) BuildIndex(documents map[string]string) (*domain.InvertedIndex, error) {
 	index := domain.NewInvertedIndex()
@@ -116,14 +114,6 @@ func (repo *fakeIndexRepository) SaveIndex(directoryPath string, index *domain.I
 	repo.savedIndices[directoryPath] = index
 	return nil
 }
-
-type fakeTextOutput struct{}
-
-func (output fakeTextOutput) WriteLine(text string) error {
-	return nil
-}
-
-
 
 func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")

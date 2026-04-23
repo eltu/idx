@@ -13,7 +13,7 @@ type DestroyCommandService struct {
 }
 
 // NewDestroyCommandService builds the destroy use case.
-// Example: service := NewDestroyCommandService(projectTree, output)
+// Example: service := NewDestroyCommandService(projectTree, output).
 func NewDestroyCommandService(projectTree ports.ProjectTree, output ports.TextOutput) DestroyCommandService {
 	return DestroyCommandService{
 		projectTree: projectTree,

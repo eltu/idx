@@ -32,12 +32,12 @@ func main() {
 	gob.Register(&domain.DocStats{})
 
 	// Open and decode the binary index
-	f, err := os.Open(indexPath)
+	f, err := os.Open(indexPath) //nolint:gosec
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var index domain.InvertedIndex
 	decoder := gob.NewDecoder(f)

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 
@@ -14,7 +15,7 @@ type gitIgnoreMatcher struct {
 }
 
 // NewGitIgnoreMatcherFactory builds the adapter that evaluates .gitignore rules.
-// Example: matcherFactory := NewGitIgnoreMatcherFactory()
+// Example: matcherFactory := NewGitIgnoreMatcherFactory().
 func NewGitIgnoreMatcherFactory() GitIgnoreMatcherFactory {
 	return GitIgnoreMatcherFactory{}
 }
@@ -29,7 +30,7 @@ func (factory GitIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatc
 }
 
 func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
-	command := exec.Command("git", "-C", matcher.projectRoot, "check-ignore", "-q", path)
+	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "-q", path) //nolint:gosec
 	err := command.Run()
 	if err == nil {
 		return true, nil
@@ -43,7 +44,7 @@ func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
 }
 
 func (matcher gitIgnoreMatcher) verifyGitBinary() error {
-	command := exec.Command("git", "-C", matcher.projectRoot, "rev-parse", "--git-dir")
+	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "rev-parse", "--git-dir") //nolint:gosec
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("failed to validate git project %q: got error %v, expected a directory with a readable git repository", matcher.projectRoot, err)
 	}

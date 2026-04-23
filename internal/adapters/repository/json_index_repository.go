@@ -40,7 +40,7 @@ func (repo *JSONIndexRepository) LoadIndex(directoryPath string) (*domain.Invert
 	indexPath := indexFilePath(directoryPath)
 
 	// Try to read the file
-	data, err := os.ReadFile(indexPath)
+	data, err := os.ReadFile(indexPath) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index file %q: got error %v, expected a readable file", indexPath, err)
 	}
