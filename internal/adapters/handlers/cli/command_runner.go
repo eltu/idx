@@ -14,6 +14,7 @@ type runnableCommand interface {
 
 type indexableCommand interface {
 	Run() error
+	Sync() error
 	Inspect(indexPath string) error
 }
 
@@ -44,12 +45,12 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [index init inspect destroy search]", runner.arguments)
+		return fmt.Errorf("missing command: got %v, expected one of [sync init inspect destroy search]", runner.arguments)
 	}
 
 	switch runner.arguments[1] {
-	case "index":
-		return runner.indexCommand.Run()
+	case "sync":
+		return runner.indexCommand.Sync()
 	case "init":
 		return runner.indexCommand.Run()
 	case "inspect":
@@ -59,7 +60,7 @@ func (runner CommandRunner) Run() error {
 	case "search":
 		return runner.runSearch()
 	default:
-		return fmt.Errorf("unsupported command %q: expected one of [index init inspect destroy search]", runner.arguments[1])
+		return fmt.Errorf("unsupported command %q: expected one of [sync init inspect destroy search]", runner.arguments[1])
 	}
 }
 

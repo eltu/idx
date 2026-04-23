@@ -30,7 +30,7 @@ func (factory GitIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatc
 }
 
 func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
-	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "-q", path) //nolint:gosec
+	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path) //nolint:gosec
 	err := command.Run()
 	if err == nil {
 		return true, nil

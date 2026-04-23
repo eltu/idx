@@ -74,7 +74,7 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 		return err
 	}
 
-	indexedDirectories, err := service.indexedDirectories(projectRoot)
+	indexedDirectories, err := indexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
 		return err
 	}
@@ -259,44 +259,6 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 		}
 
 		if err := service.output.WriteLine(""); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (service SearchCommandService) indexedDirectories(projectRoot string) ([]string, error) {
-	directories := make([]string, 0)
-	if err := service.collectIndexedDirectories(projectRoot, &directories); err != nil {
-		return nil, err
-	}
-
-	return directories, nil
-}
-
-func (service SearchCommandService) collectIndexedDirectories(directoryPath string, directories *[]string) error {
-	indexPath := filepath.Join(directoryPath, ".idx", "index.idx")
-	hasIndex, err := service.projectTree.Exists(indexPath)
-	if err != nil {
-		return err
-	}
-
-	if hasIndex {
-		*directories = append(*directories, directoryPath)
-	}
-
-	entries, err := service.projectTree.ReadDir(directoryPath)
-	if err != nil {
-		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir || entry.Name == ".git" || entry.Name == ".idx" {
-			continue
-		}
-
-		if err := service.collectIndexedDirectories(entry.Path, directories); err != nil {
 			return err
 		}
 	}

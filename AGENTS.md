@@ -1,3 +1,11 @@
+## Project Guidelines
+
+- Never use `grep` or `rg` to search within the project. Use the project's own search solution.
+- To search: `go run cmd/idx/main.go search "[TERM_TO_SEARCH]"`
+- Para uma saída simples com somente o nome do arquivo, utilize o comando `go run cmd/idx/main.go search "[TERM_TO_SEARCH] --files-only`
+- Se precisar de mais informação: prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters will return a valid JSON containing the matching file, line number, and the complete line string.
+- When more context is needed: add `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
+idx search module idx
 ## Code style
 
 - Functions: 4-20 lines. Split if longer.
