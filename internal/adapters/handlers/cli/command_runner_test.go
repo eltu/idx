@@ -8,9 +8,9 @@ import (
 )
 
 type fakeInitCommand struct {
-	runCalls    int
-	debugCalls  int
-	lastDebugOn bool
+	runCalls      int
+	inspectCalls  int
+	lastInspectOn bool
 }
 
 func (command *fakeInitCommand) Run() error {
@@ -18,9 +18,9 @@ func (command *fakeInitCommand) Run() error {
 	return nil
 }
 
-func (command *fakeInitCommand) RunWithDebug(debug bool) error {
-	command.debugCalls++
-	command.lastDebugOn = debug
+func (command *fakeInitCommand) RunWithInspect(inspect bool) error {
+	command.inspectCalls++
+	command.lastInspectOn = inspect
 	return nil
 }
 
@@ -67,8 +67,8 @@ func TestCommandRunnerRunExecutesInitCommand(t *testing.T) {
 		t.Fatalf("expected 1 run call, got %d", initCommand.runCalls)
 	}
 
-	if initCommand.debugCalls != 0 {
-		t.Fatalf("expected 0 debug calls, got %d", initCommand.debugCalls)
+	if initCommand.inspectCalls != 0 {
+		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
 	}
 
 	if destroyCommand.runCalls != 0 {
@@ -91,32 +91,32 @@ func TestCommandRunnerRunExecutesIndexCommand(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.debugCalls != 1 {
-		t.Fatalf("expected 1 debug call, got %d", initCommand.debugCalls)
+	if initCommand.inspectCalls != 1 {
+		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
 	}
 
-	if initCommand.lastDebugOn {
-		t.Fatal("expected debug false")
+	if initCommand.lastInspectOn {
+		t.Fatal("expected inspect false")
 	}
 }
 
-func TestCommandRunnerRunExecutesIndexCommandWithDebug(t *testing.T) {
+func TestCommandRunnerRunExecutesIndexCommandWithInspect(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "index", "--debug"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "index", "--inspect"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.debugCalls != 1 {
-		t.Fatalf("expected 1 debug call, got %d", initCommand.debugCalls)
+	if initCommand.inspectCalls != 1 {
+		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
 	}
 
-	if !initCommand.lastDebugOn {
-		t.Fatal("expected debug true")
+	if !initCommand.lastInspectOn {
+		t.Fatal("expected inspect true")
 	}
 }
 
@@ -395,7 +395,7 @@ func TestCommandRunnerRunRejectsUnsupportedIndexOption(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 
-	if initCommand.debugCalls != 0 {
-		t.Fatalf("expected 0 debug calls, got %d", initCommand.debugCalls)
+	if initCommand.inspectCalls != 0 {
+		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
 	}
 }

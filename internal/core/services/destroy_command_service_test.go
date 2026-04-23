@@ -1,7 +1,9 @@
 package services_test
 
 import (
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"idx/internal/core/domain"
@@ -70,5 +72,45 @@ func TestDestroyCommandServiceRunRequiresProjectRoot(t *testing.T) {
 
 	if len(tree.removed) != 0 {
 		t.Fatalf("expected no directories removed, got %d", len(tree.removed))
+	}
+}
+
+func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	apiDir := filepath.Join(rootDir, "cmd", "api")
+	coreDir := filepath.Join(rootDir, "internal", "core")
+	failingIdx := filepath.Join(apiDir, ".idx")
+
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".git", Path: filepath.Join(rootDir, ".git"), IsDir: true},
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "cmd", Path: filepath.Join(rootDir, "cmd"), IsDir: true},
+		{Name: "internal", Path: filepath.Join(rootDir, "internal"), IsDir: true},
+	}
+	tree.readDirMap[filepath.Join(rootDir, "cmd")] = []domain.DirectoryEntry{{Name: "api", Path: apiDir, IsDir: true}}
+	tree.readDirMap[apiDir] = []domain.DirectoryEntry{{Name: ".idx", Path: failingIdx, IsDir: true}}
+	tree.readDirMap[filepath.Join(rootDir, "internal")] = []domain.DirectoryEntry{{Name: "core", Path: coreDir, IsDir: true}}
+	tree.readDirMap[coreDir] = []domain.DirectoryEntry{{Name: ".idx", Path: filepath.Join(coreDir, ".idx"), IsDir: true}}
+	tree.removeErrs[failingIdx] = errors.New("permission denied")
+
+	output := &capturingTextOutput{}
+	service := services.NewDestroyCommandService(tree, output)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if len(tree.removed) != 3 {
+		t.Fatalf("expected 3 removal attempts, got %d", len(tree.removed))
+	}
+
+	if !strings.Contains(err.Error(), failingIdx) {
+		t.Fatalf("expected error to contain failing path %q, got %q", failingIdx, err.Error())
+	}
+
+	if len(output.lines) != 0 {
+		t.Fatalf("expected no success output on partial failure, got %v", output.lines)
 	}
 }
