@@ -96,6 +96,16 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 			index++
 		case "--json-pretty":
 			options.PrettyJSON = true
+		case "--matches-only", "--macthes-only":
+			options.MatchesOnly = true
+		case "--limit":
+			parsedLimit, err := parseLimitOption(arguments, index)
+			if err != nil {
+				return "", options, err
+			}
+
+			options.Limit = parsedLimit
+			index++
 		default:
 			if err := validateSearchOption(argument); err != nil {
 				return "", options, err
@@ -139,9 +149,23 @@ func parseContextOption(arguments []string, index int) (int, error) {
 	return parsedContext, nil
 }
 
+func parseLimitOption(arguments []string, index int) (int, error) {
+	if index+1 >= len(arguments) {
+		return 0, fmt.Errorf("missing --limit value: got %q, expected a positive integer", arguments[index])
+	}
+
+	limitValue := arguments[index+1]
+	parsedLimit, err := strconv.Atoi(limitValue)
+	if err != nil || parsedLimit <= 0 {
+		return 0, fmt.Errorf("invalid --limit value %q: expected a positive integer", limitValue)
+	}
+
+	return parsedLimit, nil
+}
+
 func validateSearchOption(argument string) error {
 	if strings.HasPrefix(argument, "--") {
-		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --context <n>, or --json-pretty", argument)
+		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, or --limit <n>", argument)
 	}
 
 	return nil
