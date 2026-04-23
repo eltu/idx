@@ -8,9 +8,9 @@ import (
 )
 
 type fakeInitCommand struct {
-	runCalls      int
-	inspectCalls  int
-	lastInspectOn bool
+	runCalls        int
+	inspectCalls    int
+	lastInspectPath string
 }
 
 func (command *fakeInitCommand) Run() error {
@@ -18,9 +18,9 @@ func (command *fakeInitCommand) Run() error {
 	return nil
 }
 
-func (command *fakeInitCommand) RunWithInspect(inspect bool) error {
+func (command *fakeInitCommand) Inspect(indexPath string) error {
 	command.inspectCalls++
-	command.lastInspectOn = inspect
+	command.lastInspectPath = indexPath
 	return nil
 }
 
@@ -91,20 +91,16 @@ func TestCommandRunnerRunExecutesIndexCommand(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.inspectCalls != 1 {
-		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
-	}
-
-	if initCommand.lastInspectOn {
-		t.Fatal("expected inspect false")
+	if initCommand.runCalls != 1 {
+		t.Fatalf("expected 1 run call, got %d", initCommand.runCalls)
 	}
 }
 
-func TestCommandRunnerRunExecutesIndexCommandWithInspect(t *testing.T) {
+func TestCommandRunnerRunExecutesInspectCommandWithPath(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "index", "--inspect"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "inspect", "internal/"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
@@ -115,8 +111,24 @@ func TestCommandRunnerRunExecutesIndexCommandWithInspect(t *testing.T) {
 		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
 	}
 
-	if !initCommand.lastInspectOn {
-		t.Fatal("expected inspect true")
+	if initCommand.lastInspectPath != "internal/" {
+		t.Fatalf("expected inspect path %q, got %q", "internal/", initCommand.lastInspectPath)
+	}
+}
+
+func TestCommandRunnerRunRejectsInspectWithoutPath(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "inspect"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if initCommand.inspectCalls != 0 {
+		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
 	}
 }
 
@@ -384,11 +396,11 @@ func TestCommandRunnerRunRejectsUnsupportedCommand(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunRejectsUnsupportedIndexOption(t *testing.T) {
+func TestCommandRunnerRunRejectsInspectWithOptionInsteadOfPath(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "index", "--json"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "inspect", "--json"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err == nil {

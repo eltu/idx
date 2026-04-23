@@ -14,7 +14,7 @@ type runnableCommand interface {
 
 type indexableCommand interface {
 	Run() error
-	RunWithInspect(inspect bool) error
+	Inspect(indexPath string) error
 }
 
 type searchableCommand interface {
@@ -44,30 +44,32 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [index init destroy search]", runner.arguments)
+		return fmt.Errorf("missing command: got %v, expected one of [index init inspect destroy search]", runner.arguments)
 	}
 
 	switch runner.arguments[1] {
 	case "index":
-		return runner.runIndex()
+		return runner.indexCommand.Run()
 	case "init":
 		return runner.indexCommand.Run()
+	case "inspect":
+		return runner.runInspect()
 	case "destroy":
 		return runner.destroyCommand.Run()
 	case "search":
 		return runner.runSearch()
 	default:
-		return fmt.Errorf("unsupported command %q: expected one of [index init destroy search]", runner.arguments[1])
+		return fmt.Errorf("unsupported command %q: expected one of [index init inspect destroy search]", runner.arguments[1])
 	}
 }
 
-func (runner CommandRunner) runIndex() error {
-	inspect, err := parseIndexArguments(runner.arguments[2:])
+func (runner CommandRunner) runInspect() error {
+	inspectPath, err := parseInspectArguments(runner.arguments[2:])
 	if err != nil {
 		return err
 	}
 
-	return runner.indexCommand.RunWithInspect(inspect)
+	return runner.indexCommand.Inspect(inspectPath)
 }
 
 func (runner CommandRunner) runSearch() error {
@@ -140,18 +142,17 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 	return strings.Join(queryTerms, " "), options, nil
 }
 
-func parseIndexArguments(arguments []string) (bool, error) {
-	inspect := false
-	for _, argument := range arguments {
-		switch argument {
-		case "--inspect":
-			inspect = true
-		default:
-			return false, fmt.Errorf("unsupported index option %q: expected only --inspect", argument)
-		}
+func parseInspectArguments(arguments []string) (string, error) {
+	if len(arguments) != 1 {
+		return "", fmt.Errorf("inspect requires exactly one path: got %v, expected idx inspect <path>", arguments)
 	}
 
-	return inspect, nil
+	inspectPath := strings.TrimSpace(arguments[0])
+	if inspectPath == "" || strings.HasPrefix(inspectPath, "--") {
+		return "", fmt.Errorf("invalid inspect path %q: expected idx inspect <path>", arguments[0])
+	}
+
+	return inspectPath, nil
 }
 
 func parseFormatOption(arguments []string, index int) (string, error) {

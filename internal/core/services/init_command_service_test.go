@@ -253,7 +253,7 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 	}
 }
 
-func TestInitCommandServiceRunWithInspectWritesIndexPayload(t *testing.T) {
+func TestInitCommandServiceInspectWritesIndexPayloadFromPath(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -276,7 +276,7 @@ func TestInitCommandServiceRunWithInspectWritesIndexPayload(t *testing.T) {
 
 	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
 
-	err := service.RunWithInspect(true)
+	err := service.Inspect(".")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -295,7 +295,7 @@ func TestInitCommandServiceRunWithInspectWritesIndexPayload(t *testing.T) {
 	}
 }
 
-func TestInitCommandServiceRunWithInspectFailsWhenNoIndexExists(t *testing.T) {
+func TestInitCommandServiceInspectFailsWhenNoIndexExists(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
@@ -306,7 +306,7 @@ func TestInitCommandServiceRunWithInspectFailsWhenNoIndexExists(t *testing.T) {
 
 	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
 
-	err := service.RunWithInspect(true)
+	err := service.Inspect("internal")
 	if err == nil {
 		t.Fatal("expected an error when no index exists, got nil")
 	}
@@ -317,6 +317,42 @@ func TestInitCommandServiceRunWithInspectFailsWhenNoIndexExists(t *testing.T) {
 
 	if len(output.lines) != 0 {
 		t.Fatalf("expected no output lines on failure, got %d", len(output.lines))
+	}
+}
+
+func TestInitCommandServiceInspectLoadsNestedIndexFromRelativePath(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	nestedDir := filepath.Join(rootDir, "internal")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(nestedDir, ".idx", "index.idx")] = true
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	preBuiltIndex := domain.NewInvertedIndex()
+	preBuiltIndex.DocumentCount = 2
+	indexRepo.savedIndices[nestedDir] = preBuiltIndex
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Inspect("internal/")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 1 {
+		t.Fatalf("expected 1 output line, got %d", len(output.lines))
+	}
+
+	var payload domain.InvertedIndex
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON inspect payload, got %v", err)
+	}
+
+	if payload.DocumentCount != 2 {
+		t.Fatalf("expected inspect payload with 2 documents, got %d", payload.DocumentCount)
 	}
 }
 
