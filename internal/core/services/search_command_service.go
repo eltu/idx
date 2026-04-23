@@ -2,10 +2,8 @@ package services
 
 import (
 	"fmt"
-	"math"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"idx/internal/core/domain"
@@ -54,10 +52,14 @@ func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOut
 	}
 }
 
+// Run executes search with default options.
+// Example: err := service.Run("module idx")
 func (service SearchCommandService) Run(query string) error {
 	return service.RunWithOptions(query, ports.SearchOptions{})
 }
 
+// RunWithOptions executes search with explicit output and context options.
+// Example: err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON})
 func (service SearchCommandService) RunWithOptions(query string, options ports.SearchOptions) error {
 	normalizedOptions := normalizedSearchOptions(options)
 
@@ -83,22 +85,26 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 	}
 
 	if len(results) == 0 {
-		if normalizedOptions.Format == ports.SearchOutputJSON {
-			if normalizedOptions.PrettyJSON {
-				return service.output.WriteLine("[]")
-			}
-
-			return service.output.WriteLine("[]")
-		}
-
-		return service.output.WriteLine("Nenhum resultado encontrado.")
+		return service.writeEmptySearchResults(normalizedOptions)
 	}
 
-	if normalizedOptions.Format == ports.SearchOutputJSON {
-		return service.writeResultsJSON(results, projectRoot, normalizedOptions.PrettyJSON)
+	return service.writeSearchResults(results, projectRoot, terms, normalizedOptions)
+}
+
+func (service SearchCommandService) writeEmptySearchResults(options ports.SearchOptions) error {
+	if options.Format == ports.SearchOutputJSON {
+		return service.output.WriteLine("[]")
 	}
 
-	useANSI := normalizedOptions.Format != ports.SearchOutputJSON
+	return service.output.WriteLine("Nenhum resultado encontrado.")
+}
+
+func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions) error {
+	if options.Format == ports.SearchOutputJSON {
+		return service.writeResultsJSON(results, projectRoot, options.PrettyJSON)
+	}
+
+	useANSI := true
 	return service.writeResults(results, projectRoot, terms, useANSI)
 }
 
@@ -327,279 +333,6 @@ func relativeResultPath(projectRoot string, directoryPath string, documentName s
 	}
 
 	return formattedPath, nil
-}
-
-func matchingLinesInContent(content string, terms []string, contextSize int) []matchedLine {
-	lines := strings.Split(content, "\n")
-	matchedIndexes := make(map[int]struct{})
-	for index, line := range lines {
-		if lineContainsAnyTerm(line, terms) {
-			matchedIndexes[index] = struct{}{}
-		}
-	}
-
-	if len(matchedIndexes) == 0 {
-		return []matchedLine{}
-	}
-
-	if contextSize <= 0 {
-		matches := make([]matchedLine, 0, len(matchedIndexes))
-		for index, line := range lines {
-			if _, exists := matchedIndexes[index]; !exists {
-				continue
-			}
-
-			matches = append(matches, matchedLine{lineNumber: index + 1, content: line, isMatch: true})
-		}
-
-		return matches
-	}
-
-	includedIndexes := make(map[int]struct{})
-	for index := range matchedIndexes {
-		start := index - contextSize
-		if start < 0 {
-			start = 0
-		}
-
-		end := index + contextSize
-		if end >= len(lines) {
-			end = len(lines) - 1
-		}
-
-		for contextIndex := start; contextIndex <= end; contextIndex++ {
-			includedIndexes[contextIndex] = struct{}{}
-		}
-	}
-
-	result := make([]matchedLine, 0, len(includedIndexes))
-	for index, line := range lines {
-		if _, exists := includedIndexes[index]; !exists {
-			continue
-		}
-
-		_, isMatch := matchedIndexes[index]
-		result = append(result, matchedLine{lineNumber: index + 1, content: line, isMatch: isMatch})
-	}
-
-	return result
-}
-
-// lineContainsAnyTerm returns true when the line contains at least one term as a whole word token.
-// Whole-word is defined by the same character class as the tokenizer: [a-zA-Z0-9_].
-func lineContainsAnyTerm(line string, terms []string) bool {
-	lower := strings.ToLower(line)
-	for _, term := range terms {
-		if lineContainsTerm(lower, term) {
-			return true
-		}
-	}
-	return false
-}
-
-func lineContainsTerm(lowerLine string, term string) bool {
-	start := 0
-	for {
-		idx := strings.Index(lowerLine[start:], term)
-		if idx < 0 {
-			return false
-		}
-		abs := start + idx
-		before := abs == 0 || !isWordChar(lowerLine[abs-1])
-		after := abs+len(term) == len(lowerLine) || !isWordChar(lowerLine[abs+len(term)])
-		if before && after {
-			return true
-		}
-		start = abs + 1
-	}
-}
-
-func isWordChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
-}
-
-func sortResults(results []searchResult) {
-	for i := 1; i < len(results); i++ {
-		for j := i; j > 0; j-- {
-			left, right := results[j-1], results[j]
-			if left.score > right.score {
-				break
-			}
-			if left.score == right.score {
-				leftPath := filepath.Join(left.directoryPath, left.fileName)
-				rightPath := filepath.Join(right.directoryPath, right.fileName)
-				if leftPath <= rightPath {
-					break
-				}
-			}
-			results[j-1], results[j] = results[j], results[j-1]
-		}
-	}
-}
-
-// normalizeScores scales all scores in-place to [0, 1] using min-max.
-// Each directory is an independent BM25 corpus: small directories produce
-// higher IDF than large ones, making raw scores incomparable across directories.
-func normalizeScores(scores map[string]float64) {
-	if len(scores) == 0 {
-		return
-	}
-	minScore, maxScore := scoreRange(scores)
-	spread := maxScore - minScore
-	if spread == 0 {
-		for key := range scores {
-			scores[key] = 1.0
-		}
-		return
-	}
-	for key, score := range scores {
-		scores[key] = (score - minScore) / spread
-	}
-}
-
-func scoreRange(scores map[string]float64) (float64, float64) {
-	minScore := math.MaxFloat64
-	maxScore := -math.MaxFloat64
-	for _, score := range scores {
-		if score < minScore {
-			minScore = score
-		}
-		if score > maxScore {
-			maxScore = score
-		}
-	}
-	return minScore, maxScore
-}
-
-func scoreDocuments(index *domain.InvertedIndex, terms []string) map[string]float64 {
-	matchingDocuments := documentsContainingAllTerms(index, terms)
-	if len(matchingDocuments) == 0 {
-		return map[string]float64{}
-	}
-
-	scores := make(map[string]float64)
-	for _, term := range terms {
-		termStats := index.Terms[term]
-		if termStats == nil {
-			continue
-		}
-
-		addTermScores(scores, index, termStats, matchingDocuments)
-	}
-
-	applyProximityBonus(scores, index, terms, matchingDocuments)
-
-	return scores
-}
-
-func applyProximityBonus(scores map[string]float64, index *domain.InvertedIndex, terms []string, matchingDocuments map[string]struct{}) {
-	for filePath := range matchingDocuments {
-		scores[filePath] += proximityBonusForDocument(index, filePath, terms)
-	}
-}
-
-func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, terms []string) float64 {
-	if len(terms) < 2 {
-		return 0
-	}
-
-	totalPairScore := 0.0
-	pairCount := 0
-	for termIndex := 0; termIndex < len(terms)-1; termIndex++ {
-		distance, ok := minimumDistanceForTermPair(index, filePath, terms[termIndex], terms[termIndex+1])
-		if !ok {
-			continue
-		}
-
-		totalPairScore += 1.0 / (1.0 + float64(distance))
-		pairCount++
-	}
-
-	if pairCount == 0 {
-		return 0
-	}
-
-	return proximityWeight * (totalPairScore / float64(pairCount))
-}
-
-func minimumDistanceForTermPair(index *domain.InvertedIndex, filePath string, leftTerm string, rightTerm string) (int, bool) {
-	leftDocTerm := index.Terms[leftTerm].Docs[filePath]
-	rightDocTerm := index.Terms[rightTerm].Docs[filePath]
-	if len(leftDocTerm.Positions) == 0 || len(rightDocTerm.Positions) == 0 {
-		return 0, false
-	}
-
-	minDistance := math.MaxInt
-	for _, leftPos := range leftDocTerm.Positions {
-		for _, rightPos := range rightDocTerm.Positions {
-			distance := absInt(leftPos - rightPos)
-			if distance < minDistance {
-				minDistance = distance
-			}
-		}
-	}
-
-	return minDistance, true
-}
-
-func absInt(value int) int {
-	if value < 0 {
-		return -value
-	}
-
-	return value
-}
-
-func documentsContainingAllTerms(index *domain.InvertedIndex, terms []string) map[string]struct{} {
-	if len(terms) == 0 {
-		return map[string]struct{}{}
-	}
-
-	firstTermStats := index.Terms[terms[0]]
-	if firstTermStats == nil {
-		return map[string]struct{}{}
-	}
-
-	matchingDocuments := make(map[string]struct{})
-	for filePath := range firstTermStats.Docs {
-		matchingDocuments[filePath] = struct{}{}
-	}
-
-	for _, term := range terms[1:] {
-		termStats := index.Terms[term]
-		if termStats == nil {
-			return map[string]struct{}{}
-		}
-
-		filterDocumentsByTerm(matchingDocuments, termStats)
-	}
-
-	return matchingDocuments
-}
-
-func filterDocumentsByTerm(matchingDocuments map[string]struct{}, termStats *domain.TermStats) {
-	for filePath := range matchingDocuments {
-		if _, exists := termStats.Docs[filePath]; exists {
-			continue
-		}
-
-		delete(matchingDocuments, filePath)
-	}
-}
-
-func addTermScores(scores map[string]float64, index *domain.InvertedIndex, termStats *domain.TermStats, matchingDocuments map[string]struct{}) {
-	for filePath, docTerm := range termStats.Docs {
-		if _, exists := matchingDocuments[filePath]; !exists {
-			continue
-		}
-
-		docStats := index.Documents[filePath]
-		if docStats == nil {
-			continue
-		}
-
-		scores[filePath] += domain.BM25Score(docTerm.TF, termStats.IDF, docStats.Length, index.AverageDocLength, bm25K1, bm25B)
-	}
 }
 
 func uniqueQueryTerms(query string) []string {
