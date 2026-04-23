@@ -14,7 +14,7 @@ type runnableCommand interface {
 
 type indexableCommand interface {
 	Run() error
-	RunWithDebug(debug bool) error
+	RunWithInspect(inspect bool) error
 }
 
 type searchableCommand interface {
@@ -62,12 +62,12 @@ func (runner CommandRunner) Run() error {
 }
 
 func (runner CommandRunner) runIndex() error {
-	debug, err := parseIndexArguments(runner.arguments[2:])
+	inspect, err := parseIndexArguments(runner.arguments[2:])
 	if err != nil {
 		return err
 	}
 
-	return runner.indexCommand.RunWithDebug(debug)
+	return runner.indexCommand.RunWithInspect(inspect)
 }
 
 func (runner CommandRunner) runSearch() error {
@@ -141,17 +141,17 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 }
 
 func parseIndexArguments(arguments []string) (bool, error) {
-	debug := false
+	inspect := false
 	for _, argument := range arguments {
 		switch argument {
-		case "--debug":
-			debug = true
+		case "--inspect":
+			inspect = true
 		default:
-			return false, fmt.Errorf("unsupported index option %q: expected only --debug", argument)
+			return false, fmt.Errorf("unsupported index option %q: expected only --inspect", argument)
 		}
 	}
 
-	return debug, nil
+	return inspect, nil
 }
 
 func parseFormatOption(arguments []string, index int) (string, error) {

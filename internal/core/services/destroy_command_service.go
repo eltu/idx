@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -49,6 +50,8 @@ func (service DestroyCommandService) destroyIndexes(directoryPath string) error 
 		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
 	}
 
+	collectedErrors := make([]error, 0)
+
 	for _, entry := range entries {
 		if entry.Name == ".git" {
 			continue
@@ -56,7 +59,8 @@ func (service DestroyCommandService) destroyIndexes(directoryPath string) error 
 
 		if entry.IsDir && entry.Name == ".idx" {
 			if err := service.projectTree.RemoveAll(entry.Path); err != nil {
-				return err
+				collectedErrors = append(collectedErrors, fmt.Errorf("failed to remove index directory %q: got error %v, expected a removable .idx directory", entry.Path, err))
+				continue
 			}
 
 			continue
@@ -64,12 +68,12 @@ func (service DestroyCommandService) destroyIndexes(directoryPath string) error 
 
 		if entry.IsDir {
 			if err := service.destroyIndexes(entry.Path); err != nil {
-				return err
+				collectedErrors = append(collectedErrors, err)
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(collectedErrors...)
 }
 
 func isProjectRoot(currentDir string, projectRoot string) bool {

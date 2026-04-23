@@ -39,10 +39,17 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 }
 
 func (service InitCommandService) Run() error {
-	return service.RunWithDebug(false)
+	return service.runIndex()
 }
 
-func (service InitCommandService) RunWithDebug(debug bool) error {
+func (service InitCommandService) RunWithInspect(inspect bool) error {
+	if inspect {
+		return service.runInspect()
+	}
+	return service.runIndex()
+}
+
+func (service InitCommandService) runIndex() error {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
@@ -55,15 +62,7 @@ func (service InitCommandService) RunWithDebug(debug bool) error {
 	}
 
 	if hasIndex {
-		if err := service.output.WriteLine("ℹ️ Este projeto ja possui indice. Voce pode executar idx search."); err != nil {
-			return err
-		}
-
-		if !debug {
-			return nil
-		}
-
-		return service.writeDebugIndex(currentDir)
+		return service.output.WriteLine("ℹ️ Este projeto ja possui indice. Voce pode executar idx search.")
 	}
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
@@ -80,18 +79,29 @@ func (service InitCommandService) RunWithDebug(debug bool) error {
 		return err
 	}
 
-	if err := service.output.WriteLine("✅ Index created. You can now run idx search."); err != nil {
+	return service.output.WriteLine("✅ Index created. You can now run idx search.")
+}
+
+func (service InitCommandService) runInspect() error {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+
+	currentIndexPath := indexFilePath(currentDir)
+	hasIndex, err := service.projectTree.Exists(currentIndexPath)
+	if err != nil {
 		return err
 	}
 
-	if !debug {
-		return nil
+	if !hasIndex {
+		return fmt.Errorf("no index found at %q: run idx index first", currentIndexPath)
 	}
 
-	return service.writeDebugIndex(currentDir)
+	return service.writeInspectIndex(currentDir)
 }
 
-func (service InitCommandService) writeDebugIndex(directoryPath string) error {
+func (service InitCommandService) writeInspectIndex(directoryPath string) error {
 	index, err := service.indexRepo.LoadIndex(directoryPath)
 	if err != nil {
 		return err

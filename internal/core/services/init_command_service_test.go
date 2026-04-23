@@ -17,6 +17,7 @@ type fakeProjectTree struct {
 	readDirMap map[string][]domain.DirectoryEntry
 	existing   map[string]bool
 	removed    []string
+	removeErrs map[string]error
 	writes     map[string]string
 	gitRootErr error
 }
@@ -28,6 +29,7 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 		readDirMap: map[string][]domain.DirectoryEntry{},
 		existing:   map[string]bool{},
 		removed:    []string{},
+		removeErrs: map[string]error{},
 		writes:     map[string]string{},
 	}
 }
@@ -59,6 +61,10 @@ func (tree *fakeProjectTree) Exists(path string) (bool, error) {
 
 func (tree *fakeProjectTree) RemoveAll(path string) error {
 	tree.removed = append(tree.removed, path)
+	if err, hasError := tree.removeErrs[path]; hasError {
+		return err
+	}
+
 	return nil
 }
 
@@ -247,9 +253,10 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 	}
 }
 
-func TestInitCommandServiceRunWithDebugWritesIndexPayload(t *testing.T) {
+func TestInitCommandServiceRunWithInspectWritesIndexPayload(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
 	output := &capturingTextOutput{}
 	fileReader := fakeFileReader{files: map[string]string{
@@ -262,28 +269,54 @@ func TestInitCommandServiceRunWithDebugWritesIndexPayload(t *testing.T) {
 		{Name: "allowed.txt", Path: filepath.Join(rootDir, "allowed.txt"), IsDir: false},
 	}
 
+	// Pre-populate the index so inspect can load it
+	preBuiltIndex := domain.NewInvertedIndex()
+	preBuiltIndex.DocumentCount = 1
+	indexRepo.savedIndices[rootDir] = preBuiltIndex
+
 	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
 
-	err := service.RunWithDebug(true)
+	err := service.RunWithInspect(true)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 output lines, got %d", len(output.lines))
-	}
-
-	if output.lines[0] != "✅ Index created. You can now run idx search." {
-		t.Fatalf("unexpected output message %q", output.lines[0])
+	if len(output.lines) != 1 {
+		t.Fatalf("expected 1 output line, got %d", len(output.lines))
 	}
 
 	var payload domain.InvertedIndex
-	if err := json.Unmarshal([]byte(output.lines[1]), &payload); err != nil {
-		t.Fatalf("expected valid JSON debug payload, got %v", err)
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON inspect payload, got %v", err)
 	}
 
 	if payload.DocumentCount != 1 {
-		t.Fatalf("expected debug payload with 1 document, got %d", payload.DocumentCount)
+		t.Fatalf("expected inspect payload with 1 document, got %d", payload.DocumentCount)
+	}
+}
+
+func TestInitCommandServiceRunWithInspectFailsWhenNoIndexExists(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.RunWithInspect(true)
+	if err == nil {
+		t.Fatal("expected an error when no index exists, got nil")
+	}
+
+	if len(indexRepo.savedIndices) != 0 {
+		t.Fatalf("expected no index saves (inspect is read-only), got %d", len(indexRepo.savedIndices))
+	}
+
+	if len(output.lines) != 0 {
+		t.Fatalf("expected no output lines on failure, got %d", len(output.lines))
 	}
 }
 
