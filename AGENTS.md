@@ -21,7 +21,7 @@
 
 ## Tests
 
-- Tests run with a single command: `<project-specific>`.
+- Tests run with a single command: `make test`.
 - Every new function gets a test. Bug fixes get a regression test.
 - Mock external I/O (API, DB, filesystem) with named fake classes,
   not inline stubs.
@@ -64,7 +64,8 @@
 
 ## Formatting
 
-- Use the language default formatter (`gofmt`). Don't discuss style beyond that.
+- Use the language default formatter (`gofmt`). Run with `make fmt`.
+- Don't discuss style beyond that.
 
 ## CLI Output
 

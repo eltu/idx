@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -50,7 +51,7 @@ func BenchmarkSearchVsGrep(b *testing.B) {
 
 		b.Run(spec.name+"/cli", func(b *testing.B) {
 			for iteration := 0; iteration < b.N; iteration++ {
-				command := exec.Command(binaryPath, "search", "needle")
+				command := exec.CommandContext(context.Background(), binaryPath, "search", "needle") //nolint:gosec
 				command.Dir = repositoryPath
 				command.Stdout = io.Discard
 				command.Stderr = io.Discard
@@ -62,7 +63,7 @@ func BenchmarkSearchVsGrep(b *testing.B) {
 
 		b.Run(spec.name+"/grep", func(b *testing.B) {
 			for iteration := 0; iteration < b.N; iteration++ {
-				command := exec.Command("grep", "-Rnw", "--exclude-dir=.git", "--exclude-dir=.idx", "needle", ".")
+				command := exec.CommandContext(context.Background(), "grep", "-Rnw", "--exclude-dir=.git", "--exclude-dir=.idx", "needle", ".")
 				command.Dir = repositoryPath
 				command.Stdout = io.Discard
 				command.Stderr = io.Discard
@@ -87,7 +88,7 @@ func benchmarkRepoRoot(b testing.TB) string {
 func buildBenchmarkBinary(b testing.TB, repoRoot string) string {
 	b.Helper()
 	binaryPath := filepath.Join(b.TempDir(), "idx-bench")
-	command := exec.Command("go", "build", "-o", binaryPath, "./cmd/idx")
+	command := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/idx") //nolint:gosec
 	command.Dir = repoRoot
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
@@ -101,11 +102,11 @@ func buildBenchmarkBinary(b testing.TB, repoRoot string) string {
 func createBenchmarkRepository(b testing.TB, spec benchmarkCorpusSpec) string {
 	b.Helper()
 	repositoryPath := filepath.Join(b.TempDir(), spec.name)
-	if err := os.MkdirAll(repositoryPath, 0755); err != nil {
+	if err := os.MkdirAll(repositoryPath, 0750); err != nil {
 		b.Fatalf("expected temp repository creation to succeed, got %v", err)
 	}
 
-	gitInit := exec.Command("git", "init", "-q")
+	gitInit := exec.CommandContext(context.Background(), "git", "init", "-q") //nolint:gosec
 	gitInit.Dir = repositoryPath
 	gitInit.Stdout = io.Discard
 	gitInit.Stderr = io.Discard
@@ -115,14 +116,14 @@ func createBenchmarkRepository(b testing.TB, spec benchmarkCorpusSpec) string {
 
 	for directory := 1; directory <= spec.directories; directory++ {
 		directoryPath := filepath.Join(repositoryPath, fmt.Sprintf("dir%d", directory))
-		if err := os.MkdirAll(directoryPath, 0755); err != nil {
+		if err := os.MkdirAll(directoryPath, 0750); err != nil {
 			b.Fatalf("expected corpus directory creation to succeed, got %v", err)
 		}
 
 		for file := 1; file <= spec.filesPerDir; file++ {
 			content := benchmarkFileContent(spec.filesPerDir, directory, file)
 			filePath := filepath.Join(directoryPath, fmt.Sprintf("file%d.txt", file))
-			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			if err := os.WriteFile(filePath, []byte(content), 0600); err != nil {
 				b.Fatalf("expected corpus file write to succeed, got %v", err)
 			}
 		}
@@ -208,5 +209,5 @@ func (tree benchmarkProjectTree) RemoveAll(path string) error {
 }
 
 func (tree benchmarkProjectTree) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0600)
 }

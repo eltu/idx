@@ -35,16 +35,16 @@ func (repo *BinaryIndexRepository) SaveIndex(directoryPath string, index *domain
 	indexDir := filepath.Dir(indexPath)
 
 	// Create directory structure if needed
-	if err := os.MkdirAll(indexDir, 0755); err != nil {
+	if err := os.MkdirAll(indexDir, 0750); err != nil {
 		return fmt.Errorf("failed to create index directory %q: got error %v, expected writable path", indexDir, err)
 	}
 
 	// Create file for binary writing
-	f, err := os.Create(indexPath)
+	f, err := os.Create(indexPath) //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("failed to create index file %q: got error %v, expected writable path", indexPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Encode index to binary format using gob
 	encoder := gob.NewEncoder(f)
@@ -59,11 +59,11 @@ func (repo *BinaryIndexRepository) SaveIndex(directoryPath string, index *domain
 func (repo *BinaryIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
 	indexPath := indexFilePath(directoryPath)
 
-	f, err := os.Open(indexPath)
+	f, err := os.Open(indexPath) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index file %q: got error %v, expected readable file", indexPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var index domain.InvertedIndex
 	decoder := gob.NewDecoder(f)

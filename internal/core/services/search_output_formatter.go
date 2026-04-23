@@ -33,7 +33,7 @@ func coloredLineNumber(n int, useANSI bool) string {
 
 // highlightTermsInLine wraps each whole-word match
 // Matching is case-insensitive; original casing is preserved in the output.
-// Example: highlightTermsInLine("go search guide", []string{"go"}) → "\033[1;33mgo\033[0m search guide"
+// Example: highlightTermsInLine("go search guide", []string{"go"}) → "\033[1;33mgo\033[0m search guide".
 func highlightTermsInLine(line string, terms []string, useANSI bool) string {
 	if !useANSI {
 		return line

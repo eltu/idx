@@ -25,7 +25,7 @@ type CommandRunner struct {
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
-// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand)
+// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand).
 func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCommand runnableCommand, searchCommand searchableCommand) CommandRunner {
 	return CommandRunner{
 		arguments:      arguments,
@@ -36,7 +36,7 @@ func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCo
 }
 
 // Run dispatches the CLI command based on the first argument.
-// Example: err := runner.Run()
+// Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
 		return fmt.Errorf("missing command: got %v, expected one of [init destroy search]", runner.arguments)

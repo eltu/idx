@@ -42,7 +42,7 @@ type matchedLine struct {
 }
 
 // NewSearchCommandService builds the search use case.
-// Example: service := NewSearchCommandService(projectTree, output, indexRepo)
+// Example: service := NewSearchCommandService(projectTree, output, indexRepo).
 func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOutput, fileReader ports.FileReader, indexRepo searchableIndexRepository) SearchCommandService {
 	return SearchCommandService{
 		projectTree: projectTree,
@@ -53,13 +53,13 @@ func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOut
 }
 
 // Run executes search with default options.
-// Example: err := service.Run("module idx")
+// Example: err := service.Run("module idx").
 func (service SearchCommandService) Run(query string) error {
 	return service.RunWithOptions(query, ports.SearchOptions{})
 }
 
 // RunWithOptions executes search with explicit output and context options.
-// Example: err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON})
+// Example: err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON}).
 func (service SearchCommandService) RunWithOptions(query string, options ports.SearchOptions) error {
 	normalizedOptions := normalizedSearchOptions(options)
 

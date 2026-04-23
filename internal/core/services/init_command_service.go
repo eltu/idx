@@ -24,7 +24,7 @@ type IndexRepository interface {
 }
 
 // NewInitCommandService builds the init use case.
-// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo)
+// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo).
 func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo IndexRepository) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
