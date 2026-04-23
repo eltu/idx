@@ -30,7 +30,6 @@ make build
 Generated binaries:
 
 - bin/idx
-- bin/idx-debug
 
 Run tests:
 
@@ -76,7 +75,7 @@ Run compiled binary:
 
 ## Available commands
 
-### 1) `init`
+### 1) `index [--debug]`
 
 Creates `.idx/index.idx` files starting from the current directory and traversing subdirectories recursively.
 
@@ -87,8 +86,11 @@ Creates `.idx/index.idx` files starting from the current directory and traversin
 Usage:
 
 ```bash
-idx init
+idx index
+idx index --debug
 ```
+
+Compatibility note: `idx init` remains available as an alias for `idx index`.
 
 Success output:
 
@@ -101,6 +103,8 @@ Output when an index already exists in the current directory:
 ```text
 ℹ️ Este projeto ja possui indice. Voce pode executar idx search.
 ```
+
+Debug mode (`--debug`) prints the current directory index as pretty JSON after indexing (or when an index already exists).
 
 ### 2) `search <terms...>`
 
@@ -198,11 +202,11 @@ Quick examples:
 
 ## Recommended workflow
 
-1. In your Git project, run `idx init` once.
+1. In your Git project, run `idx index` once.
 2. During development, use `idx search <terms>`.
 3. Before pushing changes, run `make check`.
 4. Build binaries with `make build` when needed.
-5. Re-run `idx init` whenever you want to regenerate indexes.
+5. Re-run `idx index` whenever you want to regenerate indexes.
 6. Run `idx destroy` to clean index metadata.
 
 ## Benchmark
@@ -221,13 +225,13 @@ go test ./internal/core/services -run '^$' -bench BenchmarkSearchVsGrep -benchme
 No command:
 
 ```text
-missing command: got [...], expected one of [init destroy search]
+missing command: got [...], expected one of [index init destroy search]
 ```
 
 Invalid command:
 
 ```text
-unsupported command "<cmd>": expected one of [init destroy search]
+unsupported command "<cmd>": expected one of [index init destroy search]
 ```
 
 `search` without terms:

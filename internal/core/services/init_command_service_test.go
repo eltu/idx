@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -113,6 +114,15 @@ type fakeIndexRepository struct {
 func (repo *fakeIndexRepository) SaveIndex(directoryPath string, index *domain.InvertedIndex) error {
 	repo.savedIndices[directoryPath] = index
 	return nil
+}
+
+func (repo *fakeIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
+	index, ok := repo.savedIndices[directoryPath]
+	if !ok {
+		return nil, errors.New("index not found")
+	}
+
+	return index, nil
 }
 
 func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
@@ -234,6 +244,46 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 
 	if len(indexRepo.savedIndices) != 0 {
 		t.Fatalf("expected no index saves, got %d", len(indexRepo.savedIndices))
+	}
+}
+
+func TestInitCommandServiceRunWithDebugWritesIndexPayload(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{
+		filepath.Join(rootDir, "allowed.txt"): "hello world test",
+	}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: "allowed.txt", Path: filepath.Join(rootDir, "allowed.txt"), IsDir: false},
+	}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.RunWithDebug(true)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 2 {
+		t.Fatalf("expected 2 output lines, got %d", len(output.lines))
+	}
+
+	if output.lines[0] != "✅ Index created. You can now run idx search." {
+		t.Fatalf("unexpected output message %q", output.lines[0])
+	}
+
+	var payload domain.InvertedIndex
+	if err := json.Unmarshal([]byte(output.lines[1]), &payload); err != nil {
+		t.Fatalf("expected valid JSON debug payload, got %v", err)
+	}
+
+	if payload.DocumentCount != 1 {
+		t.Fatalf("expected debug payload with 1 document, got %d", payload.DocumentCount)
 	}
 }
 

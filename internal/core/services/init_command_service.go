@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -21,6 +22,7 @@ type InitCommandService struct {
 // IndexRepository defines saving index to storage.
 type IndexRepository interface {
 	SaveIndex(directoryPath string, index *domain.InvertedIndex) error
+	LoadIndex(directoryPath string) (*domain.InvertedIndex, error)
 }
 
 // NewInitCommandService builds the init use case.
@@ -37,6 +39,10 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 }
 
 func (service InitCommandService) Run() error {
+	return service.RunWithDebug(false)
+}
+
+func (service InitCommandService) RunWithDebug(debug bool) error {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
@@ -49,7 +55,15 @@ func (service InitCommandService) Run() error {
 	}
 
 	if hasIndex {
-		return service.output.WriteLine("ℹ️ Este projeto ja possui indice. Voce pode executar idx search.")
+		if err := service.output.WriteLine("ℹ️ Este projeto ja possui indice. Voce pode executar idx search."); err != nil {
+			return err
+		}
+
+		if !debug {
+			return nil
+		}
+
+		return service.writeDebugIndex(currentDir)
 	}
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
@@ -66,7 +80,29 @@ func (service InitCommandService) Run() error {
 		return err
 	}
 
-	return service.output.WriteLine("✅ Index created. You can now run idx search.")
+	if err := service.output.WriteLine("✅ Index created. You can now run idx search."); err != nil {
+		return err
+	}
+
+	if !debug {
+		return nil
+	}
+
+	return service.writeDebugIndex(currentDir)
+}
+
+func (service InitCommandService) writeDebugIndex(directoryPath string) error {
+	index, err := service.indexRepo.LoadIndex(directoryPath)
+	if err != nil {
+		return err
+	}
+
+	encoded, err := json.MarshalIndent(index, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode debug index for %q: got error %v, expected valid index payload", directoryPath, err)
+	}
+
+	return service.output.WriteLine(string(encoded))
 }
 
 func (service InitCommandService) indexDirectory(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {

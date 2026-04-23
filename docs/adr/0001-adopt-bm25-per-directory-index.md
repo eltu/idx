@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The `idx init` command originally generated `.idx/index.idx` as a plain text list of entries in each directory. That format was cheap to write, but it did not support ranked search and did not capture document content.
+The `idx index` command originally generated `.idx/index.idx` as a plain text list of entries in each directory. That format was cheap to write, but it did not support ranked search and did not capture document content.
 
 The CLI runs locally on the user's machine and indexes source trees that can be large. Search quality and memory footprint both matter.
 
