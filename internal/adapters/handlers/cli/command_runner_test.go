@@ -188,6 +188,22 @@ func TestCommandRunnerRunAcceptsLegacyTypoMatchesOnlyOption(t *testing.T) {
 	}
 }
 
+func TestCommandRunnerRunParsesFilesOnlyOption(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--files-only", "needle"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !searchCommand.lastOptions.FilesOnly {
+		t.Fatal("expected FilesOnly true")
+	}
+}
+
 func TestCommandRunnerRunRejectsSearchWithoutQuery(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}

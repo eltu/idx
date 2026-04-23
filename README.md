@@ -116,6 +116,8 @@ idx search module idx --format json
 idx search module idx --format json --json-pretty
 idx search module idx --context 2
 idx search module idx --format json --matches-only
+idx search module idx --files-only
+idx search module idx --format json --files-only
 idx search module idx --format json --limit 5
 ```
 
@@ -131,6 +133,7 @@ Current behavior:
 - Optional `--json-pretty` pretty-prints JSON output for humans (requires `--format json`).
 - Optional `--context <N>` includes `N` surrounding lines before/after each match.
 - Optional `--matches-only` keeps only direct matched lines in the output.
+- Optional `--files-only` returns only file paths, ignoring matches and context (deduplicates results by file).
 - Optional `--limit <N>` limits output to the top `N` files.
 - Without options, output stays in the current human-friendly tree format.
 

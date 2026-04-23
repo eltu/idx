@@ -442,6 +442,115 @@ func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputText, FilesOnly: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should have 2 files only (guide.md and readme.md), one per line
+	if len(output.lines) != 2 {
+		t.Fatalf("expected 2 output lines, got %d: %v", len(output.lines), output.lines)
+	}
+
+	// Strip ANSI codes to check content
+	line1 := stripANSICodes(output.lines[0])
+	line2 := stripANSICodes(output.lines[1])
+
+	if line1 != "./guide.md" && line1 != "./readme.md" {
+		t.Fatalf("expected file path, got %q", line1)
+	}
+
+	if line2 != "./guide.md" && line2 != "./readme.md" {
+		t.Fatalf("expected file path, got %q", line2)
+	}
+
+	if line1 == line2 {
+		t.Fatalf("expected different file paths, got both %q", line1)
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsJSONArray(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, FilesOnly: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 1 {
+		t.Fatalf("expected a single JSON line, got %d: %v", len(output.lines), output.lines)
+	}
+
+	var payload []string
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON array output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 2 {
+		t.Fatalf("expected 2 file paths in JSON, got %d: %v", len(payload), payload)
+	}
+
+	// Verify paths are strings and contain filenames
+	for _, path := range payload {
+		if !strings.Contains(path, ".md") {
+			t.Fatalf("expected markdown file path, got %q", path)
+		}
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsFilesOnlyWithJSONPretty(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, FilesOnly: true, PrettyJSON: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 1 {
+		t.Fatalf("expected a single JSON line, got %d: %v", len(output.lines), output.lines)
+	}
+
+	if !strings.Contains(output.lines[0], "\n") {
+		t.Fatalf("expected pretty JSON with line breaks, got %q", output.lines[0])
+	}
+
+	var payload []string
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid pretty JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 2 {
+		t.Fatalf("expected 2 file paths in JSON, got %d", len(payload))
+	}
+}
+
 func searchTreeWithIndexes(rootDir string, indexRelativeDirs []string) *fakeProjectTree {
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{}

@@ -1,6 +1,10 @@
 package services
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"idx/internal/core/ports"
+)
 
 type jsonSearchResult struct {
 	File    string                `json:"file"`
@@ -14,7 +18,36 @@ type jsonSearchMatchLine struct {
 	Match   bool   `json:"match"`
 }
 
-func (service SearchCommandService) writeResultsJSON(results []searchResult, projectRoot string, pretty bool) error {
+func (service SearchCommandService) writeResultsJSON(results []searchResult, projectRoot string, options ports.SearchOptions) error {
+	if options.FilesOnly {
+		// For --files-only, return just an array of file paths.
+		filePaths := make([]string, 0, len(results))
+		for _, result := range results {
+			projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
+			if err != nil {
+				return err
+			}
+
+			filePaths = append(filePaths, projectRelativePath)
+		}
+
+		var (
+			encoded []byte
+			err     error
+		)
+		if options.PrettyJSON {
+			encoded, err = json.MarshalIndent(filePaths, "", "  ")
+		} else {
+			encoded, err = json.Marshal(filePaths)
+		}
+		if err != nil {
+			return err
+		}
+
+		return service.output.WriteLine(string(encoded))
+	}
+
+	// Standard JSON output with matches.
 	payload := make([]jsonSearchResult, 0, len(results))
 	for _, result := range results {
 		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
@@ -34,7 +67,7 @@ func (service SearchCommandService) writeResultsJSON(results []searchResult, pro
 		encoded []byte
 		err     error
 	)
-	if pretty {
+	if options.PrettyJSON {
 		encoded, err = json.MarshalIndent(payload, "", "  ")
 	} else {
 		encoded, err = json.Marshal(payload)
