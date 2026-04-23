@@ -12,6 +12,11 @@ type runnableCommand interface {
 	Run() error
 }
 
+type indexableCommand interface {
+	Run() error
+	RunWithDebug(debug bool) error
+}
+
 type searchableCommand interface {
 	Run(query string) error
 	RunWithOptions(query string, options ports.SearchOptions) error
@@ -19,17 +24,17 @@ type searchableCommand interface {
 
 type CommandRunner struct {
 	arguments      []string
-	initCommand    runnableCommand
+	indexCommand   indexableCommand
 	destroyCommand runnableCommand
 	searchCommand  searchableCommand
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
 // Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand).
-func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCommand runnableCommand, searchCommand searchableCommand) CommandRunner {
+func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand runnableCommand, searchCommand searchableCommand) CommandRunner {
 	return CommandRunner{
 		arguments:      arguments,
-		initCommand:    initCommand,
+		indexCommand:   indexCommand,
 		destroyCommand: destroyCommand,
 		searchCommand:  searchCommand,
 	}
@@ -39,19 +44,30 @@ func NewCommandRunner(arguments []string, initCommand runnableCommand, destroyCo
 // Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [init destroy search]", runner.arguments)
+		return fmt.Errorf("missing command: got %v, expected one of [index init destroy search]", runner.arguments)
 	}
 
 	switch runner.arguments[1] {
+	case "index":
+		return runner.runIndex()
 	case "init":
-		return runner.initCommand.Run()
+		return runner.indexCommand.Run()
 	case "destroy":
 		return runner.destroyCommand.Run()
 	case "search":
 		return runner.runSearch()
 	default:
-		return fmt.Errorf("unsupported command %q: expected one of [init destroy search]", runner.arguments[1])
+		return fmt.Errorf("unsupported command %q: expected one of [index init destroy search]", runner.arguments[1])
 	}
+}
+
+func (runner CommandRunner) runIndex() error {
+	debug, err := parseIndexArguments(runner.arguments[2:])
+	if err != nil {
+		return err
+	}
+
+	return runner.indexCommand.RunWithDebug(debug)
 }
 
 func (runner CommandRunner) runSearch() error {
@@ -124,6 +140,20 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 	return strings.Join(queryTerms, " "), options, nil
 }
 
+func parseIndexArguments(arguments []string) (bool, error) {
+	debug := false
+	for _, argument := range arguments {
+		switch argument {
+		case "--debug":
+			debug = true
+		default:
+			return false, fmt.Errorf("unsupported index option %q: expected only --debug", argument)
+		}
+	}
+
+	return debug, nil
+}
+
 func parseFormatOption(arguments []string, index int) (string, error) {
 	if index+1 >= len(arguments) {
 		return "", fmt.Errorf("missing --format value: got %q, expected one of [%s %s]", arguments[index], ports.SearchOutputText, ports.SearchOutputJSON)
@@ -167,7 +197,7 @@ func parseLimitOption(arguments []string, index int) (int, error) {
 
 func validateSearchOption(argument string) error {
 	if strings.HasPrefix(argument, "--") {
-		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, or --limit <n>", argument)
+		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, or --limit <n>", argument)
 	}
 
 	return nil

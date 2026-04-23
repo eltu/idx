@@ -8,11 +8,19 @@ import (
 )
 
 type fakeInitCommand struct {
-	runCalls int
+	runCalls    int
+	debugCalls  int
+	lastDebugOn bool
 }
 
 func (command *fakeInitCommand) Run() error {
 	command.runCalls++
+	return nil
+}
+
+func (command *fakeInitCommand) RunWithDebug(debug bool) error {
+	command.debugCalls++
+	command.lastDebugOn = debug
 	return nil
 }
 
@@ -59,12 +67,56 @@ func TestCommandRunnerRunExecutesInitCommand(t *testing.T) {
 		t.Fatalf("expected 1 run call, got %d", initCommand.runCalls)
 	}
 
+	if initCommand.debugCalls != 0 {
+		t.Fatalf("expected 0 debug calls, got %d", initCommand.debugCalls)
+	}
+
 	if destroyCommand.runCalls != 0 {
 		t.Fatalf("expected 0 destroy calls, got %d", destroyCommand.runCalls)
 	}
 
 	if searchCommand.runCalls != 0 {
 		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunExecutesIndexCommand(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "index"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.debugCalls != 1 {
+		t.Fatalf("expected 1 debug call, got %d", initCommand.debugCalls)
+	}
+
+	if initCommand.lastDebugOn {
+		t.Fatal("expected debug false")
+	}
+}
+
+func TestCommandRunnerRunExecutesIndexCommandWithDebug(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "index", "--debug"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.debugCalls != 1 {
+		t.Fatalf("expected 1 debug call, got %d", initCommand.debugCalls)
+	}
+
+	if !initCommand.lastDebugOn {
+		t.Fatal("expected debug true")
 	}
 }
 
@@ -329,5 +381,21 @@ func TestCommandRunnerRunRejectsUnsupportedCommand(t *testing.T) {
 
 	if searchCommand.runCalls != 0 {
 		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunRejectsUnsupportedIndexOption(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "index", "--json"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if initCommand.debugCalls != 0 {
+		t.Fatalf("expected 0 debug calls, got %d", initCommand.debugCalls)
 	}
 }

@@ -1,7 +1,6 @@
 BINARY     := idx
 BUILD_DIR  := bin
 CMD_MAIN   := ./cmd/idx
-CMD_DEBUG  := ./cmd/idx-debug
 ALL_PKGS   := ./...
 
 .PHONY: all build fmt lint test clean check
@@ -13,7 +12,6 @@ all: fmt lint test build
 build:
 	@mkdir -p $(BUILD_DIR)
 	go build -o $(BUILD_DIR)/$(BINARY) $(CMD_MAIN)
-	go build -o $(BUILD_DIR)/$(BINARY)-debug $(CMD_DEBUG)
 
 ## Apply gofmt to all Go source files
 fmt:
