@@ -40,6 +40,7 @@ type searchResult struct {
 type matchedLine struct {
 	lineNumber int
 	content    string
+	isMatch    bool
 }
 
 // NewSearchCommandService builds the search use case.
@@ -54,6 +55,12 @@ func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOut
 }
 
 func (service SearchCommandService) Run(query string) error {
+	return service.RunWithOptions(query, ports.SearchOptions{})
+}
+
+func (service SearchCommandService) RunWithOptions(query string, options ports.SearchOptions) error {
+	normalizedOptions := normalizedSearchOptions(options)
+
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
@@ -70,26 +77,56 @@ func (service SearchCommandService) Run(query string) error {
 	}
 
 	terms := uniqueQueryTerms(query)
-	results, err := service.rankedResults(indexedDirectories, terms)
+	results, err := service.rankedResults(indexedDirectories, terms, normalizedOptions.Context)
 	if err != nil {
 		return err
 	}
 
 	if len(results) == 0 {
+		if normalizedOptions.Format == ports.SearchOutputJSON {
+			if normalizedOptions.PrettyJSON {
+				return service.output.WriteLine("[]")
+			}
+
+			return service.output.WriteLine("[]")
+		}
+
 		return service.output.WriteLine("Nenhum resultado encontrado.")
 	}
 
-	return service.writeResults(results, projectRoot, terms)
+	if normalizedOptions.Format == ports.SearchOutputJSON {
+		return service.writeResultsJSON(results, projectRoot, normalizedOptions.PrettyJSON)
+	}
+
+	useANSI := normalizedOptions.Format != ports.SearchOutputJSON
+	return service.writeResults(results, projectRoot, terms, useANSI)
 }
 
-func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string) error {
+func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
+	normalized := options
+	if normalized.Format == "" {
+		normalized.Format = ports.SearchOutputText
+	}
+
+	if normalized.Context < 0 {
+		normalized.Context = 0
+	}
+
+	if normalized.Format != ports.SearchOutputJSON {
+		normalized.PrettyJSON = false
+	}
+
+	return normalized
+}
+
+func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool) error {
 	for _, result := range results {
 		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 		if err != nil {
 			return err
 		}
 
-		header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath), result.score)
+		header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath, useANSI), result.score)
 		if err := service.output.WriteLine(header); err != nil {
 			return err
 		}
@@ -99,8 +136,13 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 			if i == len(result.matchedLines)-1 {
 				prefix = "└──"
 			}
-			highlighted := highlightTermsInLine(ml.content, terms)
-			entry := fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(ml.lineNumber), highlighted)
+
+			lineContent := ml.content
+			if ml.isMatch {
+				lineContent = highlightTermsInLine(ml.content, terms, useANSI)
+			}
+
+			entry := fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(ml.lineNumber, useANSI), lineContent)
 			if err := service.output.WriteLine(entry); err != nil {
 				return err
 			}
@@ -152,8 +194,8 @@ func (service SearchCommandService) collectIndexedDirectories(directoryPath stri
 	return nil
 }
 
-func (service SearchCommandService) rankedResults(directories []string, terms []string) ([]searchResult, error) {
-	results, err := service.parallelDirectoryResults(directories, terms)
+func (service SearchCommandService) rankedResults(directories []string, terms []string, contextSize int) ([]searchResult, error) {
+	results, err := service.parallelDirectoryResults(directories, terms, contextSize)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +204,7 @@ func (service SearchCommandService) rankedResults(directories []string, terms []
 	return results, nil
 }
 
-func (service SearchCommandService) parallelDirectoryResults(directories []string, terms []string) ([]searchResult, error) {
+func (service SearchCommandService) parallelDirectoryResults(directories []string, terms []string, contextSize int) ([]searchResult, error) {
 	if len(directories) == 0 {
 		return []searchResult{}, nil
 	}
@@ -171,7 +213,7 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	resultsCh := make(chan []searchResult, len(directories))
 	errCh := make(chan error, 1)
 	workerCount := boundedSearchWorkerCount(len(directories))
-	runDirectoryWorkers(service, workerCount, jobs, terms, resultsCh, errCh)
+	runDirectoryWorkers(service, workerCount, jobs, terms, contextSize, resultsCh, errCh)
 	for _, directoryPath := range directories {
 		jobs <- directoryPath
 	}
@@ -180,14 +222,14 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	return collectDirectoryResults(resultsCh, errCh)
 }
 
-func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-chan string, terms []string, resultsCh chan<- []searchResult, errCh chan<- error) {
+func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-chan string, terms []string, contextSize int, resultsCh chan<- []searchResult, errCh chan<- error) {
 	var workers sync.WaitGroup
 	for worker := 0; worker < workerCount; worker++ {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
 			for directoryPath := range jobs {
-				results, err := service.searchDirectoryIndex(directoryPath, terms)
+				results, err := service.searchDirectoryIndex(directoryPath, terms, contextSize)
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -242,7 +284,7 @@ func boundedSearchWorkerCount(directoryCount int) int {
 	return limit
 }
 
-func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string) ([]searchResult, error) {
+func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, contextSize int) ([]searchResult, error) {
 	index, err := service.indexRepo.LoadIndex(directoryPath)
 	if err != nil {
 		return nil, err
@@ -252,7 +294,7 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 	normalizeScores(scores)
 	results := make([]searchResult, 0, len(scores))
 	for fileName, score := range scores {
-		lines, err := service.allMatchingLines(directoryPath, fileName, terms)
+		lines, err := service.allMatchingLines(directoryPath, fileName, terms, contextSize)
 		if err != nil {
 			return nil, err
 		}
@@ -263,13 +305,13 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 	return results, nil
 }
 
-func (service SearchCommandService) allMatchingLines(directoryPath string, fileName string, terms []string) ([]matchedLine, error) {
+func (service SearchCommandService) allMatchingLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
 	content, err := service.fileReader.ReadFile(filepath.Join(directoryPath, fileName))
 	if err != nil {
 		return nil, err
 	}
 
-	return matchingLinesInContent(content, terms), nil
+	return matchingLinesInContent(content, terms, contextSize), nil
 }
 
 func relativeResultPath(projectRoot string, directoryPath string, documentName string) (string, error) {
@@ -287,14 +329,60 @@ func relativeResultPath(projectRoot string, directoryPath string, documentName s
 	return formattedPath, nil
 }
 
-func matchingLinesInContent(content string, terms []string) []matchedLine {
-	var matches []matchedLine
-	for index, line := range strings.Split(content, "\n") {
+func matchingLinesInContent(content string, terms []string, contextSize int) []matchedLine {
+	lines := strings.Split(content, "\n")
+	matchedIndexes := make(map[int]struct{})
+	for index, line := range lines {
 		if lineContainsAnyTerm(line, terms) {
-			matches = append(matches, matchedLine{lineNumber: index + 1, content: line})
+			matchedIndexes[index] = struct{}{}
 		}
 	}
-	return matches
+
+	if len(matchedIndexes) == 0 {
+		return []matchedLine{}
+	}
+
+	if contextSize <= 0 {
+		matches := make([]matchedLine, 0, len(matchedIndexes))
+		for index, line := range lines {
+			if _, exists := matchedIndexes[index]; !exists {
+				continue
+			}
+
+			matches = append(matches, matchedLine{lineNumber: index + 1, content: line, isMatch: true})
+		}
+
+		return matches
+	}
+
+	includedIndexes := make(map[int]struct{})
+	for index := range matchedIndexes {
+		start := index - contextSize
+		if start < 0 {
+			start = 0
+		}
+
+		end := index + contextSize
+		if end >= len(lines) {
+			end = len(lines) - 1
+		}
+
+		for contextIndex := start; contextIndex <= end; contextIndex++ {
+			includedIndexes[contextIndex] = struct{}{}
+		}
+	}
+
+	result := make([]matchedLine, 0, len(includedIndexes))
+	for index, line := range lines {
+		if _, exists := includedIndexes[index]; !exists {
+			continue
+		}
+
+		_, isMatch := matchedIndexes[index]
+		result = append(result, matchedLine{lineNumber: index + 1, content: line, isMatch: isMatch})
+	}
+
+	return result
 }
 
 // lineContainsAnyTerm returns true when the line contains at least one term as a whole word token.

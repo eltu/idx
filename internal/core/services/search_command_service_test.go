@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"idx/internal/core/domain"
+	"idx/internal/core/ports"
 	"idx/internal/core/services"
 )
 
@@ -270,6 +272,104 @@ func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 
 	if stripANSICodes(output.lines[3]) != "./root.md (score: 1.0000)" {
 		t.Fatalf("expected root directory file header, got %q", output.lines[3])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsReturnsJSONOutput(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "go.mod"): "module idx",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 1 {
+		t.Fatalf("expected a single JSON line, got %d: %v", len(output.lines), output.lines)
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 1 {
+		t.Fatalf("expected a single JSON result, got %d", len(payload))
+	}
+
+	if payload[0]["file"] != "./go.mod" {
+		t.Fatalf("expected file ./go.mod, got %v", payload[0]["file"])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsReturnsPrettyJSONOutput(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "go.mod"): "module idx",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON, PrettyJSON: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 1 {
+		t.Fatalf("expected a single JSON line, got %d: %v", len(output.lines), output.lines)
+	}
+
+	if !strings.Contains(output.lines[0], "\n") {
+		t.Fatalf("expected pretty JSON with line breaks, got %q", output.lines[0])
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid pretty JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsIncludesContextLines(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Context: 1})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 5 {
+		t.Fatalf("expected 5 output lines, got %d: %v", len(output.lines), output.lines)
+	}
+
+	if stripANSICodes(output.lines[0]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected go.mod header, got %q", output.lines[0])
+	}
+
+	if stripANSICodes(output.lines[1]) != "├── 1: alpha" {
+		t.Fatalf("expected first context line, got %q", output.lines[1])
+	}
+
+	if stripANSICodes(output.lines[2]) != "├── 2: module idx" {
+		t.Fatalf("expected matched line, got %q", output.lines[2])
+	}
+
+	if stripANSICodes(output.lines[3]) != "└── 3: omega" {
+		t.Fatalf("expected last context line, got %q", output.lines[3])
 	}
 }
 
