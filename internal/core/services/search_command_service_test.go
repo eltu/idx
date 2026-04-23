@@ -373,6 +373,75 @@ func TestSearchCommandServiceRunWithOptionsIncludesContextLines(t *testing.T) {
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsMatchesOnlyFiltersContextLines(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON, Context: 1, MatchesOnly: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 1 {
+		t.Fatalf("expected one file result, got %d", len(payload))
+	}
+
+	matches, ok := payload[0]["matches"].([]any)
+	if !ok {
+		t.Fatalf("expected matches array, got %T", payload[0]["matches"])
+	}
+
+	if len(matches) != 1 {
+		t.Fatalf("expected one matched line after filtering context, got %d", len(matches))
+	}
+
+	matchEntry, ok := matches[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected match object, got %T", matches[0])
+	}
+
+	if matchEntry["match"] != true {
+		t.Fatalf("expected match=true, got %v", matchEntry["match"])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, Limit: 1})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 1 {
+		t.Fatalf("expected one file result with limit, got %d", len(payload))
+	}
+}
+
 func searchTreeWithIndexes(rootDir string, indexRelativeDirs []string) *fakeProjectTree {
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{}

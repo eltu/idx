@@ -84,6 +84,8 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 		return err
 	}
 
+	results = applySearchResultOptions(results, normalizedOptions)
+
 	if len(results) == 0 {
 		return service.writeEmptySearchResults(normalizedOptions)
 	}
@@ -122,7 +124,55 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 		normalized.PrettyJSON = false
 	}
 
+	if normalized.Limit < 0 {
+		normalized.Limit = 0
+	}
+
 	return normalized
+}
+
+func applySearchResultOptions(results []searchResult, options ports.SearchOptions) []searchResult {
+	filtered := results
+	if options.MatchesOnly {
+		filtered = matchesOnlyResults(filtered)
+	}
+
+	return limitedResults(filtered, options.Limit)
+}
+
+func matchesOnlyResults(results []searchResult) []searchResult {
+	filtered := make([]searchResult, 0, len(results))
+	for _, result := range results {
+		matchedLines := onlyMatchedLines(result.matchedLines)
+		if len(matchedLines) == 0 {
+			continue
+		}
+
+		filtered = append(filtered, searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: matchedLines, score: result.score})
+	}
+
+	return filtered
+}
+
+func onlyMatchedLines(lines []matchedLine) []matchedLine {
+	matched := make([]matchedLine, 0, len(lines))
+	for _, line := range lines {
+		if !line.isMatch {
+			continue
+		}
+
+		matched = append(matched, line)
+	}
+
+	return matched
+}
+
+func limitedResults(results []searchResult, limit int) []searchResult {
+	if limit <= 0 || len(results) <= limit {
+		return results
+	}
+
+	return results[:limit]
 }
 
 func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool) error {

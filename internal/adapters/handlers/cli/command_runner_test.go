@@ -122,13 +122,21 @@ func TestCommandRunnerRunExecutesSearchCommand(t *testing.T) {
 	if searchCommand.lastOptions.PrettyJSON {
 		t.Fatal("expected default PrettyJSON false")
 	}
+
+	if searchCommand.lastOptions.MatchesOnly {
+		t.Fatal("expected default MatchesOnly false")
+	}
+
+	if searchCommand.lastOptions.Limit != 0 {
+		t.Fatalf("expected default limit 0, got %d", searchCommand.lastOptions.Limit)
+	}
 }
 
 func TestCommandRunnerRunExecutesSearchCommandWithOptions(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--format", "json", "--context", "2", "--json-pretty", "needle", "term"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--format", "json", "--context", "2", "--json-pretty", "--matches-only", "--limit", "1", "needle", "term"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
@@ -153,6 +161,30 @@ func TestCommandRunnerRunExecutesSearchCommandWithOptions(t *testing.T) {
 
 	if !searchCommand.lastOptions.PrettyJSON {
 		t.Fatal("expected PrettyJSON true")
+	}
+
+	if !searchCommand.lastOptions.MatchesOnly {
+		t.Fatal("expected MatchesOnly true")
+	}
+
+	if searchCommand.lastOptions.Limit != 1 {
+		t.Fatalf("expected limit 1, got %d", searchCommand.lastOptions.Limit)
+	}
+}
+
+func TestCommandRunnerRunAcceptsLegacyTypoMatchesOnlyOption(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--macthes-only", "needle"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !searchCommand.lastOptions.MatchesOnly {
+		t.Fatal("expected MatchesOnly true")
 	}
 }
 
@@ -201,6 +233,22 @@ func TestCommandRunnerRunRejectsSearchWithNegativeContext(t *testing.T) {
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "search", "--context", "-1", "needle"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if searchCommand.runCalls != 0 {
+		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunRejectsSearchWithInvalidLimit(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--limit", "0", "needle"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err == nil {
