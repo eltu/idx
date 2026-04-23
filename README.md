@@ -17,15 +17,52 @@ The goal of `idx` is to provide fast and relevant search for Git projects while 
 - Go `1.24+`
 - A Git repository (required to resolve the project root from `.git`).
 
-## Build and run
+## Build, test and run
 
-Build binary:
+Use Makefile targets for local development and CI parity.
+
+Build binaries:
 
 ```bash
-go build -o idx ./cmd/idx
+make build
 ```
 
-Run with Go:
+Generated binaries:
+
+- bin/idx
+- bin/idx-debug
+
+Run tests:
+
+```bash
+make test
+```
+
+Run format + lint + tests (without build):
+
+```bash
+make check
+```
+
+Format Go files:
+
+```bash
+make fmt
+```
+
+Run linter:
+
+```bash
+make lint
+```
+
+Clean build artifacts:
+
+```bash
+make clean
+```
+
+Run with Go directly (optional):
 
 ```bash
 go run cmd/idx/main.go <command>
@@ -34,7 +71,7 @@ go run cmd/idx/main.go <command>
 Run compiled binary:
 
 ```bash
-./idx <command>
+./bin/idx <command>
 ```
 
 ## Available commands
@@ -159,9 +196,11 @@ Quick examples:
 ## Recommended workflow
 
 1. In your Git project, run `idx init` once.
-2. Use `idx search <terms>` during day-to-day development.
-3. Re-run `idx init` whenever you want to regenerate indexes.
-4. Run `idx destroy` to clean index metadata.
+2. During development, use `idx search <terms>`.
+3. Before pushing changes, run `make check`.
+4. Build binaries with `make build` when needed.
+5. Re-run `idx init` whenever you want to regenerate indexes.
+6. Run `idx destroy` to clean index metadata.
 
 ## Benchmark
 
