@@ -75,7 +75,7 @@ Run compiled binary:
 
 ## Available commands
 
-### 1) `index`
+### 1) `init`
 
 Creates `.idx/index.idx` files starting from the current directory and traversing subdirectories recursively.
 
@@ -86,10 +86,8 @@ Creates `.idx/index.idx` files starting from the current directory and traversin
 Usage:
 
 ```bash
-idx index
+idx init
 ```
-
-Compatibility note: `idx init` remains available as an alias for `idx index`.
 
 Success output:
 
@@ -103,7 +101,30 @@ Output when an index already exists in the current directory:
 ℹ️ Este projeto ja possui indice. Voce pode executar idx search.
 ```
 
-### 2) `inspect <path>`
+### 2) `sync`
+
+Resynchronizes all existing project indices.
+
+Rules for the current implementation:
+
+- Must run from the Git project root.
+- The project root must already have `.idx/index.idx`.
+- Traverses the whole project, finds every existing index, and rebuilds each one using the current documents of that directory.
+- Does not create indices for directories that are not already indexed.
+
+Usage:
+
+```bash
+idx sync
+```
+
+Success output:
+
+```text
+✅ Project indices synchronized.
+```
+
+### 3) `inspect <path>`
 
 Reads the binary index at the provided path and prints it as pretty JSON.
 
@@ -120,7 +141,7 @@ Rules:
 - The command expects an index file at `<path>/.idx/index.idx`.
 - This command is read-only and never creates or rewrites indexes.
 
-### 3) `search <terms...>`
+### 4) `search <terms...>`
 
 Searches terms across the whole project (all directories containing `.idx/index.idx`).
 
@@ -177,7 +198,7 @@ When no results are found:
 Nenhum resultado encontrado.
 ```
 
-### 4) `destroy`
+### 5) `destroy`
 
 Removes all `.idx` directories recursively from the project.
 
@@ -216,11 +237,11 @@ Quick examples:
 
 ## Recommended workflow
 
-1. In your Git project, run `idx index` once.
+1. In your Git project, run `idx init` once.
 2. During development, use `idx search <terms>`.
 3. Before pushing changes, run `make check`.
 4. Build binaries with `make build` when needed.
-5. Re-run `idx index` whenever you want to regenerate indexes.
+5. Re-run `idx sync` whenever you want to regenerate existing indexes.
 6. Run `idx destroy` to clean index metadata.
 
 ## Benchmark
@@ -239,13 +260,13 @@ go test ./internal/core/services -run '^$' -bench BenchmarkSearchVsGrep -benchme
 No command:
 
 ```text
-missing command: got [...], expected one of [index init inspect destroy search]
+missing command: got [...], expected one of [sync init inspect destroy search]
 ```
 
 Invalid command:
 
 ```text
-unsupported command "<cmd>": expected one of [index init inspect destroy search]
+unsupported command "<cmd>": expected one of [sync init inspect destroy search]
 ```
 
 `search` without terms:

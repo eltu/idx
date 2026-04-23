@@ -14,7 +14,7 @@ The CLI runs locally and prioritizes low memory use, compact index files, and fa
 
 The default index storage format is Go binary serialization using `encoding/gob`.
 
-JSON is retained only as a secondary reference/debug format in code, and binary indices are the format written by `idx index`.
+JSON is retained only as a secondary reference/debug format in code, and binary indices are the format written by `idx init` and refreshed by `idx sync`.
 
 ## Alternatives Considered
 
@@ -52,7 +52,7 @@ JSON is retained only as a secondary reference/debug format in code, and binary 
 
 - The default repository is `BinaryIndexRepository`.
 - `idx inspect <path>` inspects a directory binary index by decoding `<path>/.idx/index.idx` and printing JSON.
-- Re-running `idx index` regenerates indices in the binary format.
+- Re-running `idx sync` regenerates existing indices in the binary format.
 
 ## Follow-Up Options
 

@@ -9,12 +9,18 @@ import (
 
 type fakeInitCommand struct {
 	runCalls        int
+	syncCalls       int
 	inspectCalls    int
 	lastInspectPath string
 }
 
 func (command *fakeInitCommand) Run() error {
 	command.runCalls++
+	return nil
+}
+
+func (command *fakeInitCommand) Sync() error {
+	command.syncCalls++
 	return nil
 }
 
@@ -80,19 +86,23 @@ func TestCommandRunnerRunExecutesInitCommand(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunExecutesIndexCommand(t *testing.T) {
+func TestCommandRunnerRunExecutesSyncCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "index"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "sync"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.runCalls != 1 {
-		t.Fatalf("expected 1 run call, got %d", initCommand.runCalls)
+	if initCommand.syncCalls != 1 {
+		t.Fatalf("expected 1 sync call, got %d", initCommand.syncCalls)
+	}
+
+	if initCommand.runCalls != 0 {
+		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
 	}
 }
 
@@ -129,6 +139,30 @@ func TestCommandRunnerRunRejectsInspectWithoutPath(t *testing.T) {
 
 	if initCommand.inspectCalls != 0 {
 		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
+	}
+
+	if initCommand.syncCalls != 0 {
+		t.Fatalf("expected 0 sync calls, got %d", initCommand.syncCalls)
+	}
+}
+
+func TestCommandRunnerRunRejectsLegacyIndexCommand(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "index"}, initCommand, destroyCommand, searchCommand)
+
+	err := runner.Run()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if initCommand.runCalls != 0 {
+		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
+	}
+
+	if initCommand.syncCalls != 0 {
+		t.Fatalf("expected 0 sync calls, got %d", initCommand.syncCalls)
 	}
 }
 

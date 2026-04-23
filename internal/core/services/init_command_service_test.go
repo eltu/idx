@@ -15,6 +15,7 @@ type fakeProjectTree struct {
 	currentDir string
 	gitRoot    string
 	readDirMap map[string][]domain.DirectoryEntry
+	readDirErr map[string]error
 	existing   map[string]bool
 	removed    []string
 	removeErrs map[string]error
@@ -27,6 +28,7 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 		currentDir: currentDir,
 		gitRoot:    gitRoot,
 		readDirMap: map[string][]domain.DirectoryEntry{},
+		readDirErr: map[string]error{},
 		existing:   map[string]bool{},
 		removed:    []string{},
 		removeErrs: map[string]error{},
@@ -47,6 +49,10 @@ func (tree *fakeProjectTree) FindGitRoot(startDir string) (string, error) {
 }
 
 func (tree *fakeProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, error) {
+	if err, ok := tree.readDirErr[path]; ok {
+		return nil, err
+	}
+
 	entries, ok := tree.readDirMap[path]
 	if !ok {
 		return []domain.DirectoryEntry{}, nil
@@ -250,6 +256,199 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 
 	if len(indexRepo.savedIndices) != 0 {
 		t.Fatalf("expected no index saves, got %d", len(indexRepo.savedIndices))
+	}
+}
+
+func TestInitCommandServiceSyncRebuildsAllIndexedDirectories(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	childDir := filepath.Join(rootDir, "child")
+	otherDir := filepath.Join(rootDir, "other")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.existing[filepath.Join(childDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "root.txt", Path: filepath.Join(rootDir, "root.txt"), IsDir: false},
+		{Name: "child", Path: childDir, IsDir: true},
+		{Name: "other", Path: otherDir, IsDir: true},
+	}
+	tree.readDirMap[childDir] = []domain.DirectoryEntry{{Name: "nested.txt", Path: filepath.Join(childDir, "nested.txt"), IsDir: false}}
+	tree.readDirMap[otherDir] = []domain.DirectoryEntry{{Name: "other.txt", Path: filepath.Join(otherDir, "other.txt"), IsDir: false}}
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{
+		filepath.Join(rootDir, "root.txt"):    "root content",
+		filepath.Join(childDir, "nested.txt"): "nested content",
+		filepath.Join(otherDir, "other.txt"):  "other content",
+	}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if indexRepo.savedIndices[rootDir].DocumentCount != 1 {
+		t.Fatalf("expected synced root index with 1 document, got %d", indexRepo.savedIndices[rootDir].DocumentCount)
+	}
+
+	if indexRepo.savedIndices[childDir].DocumentCount != 1 {
+		t.Fatalf("expected synced child index with 1 document, got %d", indexRepo.savedIndices[childDir].DocumentCount)
+	}
+
+	if indexRepo.savedIndices[otherDir].DocumentCount != 1 {
+		t.Fatalf("expected sync to create a new index for %q with 1 document, got %d", otherDir, indexRepo.savedIndices[otherDir].DocumentCount)
+	}
+
+	if len(output.lines) != 1 || output.lines[0] != "✅ Project indices synchronized." {
+		t.Fatalf("unexpected sync output %v", output.lines)
+	}
+}
+
+func TestInitCommandServiceSyncRemovesIndexForNowIgnoredDirectory(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	ignoredDir := filepath.Join(rootDir, "vendor")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.existing[filepath.Join(ignoredDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "root.txt", Path: filepath.Join(rootDir, "root.txt"), IsDir: false},
+		{Name: "vendor", Path: ignoredDir, IsDir: true},
+	}
+	tree.readDirMap[ignoredDir] = []domain.DirectoryEntry{{Name: "dep.txt", Path: filepath.Join(ignoredDir, "dep.txt"), IsDir: false}}
+
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{"vendor/": true}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{filepath.Join(rootDir, "root.txt"): "root content"}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	removedIndexPath := filepath.Join(ignoredDir, ".idx")
+	if len(tree.removed) != 1 || tree.removed[0] != removedIndexPath {
+		t.Fatalf("expected removed index path %q, got %v", removedIndexPath, tree.removed)
+	}
+
+	if _, exists := indexRepo.savedIndices[ignoredDir]; exists {
+		t.Fatalf("did not expect ignored directory %q to be reindexed", ignoredDir)
+	}
+}
+
+func TestInitCommandServiceSyncCreatesIndexWhenDirectoryLeavesGitignore(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	newlyAllowedDir := filepath.Join(rootDir, "src")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "root.txt", Path: filepath.Join(rootDir, "root.txt"), IsDir: false},
+		{Name: "src", Path: newlyAllowedDir, IsDir: true},
+	}
+	tree.readDirMap[newlyAllowedDir] = []domain.DirectoryEntry{{Name: "app.txt", Path: filepath.Join(newlyAllowedDir, "app.txt"), IsDir: false}}
+
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{
+		filepath.Join(rootDir, "root.txt"):        "root content",
+		filepath.Join(newlyAllowedDir, "app.txt"): "source content",
+	}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if indexRepo.savedIndices[newlyAllowedDir].DocumentCount != 1 {
+		t.Fatalf("expected newly allowed directory %q to be indexed with 1 document, got %d", newlyAllowedDir, indexRepo.savedIndices[newlyAllowedDir].DocumentCount)
+	}
+}
+
+func TestInitCommandServiceSyncReindexesDirectoryWhenFileLeavesGitignore(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "allowed.txt", Path: filepath.Join(rootDir, "allowed.txt"), IsDir: false},
+		{Name: "debug.log", Path: filepath.Join(rootDir, "debug.log"), IsDir: false},
+	}
+
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{
+		filepath.Join(rootDir, "allowed.txt"): "allowed content",
+		filepath.Join(rootDir, "debug.log"):   "log content",
+	}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if indexRepo.savedIndices[rootDir].DocumentCount != 2 {
+		t.Fatalf("expected root index to include file that left .gitignore with 2 documents, got %d", indexRepo.savedIndices[rootDir].DocumentCount)
+	}
+}
+
+func TestInitCommandServiceSyncRequiresProjectRootIndex(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if len(indexRepo.savedIndices) != 0 {
+		t.Fatalf("expected no synced indices, got %d", len(indexRepo.savedIndices))
+	}
+}
+
+func TestInitCommandServiceSyncMustRunFromProjectRoot(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	childDir := filepath.Join(rootDir, "child")
+	tree := newFakeProjectTree(childDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: make(map[string]string)}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo)
+
+	err := service.Sync()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if len(indexRepo.savedIndices) != 0 {
+		t.Fatalf("expected no synced indices, got %d", len(indexRepo.savedIndices))
 	}
 }
 
