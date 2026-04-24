@@ -120,21 +120,27 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--files-only":
 			options.FilesOnly = true
 		case "--file":
-			fileQuery, err := parseTextOption(arguments, index, argument)
+			fileQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
 			if err != nil {
 				return "", options, err
 			}
 
-			options.FileQuery = fileQuery
-			index++
+			if options.FileQuery == "" {
+				options.FileQuery = fileQueries[0]
+			}
+			options.FileQueries = append(options.FileQueries, fileQueries...)
+			index += consumed
 		case "--path":
-			pathQuery, err := parseTextOption(arguments, index, argument)
+			pathQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
 			if err != nil {
 				return "", options, err
 			}
 
-			options.PathQuery = pathQuery
-			index++
+			if options.PathQuery == "" {
+				options.PathQuery = pathQueries[0]
+			}
+			options.PathQueries = append(options.PathQueries, pathQueries...)
+			index += consumed
 		case "--limit":
 			parsedLimit, err := parseLimitOption(arguments, index)
 			if err != nil {
@@ -213,17 +219,33 @@ func parseLimitOption(arguments []string, index int) (int, error) {
 	return parsedLimit, nil
 }
 
-func parseTextOption(arguments []string, index int, option string) (string, error) {
+func parseTextOptionValues(arguments []string, index int, option string) ([]string, int, error) {
 	if index+1 >= len(arguments) {
-		return "", fmt.Errorf("missing %s value: got %q, expected non-empty text", option, arguments[index])
+		return nil, 0, fmt.Errorf("missing %s value: got %q, expected non-empty text", option, arguments[index])
 	}
 
-	value := strings.TrimSpace(arguments[index+1])
-	if value == "" || strings.HasPrefix(value, "--") {
-		return "", fmt.Errorf("invalid %s value %q: expected non-empty text", option, arguments[index+1])
+	values := make([]string, 0)
+	consumed := 0
+	for valueIndex := index + 1; valueIndex < len(arguments); valueIndex++ {
+		raw := strings.TrimSpace(arguments[valueIndex])
+		if raw == "" {
+			consumed++
+			continue
+		}
+
+		if strings.HasPrefix(raw, "--") {
+			break
+		}
+
+		values = append(values, raw)
+		consumed++
 	}
 
-	return value, nil
+	if len(values) == 0 {
+		return nil, 0, fmt.Errorf("invalid %s value %q: expected non-empty text", option, arguments[index+1])
+	}
+
+	return values, consumed, nil
 }
 
 func validateSearchOption(argument string) error {
@@ -235,7 +257,7 @@ func validateSearchOption(argument string) error {
 }
 
 func hasSearchInput(query string, options ports.SearchOptions) bool {
-	return query != "" || options.FileQuery != "" || options.PathQuery != ""
+	return query != "" || options.FileQuery != "" || options.PathQuery != "" || len(options.FileQueries) > 0 || len(options.PathQueries) > 0
 }
 
 func validatePrettyJSONOption(options ports.SearchOptions) error {
