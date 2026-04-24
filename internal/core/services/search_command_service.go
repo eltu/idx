@@ -132,6 +132,32 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 
 	normalized.FileQuery = strings.TrimSpace(normalized.FileQuery)
 	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
+	normalized.FileQueries = normalizedFilterQueries(normalized.FileQueries, normalized.FileQuery)
+	normalized.PathQueries = normalizedFilterQueries(normalized.PathQueries, normalized.PathQuery)
+
+	return normalized
+}
+
+func normalizedFilterQueries(queries []string, fallback string) []string {
+	if len(queries) == 0 && fallback != "" {
+		queries = append(queries, fallback)
+	}
+
+	normalized := make([]string, 0, len(queries))
+	seen := make(map[string]struct{})
+	for _, query := range queries {
+		trimmed := strings.TrimSpace(query)
+		if trimmed == "" {
+			continue
+		}
+
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
 
 	return normalized
 }

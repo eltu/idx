@@ -612,6 +612,52 @@ func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *tes
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsSupportsFileWildcardPrefixFilter(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+
+	err := service.RunWithOptions("", ports.SearchOptions{FileQuery: "go*"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 2 {
+		t.Fatalf("expected one metadata-only result, got %d lines: %v", len(output.lines), output.lines)
+	}
+
+	if stripANSICodes(output.lines[0]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected go.mod with prefix wildcard, got %q", output.lines[0])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	childDir := filepath.Join(rootDir, "internal", "core")
+	tree := searchTreeWithIndexes(rootDir, []string{filepath.Join("internal", "core")})
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{
+		rootDir:  searchableIndex(),
+		childDir: searchableIndexForMetadataPath(childDir, "go.mod"),
+	}}
+	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+
+	err := service.RunWithOptions("", ports.SearchOptions{PathQuery: "*core"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 2 {
+		t.Fatalf("expected one metadata-only result, got %d lines: %v", len(output.lines), output.lines)
+	}
+
+	if stripANSICodes(output.lines[0]) != "internal/core/go.mod (score: 1.0000)" {
+		t.Fatalf("expected internal/core/go.mod with suffix wildcard, got %q", output.lines[0])
+	}
+}
+
 func searchTreeWithIndexes(rootDir string, indexRelativeDirs []string) *fakeProjectTree {
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{}
