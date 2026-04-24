@@ -109,10 +109,10 @@ func (reader fakeFileReader) ReadFile(path string) (string, error) {
 
 type fakeBM25Indexer struct{}
 
-func (indexer *fakeBM25Indexer) BuildIndex(documents map[string]string) (*domain.InvertedIndex, error) {
+func (indexer *fakeBM25Indexer) BuildIndex(documents []domain.IndexDocument) (*domain.InvertedIndex, error) {
 	index := domain.NewInvertedIndex()
-	for docName := range documents {
-		index.AddDocument(docName, 10)
+	for _, document := range documents {
+		index.AddDocument(document.Name, document.Path, 10)
 	}
 	index.DocumentCount = len(documents)
 	index.CalculateAverageDocLen()

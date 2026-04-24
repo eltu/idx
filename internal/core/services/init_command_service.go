@@ -249,14 +249,19 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 }
 
 func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry) error {
-	// Read all files and build documents map
-	documents := make(map[string]string)
+	// Read all files and build index documents.
+	documents := make([]domain.IndexDocument, 0, len(fileEntries))
 	for _, entry := range fileEntries {
 		content, err := service.fileReader.ReadFile(entry.Path)
 		if err != nil {
 			return err
 		}
-		documents[entry.Name] = content
+
+		documents = append(documents, domain.IndexDocument{
+			Name:    entry.Name,
+			Path:    entry.Path,
+			Content: content,
+		})
 	}
 
 	// Build BM25 index

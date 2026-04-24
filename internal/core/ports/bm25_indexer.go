@@ -9,5 +9,5 @@ type FileReader interface {
 
 // BM25Indexer builds an inverted index with BM25 scoring from file documents.
 type BM25Indexer interface {
-	BuildIndex(documents map[string]string) (*domain.InvertedIndex, error)
+	BuildIndex(documents []domain.IndexDocument) (*domain.InvertedIndex, error)
 }

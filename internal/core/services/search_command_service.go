@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 
 	"idx/internal/core/domain"
@@ -80,12 +81,12 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 	}
 
 	terms := uniqueQueryTerms(query)
-	results, err := service.rankedResults(indexedDirectories, terms, normalizedOptions.Context)
+	results, err := service.rankedResults(indexedDirectories, terms, normalizedOptions)
 	if err != nil {
 		return err
 	}
 
-	results = applySearchResultOptions(results, normalizedOptions)
+	results = applySearchResultOptions(results, normalizedOptions, len(terms) > 0)
 
 	if len(results) == 0 {
 		return service.writeEmptySearchResults(normalizedOptions)
@@ -129,14 +130,17 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 		normalized.Limit = 0
 	}
 
+	normalized.FileQuery = strings.TrimSpace(normalized.FileQuery)
+	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
+
 	return normalized
 }
 
-func applySearchResultOptions(results []searchResult, options ports.SearchOptions) []searchResult {
+func applySearchResultOptions(results []searchResult, options ports.SearchOptions, hasContentTerms bool) []searchResult {
 	filtered := results
 	if options.FilesOnly {
 		filtered = filesOnlyResults(filtered)
-	} else if options.MatchesOnly {
+	} else if options.MatchesOnly && hasContentTerms {
 		filtered = matchesOnlyResults(filtered)
 	}
 
@@ -266,8 +270,8 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 	return nil
 }
 
-func (service SearchCommandService) rankedResults(directories []string, terms []string, contextSize int) ([]searchResult, error) {
-	results, err := service.parallelDirectoryResults(directories, terms, contextSize)
+func (service SearchCommandService) rankedResults(directories []string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	results, err := service.parallelDirectoryResults(directories, terms, options)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +280,7 @@ func (service SearchCommandService) rankedResults(directories []string, terms []
 	return results, nil
 }
 
-func (service SearchCommandService) parallelDirectoryResults(directories []string, terms []string, contextSize int) ([]searchResult, error) {
+func (service SearchCommandService) parallelDirectoryResults(directories []string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
 	if len(directories) == 0 {
 		return []searchResult{}, nil
 	}
@@ -285,7 +289,7 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	resultsCh := make(chan []searchResult, len(directories))
 	errCh := make(chan error, 1)
 	workerCount := boundedSearchWorkerCount(len(directories))
-	runDirectoryWorkers(service, workerCount, jobs, terms, contextSize, resultsCh, errCh)
+	runDirectoryWorkers(service, workerCount, jobs, terms, options, resultsCh, errCh)
 	for _, directoryPath := range directories {
 		jobs <- directoryPath
 	}
@@ -294,14 +298,14 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	return collectDirectoryResults(resultsCh, errCh)
 }
 
-func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-chan string, terms []string, contextSize int, resultsCh chan<- []searchResult, errCh chan<- error) {
+func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-chan string, terms []string, options ports.SearchOptions, resultsCh chan<- []searchResult, errCh chan<- error) {
 	var workers sync.WaitGroup
 	for worker := 0; worker < workerCount; worker++ {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
 			for directoryPath := range jobs {
-				results, err := service.searchDirectoryIndex(directoryPath, terms, contextSize)
+				results, err := service.searchDirectoryIndex(directoryPath, terms, options)
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -356,19 +360,24 @@ func boundedSearchWorkerCount(directoryCount int) int {
 	return limit
 }
 
-func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, contextSize int) ([]searchResult, error) {
+func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
 	index, err := service.indexRepo.LoadIndex(directoryPath)
 	if err != nil {
 		return nil, err
 	}
 
 	scores := scoreDocuments(index, terms)
+	metadataMatches := metadataMatchedDocuments(index, options)
+	scores = filteredScores(scores, metadataMatches, len(terms) == 0)
 	normalizeScores(scores)
 	results := make([]searchResult, 0, len(scores))
 	for fileName, score := range scores {
-		lines, err := service.allMatchingLines(directoryPath, fileName, terms, contextSize)
-		if err != nil {
-			return nil, err
+		lines := []matchedLine{}
+		if len(terms) > 0 {
+			lines, err = service.allMatchingLines(directoryPath, fileName, terms, options.Context)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		results = append(results, searchResult{directoryPath: directoryPath, fileName: fileName, matchedLines: lines, score: score})

@@ -5,10 +5,12 @@ import "math"
 // InvertedIndex represents a BM25 inverted index for a directory of files.
 // It maps terms to documents and frequencies for relevance scoring.
 type InvertedIndex struct {
-	DocumentCount    int                   `json:"documentCount"`
-	AverageDocLength float64               `json:"averageDocLength"`
-	Terms            map[string]*TermStats `json:"terms"`
-	Documents        map[string]*DocStats  `json:"documents"`
+	DocumentCount    int                        `json:"documentCount"`
+	AverageDocLength float64                    `json:"averageDocLength"`
+	Terms            map[string]*TermStats      `json:"terms"`
+	FileNameTerms    map[string]map[string]bool `json:"fileNameTerms"`
+	PathTerms        map[string]map[string]bool `json:"pathTerms"`
+	Documents        map[string]*DocStats       `json:"documents"`
 }
 
 // TermStats holds statistical data for a single term across all documents.
@@ -25,7 +27,9 @@ type DocTermStats struct {
 
 // DocStats holds document-level statistics for BM25 calculation.
 type DocStats struct {
-	Length int `json:"length"` // Number of tokens in document
+	Name   string `json:"name"`   // Base file name
+	Path   string `json:"path"`   // File path as collected during indexing
+	Length int    `json:"length"` // Number of tokens in document
 }
 
 // NewInvertedIndex creates an empty inverted index.
@@ -34,14 +38,26 @@ func NewInvertedIndex() *InvertedIndex {
 		DocumentCount:    0,
 		AverageDocLength: 0,
 		Terms:            make(map[string]*TermStats),
+		FileNameTerms:    make(map[string]map[string]bool),
+		PathTerms:        make(map[string]map[string]bool),
 		Documents:        make(map[string]*DocStats),
 	}
 }
 
 // AddDocument registers a new document in the index.
-func (idx *InvertedIndex) AddDocument(docName string, tokenCount int) {
-	idx.Documents[docName] = &DocStats{Length: tokenCount}
+func (idx *InvertedIndex) AddDocument(docName string, docPath string, tokenCount int) {
+	idx.Documents[docName] = &DocStats{Name: docName, Path: docPath, Length: tokenCount}
 	idx.DocumentCount++
+}
+
+// AddFileNameTerms indexes filename tokens for filter-only lookups.
+func (idx *InvertedIndex) AddFileNameTerms(docName string, fileName string) {
+	addMetadataTerms(idx.FileNameTerms, docName, fileName)
+}
+
+// AddPathTerms indexes path tokens for filter-only lookups.
+func (idx *InvertedIndex) AddPathTerms(docName string, docPath string) {
+	addMetadataTerms(idx.PathTerms, docName, docPath)
 }
 
 // AddTerm adds a term occurrence to a document in the index.
@@ -90,4 +106,16 @@ func idfScore(docCount int, docFreq int) float64 {
 
 	base := (float64(docCount) - float64(docFreq) + 0.5) / (float64(docFreq) + 0.5)
 	return math.Log1p(base)
+}
+
+func addMetadataTerms(index map[string]map[string]bool, docName string, text string) {
+	for _, token := range TokenizeText(text) {
+		documents := index[token.Token]
+		if documents == nil {
+			documents = make(map[string]bool)
+			index[token.Token] = documents
+		}
+
+		documents[docName] = true
+	}
 }
