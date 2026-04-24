@@ -3,9 +3,11 @@
 - Never use `grep` or `rg` to search within the project. Use the project's own search solution.
 - To search: `go run cmd/idx/main.go search "[TERM_TO_SEARCH]"`
 - Para uma saída simples com somente o nome do arquivo, utilize o comando `go run cmd/idx/main.go search "[TERM_TO_SEARCH] --files-only`
+- Para filtrar por nome de arquivo sem alterar o ranking BM25 do conteúdo, utilize `go run cmd/idx/main.go search "[TERM_TO_SEARCH] --file [FILE_FILTER]"`
+- Para filtrar por path sem alterar o ranking BM25 do conteúdo, utilize `go run cmd/idx/main.go search "[TERM_TO_SEARCH] --path [PATH_FILTER]"`
+- Para buscas somente por metadata, utilize `go run cmd/idx/main.go search --file [FILE_FILTER]` ou `go run cmd/idx/main.go search --path [PATH_FILTER]`
 - Se precisar de mais informação: prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters will return a valid JSON containing the matching file, line number, and the complete line string.
 - When more context is needed: add `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
-idx search module idx
 ## Code style
 
 - Functions: 4-20 lines. Split if longer.
@@ -69,6 +71,7 @@ idx search module idx
 
 - ADR 0001: BM25 inverted index is generated per directory and indexes file contents only.
 - ADR 0002: Index files are stored in binary GOB format by default to reduce disk and memory overhead.
+- ADR 0003: File name and path are indexed as metadata filters separate from the BM25 content corpus.
 
 ## Formatting
 
