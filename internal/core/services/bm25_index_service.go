@@ -29,7 +29,6 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 		tokens := domain.TokenizeText(document.Content)
 		tokensByDoc[document.Name] = tokens
 		index.AddDocument(document.Name, document.Path, len(tokens))
-		index.AddFileNameTerms(document.Name, document.Name)
 		index.AddPathTerms(document.Name, document.Path)
 	}
 

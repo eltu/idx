@@ -559,31 +559,6 @@ func TestSearchCommandServiceRunWithOptionsFilesOnlyWithJSONPretty(t *testing.T)
 	}
 }
 
-func TestSearchCommandServiceRunWithOptionsFiltersByFileNameWithoutChangingBM25(t *testing.T) {
-	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithMetadataFilters(rootDir)}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
-		filepath.Join(rootDir, "guide.md"):  "go search guide",
-		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
-	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
-
-	err := service.RunWithOptions("go search", ports.SearchOptions{FileQuery: "guide"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(output.lines) != 3 {
-		t.Fatalf("expected single filtered result, got %d lines: %v", len(output.lines), output.lines)
-	}
-
-	if stripANSICodes(output.lines[0]) != "./guide.md (score: 1.0000)" {
-		t.Fatalf("expected filtered guide result, got %q", output.lines[0])
-	}
-}
-
 func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal", "core")
@@ -609,27 +584,6 @@ func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *tes
 	}
 	if output.lines[1] != "" {
 		t.Fatalf("expected trailing blank line, got %q", output.lines[1])
-	}
-}
-
-func TestSearchCommandServiceRunWithOptionsSupportsFileWildcardPrefixFilter(t *testing.T) {
-	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
-
-	err := service.RunWithOptions("", ports.SearchOptions{FileQuery: "go*"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(output.lines) != 2 {
-		t.Fatalf("expected one metadata-only result, got %d lines: %v", len(output.lines), output.lines)
-	}
-
-	if stripANSICodes(output.lines[0]) != "./go.mod (score: 1.0000)" {
-		t.Fatalf("expected go.mod with prefix wildcard, got %q", output.lines[0])
 	}
 }
 
@@ -708,8 +662,6 @@ func searchableIndex() *domain.InvertedIndex {
 	index := domain.NewInvertedIndex()
 	index.Documents["guide.md"] = &domain.DocStats{Name: "guide.md", Path: "guide.md", Length: 3}
 	index.Documents["readme.md"] = &domain.DocStats{Name: "readme.md", Path: "readme.md", Length: 7}
-	index.AddFileNameTerms("guide.md", "guide.md")
-	index.AddFileNameTerms("readme.md", "readme.md")
 	index.AddPathTerms("guide.md", "guide.md")
 	index.AddPathTerms("readme.md", "readme.md")
 	index.DocumentCount = len(index.Documents)
@@ -737,9 +689,6 @@ func searchableIndexWithPartialMatch() *domain.InvertedIndex {
 	index.Documents["go.mod"] = &domain.DocStats{Name: "go.mod", Path: "go.mod", Length: 4}
 	index.Documents["AGENTS.md"] = &domain.DocStats{Name: "AGENTS.md", Path: "AGENTS.md", Length: 6}
 	index.Documents[".gitignore"] = &domain.DocStats{Name: ".gitignore", Path: ".gitignore", Length: 5}
-	index.AddFileNameTerms("go.mod", "go.mod")
-	index.AddFileNameTerms("AGENTS.md", "AGENTS.md")
-	index.AddFileNameTerms(".gitignore", ".gitignore")
 	index.AddPathTerms("go.mod", "go.mod")
 	index.AddPathTerms("AGENTS.md", "AGENTS.md")
 	index.AddPathTerms(".gitignore", ".gitignore")
@@ -767,8 +716,6 @@ func searchableIndexWithProximity() *domain.InvertedIndex {
 	index := domain.NewInvertedIndex()
 	index.Documents["near.txt"] = &domain.DocStats{Name: "near.txt", Path: "near.txt", Length: 5}
 	index.Documents["far.txt"] = &domain.DocStats{Name: "far.txt", Path: "far.txt", Length: 5}
-	index.AddFileNameTerms("near.txt", "near.txt")
-	index.AddFileNameTerms("far.txt", "far.txt")
 	index.AddPathTerms("near.txt", "near.txt")
 	index.AddPathTerms("far.txt", "far.txt")
 	index.DocumentCount = len(index.Documents)
@@ -794,7 +741,6 @@ func searchableIndexWithProximity() *domain.InvertedIndex {
 func searchableIndexForRelativePath() *domain.InvertedIndex {
 	index := domain.NewInvertedIndex()
 	index.Documents["go.mod"] = &domain.DocStats{Name: "go.mod", Path: filepath.Join("internal", "core", "go.mod"), Length: 5}
-	index.AddFileNameTerms("go.mod", "go.mod")
 	index.AddPathTerms("go.mod", filepath.Join("internal", "core", "go.mod"))
 	index.DocumentCount = len(index.Documents)
 	index.AverageDocLength = 5
@@ -817,7 +763,6 @@ func searchableIndexForRelativePath() *domain.InvertedIndex {
 func searchableIndexWithSingleResult(fileName string, moduleIDF float64, idxIDF float64, modulePositions []int, idxPositions []int) *domain.InvertedIndex {
 	index := domain.NewInvertedIndex()
 	index.Documents[fileName] = &domain.DocStats{Name: fileName, Path: fileName, Length: 5}
-	index.AddFileNameTerms(fileName, fileName)
 	index.AddPathTerms(fileName, fileName)
 	index.DocumentCount = 1
 	index.AverageDocLength = 5
@@ -841,7 +786,6 @@ func searchableIndexForMetadataPath(directoryPath string, fileName string) *doma
 	index := domain.NewInvertedIndex()
 	filePath := filepath.Join(directoryPath, fileName)
 	index.Documents[fileName] = &domain.DocStats{Name: fileName, Path: filePath, Length: 1}
-	index.AddFileNameTerms(fileName, fileName)
 	index.AddPathTerms(fileName, filePath)
 	index.DocumentCount = 1
 	index.AverageDocLength = 1

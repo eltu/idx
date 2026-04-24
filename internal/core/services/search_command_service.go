@@ -130,9 +130,7 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 		normalized.Limit = 0
 	}
 
-	normalized.FileQuery = strings.TrimSpace(normalized.FileQuery)
 	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
-	normalized.FileQueries = normalizedFilterQueries(normalized.FileQueries, normalized.FileQuery)
 	normalized.PathQueries = normalizedFilterQueries(normalized.PathQueries, normalized.PathQuery)
 
 	return normalized
