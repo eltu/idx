@@ -12,5 +12,7 @@ type SearchOptions struct {
 	PrettyJSON  bool
 	MatchesOnly bool
 	FilesOnly   bool
+	FileQuery   string
+	PathQuery   string
 	Limit       int
 }

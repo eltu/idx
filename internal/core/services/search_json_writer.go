@@ -8,6 +8,8 @@ import (
 
 type jsonSearchResult struct {
 	File    string                `json:"file"`
+	Name    string                `json:"name"`
+	Path    string                `json:"path"`
 	Score   float64               `json:"score"`
 	Matches []jsonSearchMatchLine `json:"matches"`
 }
@@ -60,7 +62,13 @@ func (service SearchCommandService) writeResultsJSON(results []searchResult, pro
 			matches = append(matches, jsonSearchMatchLine{Line: line.lineNumber, Content: line.content, Match: line.isMatch})
 		}
 
-		payload = append(payload, jsonSearchResult{File: projectRelativePath, Score: result.score, Matches: matches})
+		payload = append(payload, jsonSearchResult{
+			File:    projectRelativePath,
+			Name:    result.fileName,
+			Path:    projectRelativePath,
+			Score:   result.score,
+			Matches: matches,
+		})
 	}
 
 	var (

@@ -14,9 +14,9 @@ func NewBM25IndexService() BM25IndexService {
 	return BM25IndexService{}
 }
 
-// BuildIndex constructs a BM25 inverted index from a map of documents.
-// Example: index, _ := service.BuildIndex(map[string]string{"file.txt": "hello world"}).
-func (service BM25IndexService) BuildIndex(documents map[string]string) (*domain.InvertedIndex, error) {
+// BuildIndex constructs a BM25 inverted index from document metadata and content.
+// Example: index, _ := service.BuildIndex([]domain.IndexDocument{{Name: "file.txt", Path: "./file.txt", Content: "hello world"}}).
+func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*domain.InvertedIndex, error) {
 	if len(documents) == 0 {
 		return domain.NewInvertedIndex(), nil
 	}
@@ -25,10 +25,12 @@ func (service BM25IndexService) BuildIndex(documents map[string]string) (*domain
 
 	// First pass: tokenize all documents and collect term statistics
 	tokensByDoc := make(map[string][]domain.TokenWithPosition)
-	for docName, content := range documents {
-		tokens := domain.TokenizeText(content)
-		tokensByDoc[docName] = tokens
-		index.AddDocument(docName, len(tokens))
+	for _, document := range documents {
+		tokens := domain.TokenizeText(document.Content)
+		tokensByDoc[document.Name] = tokens
+		index.AddDocument(document.Name, document.Path, len(tokens))
+		index.AddFileNameTerms(document.Name, document.Name)
+		index.AddPathTerms(document.Name, document.Path)
 	}
 
 	// Second pass: build term index

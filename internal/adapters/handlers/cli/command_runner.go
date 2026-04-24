@@ -83,7 +83,7 @@ func (runner CommandRunner) runSearch() error {
 		return err
 	}
 
-	if query == "" {
+	if !hasSearchInput(query, options) {
 		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", runner.arguments)
 	}
 
@@ -119,6 +119,22 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 			options.MatchesOnly = true
 		case "--files-only":
 			options.FilesOnly = true
+		case "--file":
+			fileQuery, err := parseTextOption(arguments, index, argument)
+			if err != nil {
+				return "", options, err
+			}
+
+			options.FileQuery = fileQuery
+			index++
+		case "--path":
+			pathQuery, err := parseTextOption(arguments, index, argument)
+			if err != nil {
+				return "", options, err
+			}
+
+			options.PathQuery = pathQuery
+			index++
 		case "--limit":
 			parsedLimit, err := parseLimitOption(arguments, index)
 			if err != nil {
@@ -197,12 +213,29 @@ func parseLimitOption(arguments []string, index int) (int, error) {
 	return parsedLimit, nil
 }
 
+func parseTextOption(arguments []string, index int, option string) (string, error) {
+	if index+1 >= len(arguments) {
+		return "", fmt.Errorf("missing %s value: got %q, expected non-empty text", option, arguments[index])
+	}
+
+	value := strings.TrimSpace(arguments[index+1])
+	if value == "" || strings.HasPrefix(value, "--") {
+		return "", fmt.Errorf("invalid %s value %q: expected non-empty text", option, arguments[index+1])
+	}
+
+	return value, nil
+}
+
 func validateSearchOption(argument string) error {
 	if strings.HasPrefix(argument, "--") {
-		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, or --limit <n>", argument)
+		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, --file <text>, --path <text>, or --limit <n>", argument)
 	}
 
 	return nil
+}
+
+func hasSearchInput(query string, options ports.SearchOptions) bool {
+	return query != "" || options.FileQuery != "" || options.PathQuery != ""
 }
 
 func validatePrettyJSONOption(options ports.SearchOptions) error {
