@@ -302,27 +302,19 @@ func TestCommandRunnerRunParsesFilesOnlyOption(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunParsesFileAndPathFilters(t *testing.T) {
+func TestCommandRunnerRunParsesPathFilter(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--file", "go.mod", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if searchCommand.lastOptions.FileQuery != "go.mod" {
-		t.Fatalf("expected file filter %q, got %q", "go.mod", searchCommand.lastOptions.FileQuery)
-	}
-
 	if searchCommand.lastOptions.PathQuery != "internal/core" {
 		t.Fatalf("expected path filter %q, got %q", "internal/core", searchCommand.lastOptions.PathQuery)
-	}
-
-	if len(searchCommand.lastOptions.FileQueries) != 1 || searchCommand.lastOptions.FileQueries[0] != "go.mod" {
-		t.Fatalf("expected file queries [go.mod], got %v", searchCommand.lastOptions.FileQueries)
 	}
 
 	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
@@ -334,15 +326,15 @@ func TestCommandRunnerRunAcceptsMetadataOnlySearch(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--file", "go.mod"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
 
 	err := runner.Run()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if searchCommand.lastQuery != "" {
-		t.Fatalf("expected empty content query, got %q", searchCommand.lastQuery)
+	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
+		t.Fatalf("expected path filter [internal/core], got %v", searchCommand.lastOptions.PathQueries)
 	}
 }
 

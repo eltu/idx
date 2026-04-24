@@ -6,20 +6,19 @@ Accepted
 
 ## Context
 
-The index stores file name and path for each document. Users want to search by these fields, but adding metadata tokens to the same BM25 corpus as file content changes document length, term frequency, and inverse document frequency.
+The index stores document path metadata. Users want to search by path, but adding metadata tokens to the same BM25 corpus as file content changes document length, term frequency, and inverse document frequency.
 
-The project already relies on BM25 for ranked content search, and ADR 0001 defines the corpus as file contents. File name and path serve a different purpose: they constrain the result set, but they should not influence relevance statistics.
+The project already relies on BM25 for ranked content search, and ADR 0001 defines the corpus as file contents. Path metadata serves a different purpose: it constrains the result set, but it should not influence relevance statistics.
 
 ## Decision
 
-File name and path are indexed in separate metadata term maps.
+Path metadata is indexed in a separate metadata term map.
 
 The BM25 corpus remains based on file content only.
 
-Search accepts three independent inputs:
+Search accepts two independent inputs:
 
 - content query for BM25 ranking
-- file name filter
 - path filter
 
 Metadata filters reduce the candidate document set but do not change BM25 score, document length, term frequency, or IDF.
@@ -27,7 +26,7 @@ Metadata filters reduce the candidate document set but do not change BM25 score,
 ## Decision Drivers
 
 - Preserve BM25 relevance for content search.
-- Support navigation-oriented filtering by file name and path.
+- Support navigation-oriented filtering by path.
 - Keep metadata lookup explicit and predictable.
 - Avoid coupling metadata tokens to content statistics.
 
@@ -36,7 +35,7 @@ Metadata filters reduce the candidate document set but do not change BM25 score,
 ### Positive
 
 - Content ranking remains statistically stable.
-- Users can filter by file name and path without affecting BM25.
+- Users can filter by path without affecting BM25.
 - Metadata-only searches are possible without inventing fake content scores.
 
 ### Negative
@@ -48,6 +47,5 @@ Metadata filters reduce the candidate document set but do not change BM25 score,
 ## Operational Notes
 
 - Content queries continue to use the BM25 `Terms` corpus.
-- File name filters use `FileNameTerms`.
 - Path filters use `PathTerms`.
 - Metadata-only searches may return results without matched content lines.

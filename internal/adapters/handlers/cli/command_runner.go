@@ -139,22 +139,6 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 			options.MatchesOnly = true
 		case "--files-only":
 			options.FilesOnly = true
-		case "--file":
-			fileQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
-			if err != nil {
-				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-					queryTerms = append(queryTerms, argument)
-					continue
-				}
-
-				return "", options, err
-			}
-
-			if options.FileQuery == "" {
-				options.FileQuery = fileQueries[0]
-			}
-			options.FileQueries = append(options.FileQueries, fileQueries...)
-			index += consumed
 		case "--path":
 			pathQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
 			if err != nil {
@@ -319,14 +303,14 @@ func parseTextOptionValues(arguments []string, index int, option string) ([]stri
 
 func validateSearchOption(argument string) error {
 	if strings.HasPrefix(argument, "--") {
-		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, --file <text>, --path <text>, or --limit <n>", argument)
+		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, --path <text>, or --limit <n>", argument)
 	}
 
 	return nil
 }
 
 func hasSearchInput(query string, options ports.SearchOptions) bool {
-	return query != "" || options.FileQuery != "" || options.PathQuery != "" || len(options.FileQueries) > 0 || len(options.PathQueries) > 0
+	return query != "" || options.PathQuery != "" || len(options.PathQueries) > 0
 }
 
 func validatePrettyJSONOption(options ports.SearchOptions) error {

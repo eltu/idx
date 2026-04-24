@@ -8,12 +8,11 @@ import (
 
 func metadataMatchedDocuments(index *domain.InvertedIndex, options ports.SearchOptions) map[string]struct{} {
 	matched := allIndexedDocuments(index)
-	matched = applyMetadataFilter(matched, index.FileNameTerms, index.Documents, effectiveMetadataPatterns(options.FileQueries, options.FileQuery), false)
-	matched = applyMetadataFilter(matched, index.PathTerms, index.Documents, effectiveMetadataPatterns(options.PathQueries, options.PathQuery), true)
+	matched = applyMetadataFilter(matched, index.PathTerms, index.Documents, effectiveMetadataPatterns(options.PathQueries, options.PathQuery))
 	return matched
 }
 
-func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string, usePath bool) map[string]struct{} {
+func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string) map[string]struct{} {
 	if len(patterns) == 0 {
 		return current
 	}
@@ -23,7 +22,7 @@ func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[s
 		return indexed
 	}
 
-	return fallbackMetadataPatternMatch(current, documents, patterns, usePath)
+	return fallbackMetadataPatternMatch(current, documents, patterns)
 }
 
 func cloneDocSet(current map[string]struct{}) map[string]struct{} {
@@ -34,7 +33,7 @@ func cloneDocSet(current map[string]struct{}) map[string]struct{} {
 	return clone
 }
 
-func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[string]*domain.DocStats, patterns []string, usePath bool) map[string]struct{} {
+func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[string]*domain.DocStats, patterns []string) map[string]struct{} {
 	matched := make(map[string]struct{})
 	for docName := range current {
 		document := documents[docName]
@@ -42,12 +41,7 @@ func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[str
 			continue
 		}
 
-		value := document.Name
-		if usePath {
-			value = document.Path
-		}
-
-		if metadataValueMatchesAnyPattern(value, patterns) {
+		if metadataValueMatchesAnyPattern(document.Path, patterns) {
 			matched[docName] = struct{}{}
 		}
 	}

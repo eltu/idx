@@ -3,9 +3,8 @@
 - Never use `grep` or `rg` to search within the project. Use the project's own search solution.
 - To search: `go run cmd/idx/main.go search "[TERM_TO_SEARCH]"`
 - Para uma saída simples com somente o nome do arquivo, utilize o comando `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --files-only`
-- Para filtrar por nome de arquivo sem alterar o ranking BM25 do conteúdo, utilize `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --file [FILE_FILTER]"`
 - Para filtrar por path sem alterar o ranking BM25 do conteúdo, utilize `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
-- Para buscas somente por metadata, utilize `go run cmd/idx/main.go search --file [FILE_FILTER]` ou `go run cmd/idx/main.go search --path [PATH_FILTER]`
+- Para buscas somente por metadata, utilize `go run cmd/idx/main.go search --path [PATH_FILTER]`
 - Se precisar de mais informação: prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters will return a valid JSON containing the matching file, line number, and the complete line string.
 - When more context is needed: add `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
 ## Code style
