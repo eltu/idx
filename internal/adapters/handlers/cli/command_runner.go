@@ -96,10 +96,25 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 
 	for index := 0; index < len(arguments); index++ {
 		argument := arguments[index]
+		if shouldTreatAsLiteralPhrase(argument) {
+			queryTerms = append(queryTerms, argument)
+			continue
+		}
+
+		if shouldTreatAsLiteralStandaloneFlag(arguments, index, argument, queryTerms) {
+			queryTerms = append(queryTerms, argument)
+			continue
+		}
+
 		switch argument {
 		case "--format":
 			selectedFormat, err := parseFormatOption(arguments, index)
 			if err != nil {
+				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+					queryTerms = append(queryTerms, argument)
+					continue
+				}
+
 				return "", options, err
 			}
 
@@ -108,6 +123,11 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--context":
 			parsedContext, err := parseContextOption(arguments, index)
 			if err != nil {
+				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+					queryTerms = append(queryTerms, argument)
+					continue
+				}
+
 				return "", options, err
 			}
 
@@ -122,6 +142,11 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--file":
 			fileQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
 			if err != nil {
+				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+					queryTerms = append(queryTerms, argument)
+					continue
+				}
+
 				return "", options, err
 			}
 
@@ -133,6 +158,11 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--path":
 			pathQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
 			if err != nil {
+				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+					queryTerms = append(queryTerms, argument)
+					continue
+				}
+
 				return "", options, err
 			}
 
@@ -144,6 +174,11 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 		case "--limit":
 			parsedLimit, err := parseLimitOption(arguments, index)
 			if err != nil {
+				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+					queryTerms = append(queryTerms, argument)
+					continue
+				}
+
 				return "", options, err
 			}
 
@@ -151,7 +186,8 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 			index++
 		default:
 			if err := validateSearchOption(argument); err != nil {
-				return "", options, err
+				queryTerms = append(queryTerms, argument)
+				continue
 			}
 
 			queryTerms = append(queryTerms, argument)
@@ -163,6 +199,39 @@ func parseSearchArguments(arguments []string) (string, ports.SearchOptions, erro
 	}
 
 	return strings.Join(queryTerms, " "), options, nil
+}
+
+func shouldTreatAsLiteralPhrase(argument string) bool {
+	return strings.Contains(argument, " ")
+}
+
+func shouldTreatAsLiteralReservedTerm(index int, queryTerms []string) bool {
+	return index == 0 && len(queryTerms) == 0
+}
+
+func shouldTreatAsLiteralStandaloneFlag(arguments []string, index int, argument string, queryTerms []string) bool {
+	if !shouldTreatAsLiteralReservedTerm(index, queryTerms) {
+		return false
+	}
+
+	if !isStandaloneSearchFlag(argument) {
+		return false
+	}
+
+	if index+1 >= len(arguments) {
+		return false
+	}
+
+	return strings.HasPrefix(strings.TrimSpace(arguments[index+1]), "--")
+}
+
+func isStandaloneSearchFlag(argument string) bool {
+	switch argument {
+	case "--json-pretty", "--matches-only", "--macthes-only", "--files-only":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseInspectArguments(arguments []string) (string, error) {
