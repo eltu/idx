@@ -1,38 +1,8 @@
 package domain
 
 import (
-	"regexp"
 	"strings"
 )
-
-// StopWords contains common English words to exclude from indexing.
-var StopWords = map[string]bool{
-	"the":  true,
-	"a":    true,
-	"an":   true,
-	"and":  true,
-	"or":   true,
-	"but":  true,
-	"in":   true,
-	"on":   true,
-	"at":   true,
-	"to":   true,
-	"for":  true,
-	"of":   true,
-	"with": true,
-	"by":   true,
-	"from": true,
-	"is":   true,
-	"are":  true,
-	"was":  true,
-	"be":   true,
-	"that": true,
-	"this": true,
-	"it":   true,
-	"as":   true,
-	"if":   true,
-	"so":   true,
-}
 
 // TokenWithPosition represents a term and its position in text.
 type TokenWithPosition struct {
@@ -41,31 +11,25 @@ type TokenWithPosition struct {
 }
 
 // TokenizeText extracts tokens from text with their positions.
-// Returns tokens in lowercase, filtering stop words and short tokens.
+// Returns lowercase tokens split only by whitespace.
 func TokenizeText(text string) []TokenWithPosition {
-	// Replace non-alphanumeric characters with spaces
-	reg := regexp.MustCompile(`[^a-zA-Z0-9_\s]`)
-	cleanText := reg.ReplaceAllString(text, " ")
+	fields := strings.Fields(text)
+	tokens := make([]TokenWithPosition, 0, len(fields))
+	searchFrom := 0
 
-	var tokens []TokenWithPosition
-	words := strings.Fields(cleanText)
-	position := 0
-
-	for _, word := range words {
-		lower := strings.ToLower(word)
-
-		// Skip stop words and very short tokens
-		if len(lower) < 2 || StopWords[lower] {
-			position += len(word) + 1
+	for _, field := range fields {
+		position := strings.Index(text[searchFrom:], field)
+		if position < 0 {
 			continue
 		}
 
+		absolutePos := searchFrom + position
 		tokens = append(tokens, TokenWithPosition{
-			Token:    lower,
-			Position: position,
+			Token:    strings.ToLower(field),
+			Position: absolutePos,
 		})
 
-		position += len(word) + 1
+		searchFrom = absolutePos + len(field)
 	}
 
 	return tokens

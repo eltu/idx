@@ -8,9 +8,100 @@ import (
 
 func metadataMatchedDocuments(index *domain.InvertedIndex, options ports.SearchOptions) map[string]struct{} {
 	matched := allIndexedDocuments(index)
-	matched = intersectMetadataPatterns(matched, index.FileNameTerms, options.FileQueries)
-	matched = intersectMetadataPatterns(matched, index.PathTerms, options.PathQueries)
+	matched = applyMetadataFilter(matched, index.FileNameTerms, index.Documents, effectiveMetadataPatterns(options.FileQueries, options.FileQuery), false)
+	matched = applyMetadataFilter(matched, index.PathTerms, index.Documents, effectiveMetadataPatterns(options.PathQueries, options.PathQuery), true)
 	return matched
+}
+
+func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string, usePath bool) map[string]struct{} {
+	if len(patterns) == 0 {
+		return current
+	}
+
+	indexed := intersectMetadataPatterns(cloneDocSet(current), termIndex, patterns)
+	if len(indexed) > 0 {
+		return indexed
+	}
+
+	return fallbackMetadataPatternMatch(current, documents, patterns, usePath)
+}
+
+func cloneDocSet(current map[string]struct{}) map[string]struct{} {
+	clone := make(map[string]struct{}, len(current))
+	for docName := range current {
+		clone[docName] = struct{}{}
+	}
+	return clone
+}
+
+func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[string]*domain.DocStats, patterns []string, usePath bool) map[string]struct{} {
+	matched := make(map[string]struct{})
+	for docName := range current {
+		document := documents[docName]
+		if document == nil {
+			continue
+		}
+
+		value := document.Name
+		if usePath {
+			value = document.Path
+		}
+
+		if metadataValueMatchesAnyPattern(value, patterns) {
+			matched[docName] = struct{}{}
+		}
+	}
+
+	return matched
+}
+
+func metadataValueMatchesAnyPattern(value string, patterns []string) bool {
+	valueTerms := splitMetadataFilterTerms(strings.ToLower(value))
+	for _, pattern := range patterns {
+		if metadataValueMatchesPattern(valueTerms, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func metadataValueMatchesPattern(valueTerms []string, pattern string) bool {
+	patternTerms := metadataFilterTerms(pattern)
+	if len(patternTerms) == 0 {
+		return false
+	}
+
+	for _, patternTerm := range patternTerms {
+		if !hasMatchingMetadataTerm(valueTerms, patternTerm) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func hasMatchingMetadataTerm(valueTerms []string, patternTerm string) bool {
+	for _, valueTerm := range valueTerms {
+		if wildcardMatch(patternTerm, valueTerm) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func effectiveMetadataPatterns(patterns []string, fallback string) []string {
+	if len(patterns) > 0 {
+		return patterns
+	}
+
+	trimmed := strings.TrimSpace(fallback)
+	if trimmed == "" {
+		return []string{}
+	}
+
+	return []string{trimmed}
 }
 
 func allIndexedDocuments(index *domain.InvertedIndex) map[string]struct{} {
