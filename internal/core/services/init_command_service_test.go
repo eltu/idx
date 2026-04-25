@@ -239,8 +239,8 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 		t.Fatalf("expected child index to have 1 document, got %d", childIndex.DocumentCount)
 	}
 
-	if _, ok := indexRepo.savedIndices[emptyDir]; !ok {
-		t.Fatalf("expected index for empty directory, got nothing")
+	if _, ok := indexRepo.savedIndices[emptyDir]; ok {
+		t.Fatalf("did not expect index for empty directory %q", emptyDir)
 	}
 
 	if _, ok := indexRepo.savedIndices[vendorDir]; ok {
@@ -405,6 +405,33 @@ func TestInitCommandServiceSyncReindexesWhenChecksumsChanged(t *testing.T) {
 
 	if checksumRepo.saveCount[rootDir] != 1 {
 		t.Fatalf("expected checksum update count 1, got %d", checksumRepo.saveCount[rootDir])
+	}
+}
+
+func TestInitCommandServiceSyncRemovesIndexWhenDirectoryHasNoIndexableFiles(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+	}
+
+	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
+	output := &capturingTextOutput{}
+	fileReader := fakeFileReader{files: map[string]string{}}
+	indexer := &fakeBM25Indexer{}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+	checksumRepo := newFakeChecksumRepository()
+	service := services.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	removedIndexPath := filepath.Join(rootDir, ".idx")
+	if len(tree.removed) != 1 || tree.removed[0] != removedIndexPath {
+		t.Fatalf("expected removed index path %q, got %v", removedIndexPath, tree.removed)
 	}
 }
 

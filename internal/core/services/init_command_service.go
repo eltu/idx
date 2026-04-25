@@ -250,6 +250,10 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		fileEntries = append(fileEntries, entry)
 	}
 
+	if len(fileEntries) == 0 {
+		return service.removeDirectoryIndex(directoryPath)
+	}
+
 	checksums, err := service.directoryChecksums(fileEntries)
 	if err != nil {
 		return err
@@ -262,15 +266,6 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 
 	if !shouldReindex {
 		return nil
-	}
-
-	if len(fileEntries) == 0 {
-		emptyIndex := domain.NewInvertedIndex()
-		if err := service.indexRepo.SaveIndex(directoryPath, emptyIndex); err != nil {
-			return err
-		}
-
-		return service.checksumRepo.Save(directoryPath, checksums)
 	}
 
 	if err := service.buildAndSaveIndex(directoryPath, fileEntries); err != nil {
