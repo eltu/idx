@@ -154,7 +154,8 @@ func buildBenchmarkSearchService(b testing.TB, repositoryPath string) services.S
 	fileReader := repository.NewOSFileReader()
 	indexer := services.NewBM25IndexService()
 	indexRepo := repository.NewBinaryIndexRepository(projectTree)
-	initService := services.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo)
+	checksumRepo := repository.NewDirectoryChecksumRepository()
+	initService := services.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
 	if err := initService.Run(); err != nil {
 		b.Fatalf("expected benchmark indexing to succeed, got %v", err)
 	}
