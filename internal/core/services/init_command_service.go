@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -18,6 +20,7 @@ type InitCommandService struct {
 	fileReader     ports.FileReader
 	indexer        ports.BM25Indexer
 	indexRepo      IndexRepository
+	checksumRepo   DirectoryChecksumRepository
 }
 
 // IndexRepository defines saving index to storage.
@@ -26,9 +29,15 @@ type IndexRepository interface {
 	LoadIndex(directoryPath string) (*domain.InvertedIndex, error)
 }
 
+// DirectoryChecksumRepository defines checksum metadata storage per directory.
+type DirectoryChecksumRepository interface {
+	Load(directoryPath string) (map[string]string, bool, error)
+	Save(directoryPath string, checksums map[string]string) error
+}
+
 // NewInitCommandService builds the init use case.
 // Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo).
-func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo IndexRepository) InitCommandService {
+func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo IndexRepository, checksumRepo DirectoryChecksumRepository) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
@@ -36,6 +45,7 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 		fileReader:     fileReader,
 		indexer:        indexer,
 		indexRepo:      indexRepo,
+		checksumRepo:   checksumRepo,
 	}
 }
 
@@ -240,12 +250,91 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		fileEntries = append(fileEntries, entry)
 	}
 
-	if len(fileEntries) == 0 {
-		emptyIndex := domain.NewInvertedIndex()
-		return service.indexRepo.SaveIndex(directoryPath, emptyIndex)
+	checksums, err := service.directoryChecksums(fileEntries)
+	if err != nil {
+		return err
 	}
 
-	return service.buildAndSaveIndex(directoryPath, fileEntries)
+	shouldReindex, err := service.shouldReindexDirectory(directoryPath, checksums)
+	if err != nil {
+		return err
+	}
+
+	if !shouldReindex {
+		return nil
+	}
+
+	if len(fileEntries) == 0 {
+		emptyIndex := domain.NewInvertedIndex()
+		if err := service.indexRepo.SaveIndex(directoryPath, emptyIndex); err != nil {
+			return err
+		}
+
+		return service.checksumRepo.Save(directoryPath, checksums)
+	}
+
+	if err := service.buildAndSaveIndex(directoryPath, fileEntries); err != nil {
+		return err
+	}
+
+	return service.checksumRepo.Save(directoryPath, checksums)
+}
+
+func (service InitCommandService) shouldReindexDirectory(directoryPath string, currentChecksums map[string]string) (bool, error) {
+	currentIndexPath := indexFilePath(directoryPath)
+	hasIndex, err := service.projectTree.Exists(currentIndexPath)
+	if err != nil {
+		return false, err
+	}
+
+	if !hasIndex {
+		return true, nil
+	}
+
+	storedChecksums, exists, err := service.checksumRepo.Load(directoryPath)
+	if err != nil {
+		return false, err
+	}
+
+	if !exists {
+		return true, nil
+	}
+
+	return !sameChecksums(storedChecksums, currentChecksums), nil
+}
+
+func (service InitCommandService) directoryChecksums(fileEntries []domain.DirectoryEntry) (map[string]string, error) {
+	checksums := make(map[string]string, len(fileEntries))
+	for _, entry := range fileEntries {
+		content, err := service.fileReader.ReadFile(entry.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		sum := sha256.Sum256([]byte(content))
+		checksums[entry.Name] = hex.EncodeToString(sum[:])
+	}
+
+	return checksums, nil
+}
+
+func sameChecksums(stored map[string]string, current map[string]string) bool {
+	if len(stored) != len(current) {
+		return false
+	}
+
+	for fileName, storedChecksum := range stored {
+		currentChecksum, exists := current[fileName]
+		if !exists {
+			return false
+		}
+
+		if storedChecksum != currentChecksum {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry) error {
