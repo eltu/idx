@@ -53,16 +53,20 @@
 ```
 .
 ├── cmd/
-│   └── api/
-│       └── main.go          # Dependency injection & app startup
+│   └── idx/
+│       └── main.go                  # Dependency injection & app startup
 ├── internal/
-│   ├── core/                # The "Inside" (Business Logic)
-│   │   ├── domain/          # Entities/Models (structs)
-│   │   ├── ports/           # Interfaces (contracts for In/Out)
-│   │   └── services/        # Logic implementation (Use cases)
-│   └── adapters/            # The "Outside" (Infrastructure)
-│       ├── handlers/        # Input (HTTP, gRPC, CLI)
-│       └── repository/      # Output (Postgres, Redis, S3)
+│   ├── core/                        # The "Inside" (Business Logic)
+│   │   ├── domain/                  # Entities/Models (structs)
+│   │   ├── ports/                   # Interfaces (contracts for In/Out)
+│   │   └── services/
+│   │       ├── indexing/            # Init & BM25 indexing use cases
+│   │       ├── search/              # Search use cases
+│   │       └── lifecycle/           # Destroy use cases
+│   └── adapters/                    # The "Outside" (Infrastructure)
+│       ├── handlers/
+│       │   └── cli/                 # Input (CLI commands)
+│       └── repository/              # Output (filesystem, index storage)
 └── go.mod
 ```
 
@@ -71,6 +75,7 @@
 - ADR 0001: BM25 inverted index is generated per directory and indexes file contents only.
 - ADR 0002: Index files are stored in binary GOB format by default to reduce disk and memory overhead.
 - ADR 0003: File name and path are indexed as metadata filters separate from the BM25 content corpus.
+- ADR 0004: Incremental sync uses checksums to avoid re-indexing unchanged directories.
 
 ## Formatting
 
