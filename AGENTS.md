@@ -2,11 +2,11 @@
 
 - Never use `grep` or `rg` to search within the project. Use the project's own search solution.
 - To search: `go run cmd/idx/main.go search "[TERM_TO_SEARCH]"`
-- Para uma saída simples com somente o nome do arquivo, utilize o comando `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --files-only`
-- Para filtrar por path sem alterar o ranking BM25 do conteúdo, utilize `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
-- Para buscas somente por metadata, utilize `go run cmd/idx/main.go search --path [PATH_FILTER]`
-- Se precisar de mais informação: prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters will return a valid JSON containing the matching file, line number, and the complete line string.
-- When more context is needed: add `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
+- For a simple output that only shows file names, use `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --files-only`
+- To filter by path without affecting the BM25 ranking of the content, use `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
+- For metadata-only searches, use `go run cmd/idx/main.go search --path [PATH_FILTER]`
+- If you need more information, prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters return valid JSON containing the matching file, line number, and the full matching line.
+- When more context is needed, add the `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
 ## Code style
 
 - Functions: 4-20 lines. Split if longer.
@@ -21,7 +21,7 @@
 
 ## Comments
 
-- Keep your own comments. Don't strip them on refactor — they carry
+- Keep existing comments. Don't strip them on refactor — they carry
   intent and provenance.
 - Write WHY, not WHAT. Skip `// increment counter` above `i++`.
 - Docstrings on public functions: intent + one usage example.
