@@ -1,4 +1,4 @@
-package services
+package search
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
+	"idx/internal/core/services/indexing"
 )
 
 const (
@@ -75,13 +76,13 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 		return err
 	}
 
-	indexedDirectories, err := indexedDirectories(service.projectTree, projectRoot)
+	dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
 		return err
 	}
 
 	terms := uniqueQueryTerms(query)
-	results, err := service.rankedResults(indexedDirectories, terms, normalizedOptions)
+	results, err := service.rankedResults(dirs, terms, normalizedOptions)
 	if err != nil {
 		return err
 	}
@@ -398,6 +399,7 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 	for fileName, score := range scores {
 		lines := []matchedLine{}
 		if len(terms) > 0 {
+			var err error
 			lines, err = service.allMatchingLines(directoryPath, fileName, terms, options.Context)
 			if err != nil {
 				return nil, err

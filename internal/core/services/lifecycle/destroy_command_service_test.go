@@ -1,4 +1,4 @@
-package services_test
+package lifecycle_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"idx/internal/core/domain"
-	"idx/internal/core/services"
+	lifecycle "idx/internal/core/services/lifecycle"
 )
 
 func TestDestroyCommandServiceRunRemovesIdxDirectoriesRecursively(t *testing.T) {
@@ -28,7 +28,7 @@ func TestDestroyCommandServiceRunRemovesIdxDirectoriesRecursively(t *testing.T) 
 	tree.readDirMap[coreDir] = []domain.DirectoryEntry{{Name: ".idx", Path: filepath.Join(coreDir, ".idx"), IsDir: true}}
 
 	output := &capturingTextOutput{}
-	service := services.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, output)
 
 	err := service.Run()
 	if err != nil {
@@ -58,7 +58,7 @@ func TestDestroyCommandServiceRunRequiresProjectRoot(t *testing.T) {
 
 	tree := newFakeProjectTree(currentDir, rootDir)
 	output := &capturingTextOutput{}
-	service := services.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, output)
 
 	err := service.Run()
 	if err == nil {
@@ -95,7 +95,7 @@ func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *t
 	tree.removeErrs[failingIdx] = errors.New("permission denied")
 
 	output := &capturingTextOutput{}
-	service := services.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, output)
 
 	err := service.Run()
 	if err == nil {
@@ -113,4 +113,82 @@ func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *t
 	if len(output.lines) != 0 {
 		t.Fatalf("expected no success output on partial failure, got %v", output.lines)
 	}
+}
+
+// fakeProjectTree implements ports.ProjectTree for testing.
+type fakeProjectTree struct {
+	currentDir string
+	gitRoot    string
+	readDirMap map[string][]domain.DirectoryEntry
+	readDirErr map[string]error
+	existing   map[string]bool
+	removed    []string
+	removeErrs map[string]error
+	writes     map[string]string
+	gitRootErr error
+}
+
+func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
+	return &fakeProjectTree{
+		currentDir: currentDir,
+		gitRoot:    gitRoot,
+		readDirMap: map[string][]domain.DirectoryEntry{},
+		readDirErr: map[string]error{},
+		existing:   map[string]bool{},
+		removed:    []string{},
+		removeErrs: map[string]error{},
+		writes:     map[string]string{},
+	}
+}
+
+func (tree *fakeProjectTree) CurrentDir() (string, error) {
+	return tree.currentDir, nil
+}
+
+func (tree *fakeProjectTree) FindGitRoot(startDir string) (string, error) {
+	if tree.gitRootErr != nil {
+		return "", tree.gitRootErr
+	}
+
+	return tree.gitRoot, nil
+}
+
+func (tree *fakeProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, error) {
+	if err, ok := tree.readDirErr[path]; ok {
+		return nil, err
+	}
+
+	entries, ok := tree.readDirMap[path]
+	if !ok {
+		return []domain.DirectoryEntry{}, nil
+	}
+
+	return entries, nil
+}
+
+func (tree *fakeProjectTree) Exists(path string) (bool, error) {
+	return tree.existing[path], nil
+}
+
+func (tree *fakeProjectTree) RemoveAll(path string) error {
+	tree.removed = append(tree.removed, path)
+	if err, hasError := tree.removeErrs[path]; hasError {
+		return err
+	}
+
+	return nil
+}
+
+func (tree *fakeProjectTree) WriteFile(path string, content []byte) error {
+	tree.writes[path] = string(content)
+	return nil
+}
+
+type capturingTextOutput struct {
+	lines []string
+}
+
+func (output *capturingTextOutput) WriteLine(text string) error {
+	output.lines = append(output.lines, text)
+	return nil
 }

@@ -6,7 +6,9 @@ import (
 
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/adapters/repository"
-	"idx/internal/core/services"
+	"idx/internal/core/services/indexing"
+	"idx/internal/core/services/lifecycle"
+	"idx/internal/core/services/search"
 )
 
 func main() {
@@ -14,12 +16,12 @@ func main() {
 	projectTree := repository.NewOSProjectTree()
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	fileReader := repository.NewOSFileReader()
-	indexer := services.NewBM25IndexService()
+	indexer := indexing.NewBM25IndexService()
 	indexRepo := repository.NewBinaryIndexRepository(projectTree)
 	checksumRepo := repository.NewDirectoryChecksumRepository()
-	initCommand := services.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo)
-	destroyCommand := services.NewDestroyCommandService(projectTree, writer)
-	searchCommand := services.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
+	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo)
+	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
+	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
 	runner := cli.NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand)
 
 	if err := runner.Run(); err != nil {

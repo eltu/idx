@@ -1,4 +1,4 @@
-package services
+package indexing
 
 import (
 	"crypto/sha256"
@@ -19,25 +19,13 @@ type InitCommandService struct {
 	output         ports.TextOutput
 	fileReader     ports.FileReader
 	indexer        ports.BM25Indexer
-	indexRepo      IndexRepository
-	checksumRepo   DirectoryChecksumRepository
-}
-
-// IndexRepository defines saving index to storage.
-type IndexRepository interface {
-	SaveIndex(directoryPath string, index *domain.InvertedIndex) error
-	LoadIndex(directoryPath string) (*domain.InvertedIndex, error)
-}
-
-// DirectoryChecksumRepository defines checksum metadata storage per directory.
-type DirectoryChecksumRepository interface {
-	Load(directoryPath string) (map[string]string, bool, error)
-	Save(directoryPath string, checksums map[string]string) error
+	indexRepo      ports.IndexRepository
+	checksumRepo   ports.DirectoryChecksumRepository
 }
 
 // NewInitCommandService builds the init use case.
 // Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo).
-func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo IndexRepository, checksumRepo DirectoryChecksumRepository) InitCommandService {
+func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
@@ -83,24 +71,24 @@ func (service InitCommandService) Sync() error {
 		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
 	}
 
-	directories, err := indexedDirectories(service.projectTree, projectRoot)
+	directories, err := IndexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
 		return err
 	}
 
-	eligibleDirectories, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
 	if err != nil {
 		return err
 	}
 
-	staleDirectories := staleIndexedDirectories(directories, eligibleDirectories)
+	staleDirectories := staleIndexedDirectories(directories, eligible)
 	for _, directoryPath := range staleDirectories {
 		if err := service.removeDirectoryIndex(directoryPath); err != nil {
 			return err
 		}
 	}
 
-	for _, directoryPath := range eligibleDirectories {
+	for _, directoryPath := range eligible {
 		if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
 			return err
 		}

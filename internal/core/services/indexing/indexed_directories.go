@@ -1,4 +1,4 @@
-package services
+package indexing
 
 import (
 	"fmt"
@@ -8,7 +8,9 @@ import (
 	"idx/internal/core/ports"
 )
 
-func indexedDirectories(projectTree ports.ProjectTree, projectRoot string) ([]string, error) {
+// IndexedDirectories walks the project tree from projectRoot and returns all directories
+// that contain an .idx/index.idx file.
+func IndexedDirectories(projectTree ports.ProjectTree, projectRoot string) ([]string, error) {
 	directories := make([]string, 0)
 	if err := collectIndexedDirectories(projectTree, projectRoot, &directories); err != nil {
 		return nil, err
