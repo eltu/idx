@@ -1,4 +1,4 @@
-package services_test
+package search_test
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
-	"idx/internal/core/services"
+	search "idx/internal/core/services/search"
 )
 
 var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -70,7 +70,7 @@ func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 		filepath.Join(rootDir, "AGENTS.md"):  "idx",
 		filepath.Join(rootDir, ".gitignore"): "module",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.Run("go search")
 	if err != nil {
@@ -120,7 +120,7 @@ func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
 		filepath.Join(rootDir, "AGENTS.md"):  "idx",
 		filepath.Join(rootDir, ".gitignore"): "module",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.Run("module idx")
 	if err != nil {
@@ -142,7 +142,7 @@ func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
 	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndex()}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}, repo)
@@ -165,7 +165,7 @@ func TestSearchCommandServiceRunReturnsLoadError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	repo := &fakeSearchIndexRepository{loadErr: errors.New("boom")}
-	service := services.NewSearchCommandService(tree, &capturingTextOutput{}, fakeSearchFileReader{files: map[string]string{}}, repo)
+	service := search.NewSearchCommandService(tree, &capturingTextOutput{}, fakeSearchFileReader{files: map[string]string{}}, repo)
 
 	err := service.Run("go")
 	if err == nil {
@@ -178,7 +178,7 @@ func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithProximity()}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "near.txt"): "module idx",
 		filepath.Join(rootDir, "far.txt"):  "module\nidx",
 	}}, repo)
@@ -224,7 +224,7 @@ func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
 		rootDir:  searchableIndex(),
 		childDir: searchableIndexForRelativePath(),
 	}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
 		filepath.Join(childDir, "go.mod"): "module idx",
 	}}, repo)
 
@@ -251,7 +251,7 @@ func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 		rootDir:  searchableIndexWithSingleResult("root.md", 1.0, 1.0, []int{1}, []int{2}),
 		childDir: searchableIndexWithSingleResult("guide.md", 1.0, 1.0, []int{5}, []int{6}),
 	}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "root.md"):   "module idx",
 		filepath.Join(childDir, "guide.md"): "module idx",
 	}}, repo)
@@ -283,7 +283,7 @@ func TestSearchCommandServiceRunWithOptionsReturnsJSONOutput(t *testing.T) {
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "go.mod"): "module idx",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON})
 	if err != nil {
@@ -324,7 +324,7 @@ func TestSearchCommandServiceRunWithOptionsReturnsPrettyJSONOutput(t *testing.T)
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "go.mod"): "module idx",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON, PrettyJSON: true})
 	if err != nil {
@@ -353,7 +353,7 @@ func TestSearchCommandServiceRunWithOptionsIncludesContextLines(t *testing.T) {
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("module idx", ports.SearchOptions{Context: 1})
 	if err != nil {
@@ -389,7 +389,7 @@ func TestSearchCommandServiceRunWithOptionsMatchesOnlyFiltersContextLines(t *tes
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON, Context: 1, MatchesOnly: true})
 	if err != nil {
@@ -433,7 +433,7 @@ func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, Limit: 1})
 	if err != nil {
@@ -459,7 +459,7 @@ func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputText, FilesOnly: true})
 	if err != nil {
@@ -497,7 +497,7 @@ func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsJSONArray(t *testing.
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, FilesOnly: true})
 	if err != nil {
@@ -534,7 +534,7 @@ func TestSearchCommandServiceRunWithOptionsFilesOnlyWithJSONPretty(t *testing.T)
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := services.NewSearchCommandService(tree, output, fileReader, repo)
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
 	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, FilesOnly: true, PrettyJSON: true})
 	if err != nil {
@@ -568,7 +568,7 @@ func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *tes
 		rootDir:  searchableIndex(),
 		childDir: searchableIndexForMetadataPath(childDir, "go.mod"),
 	}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
 
 	err := service.RunWithOptions("", ports.SearchOptions{PathQuery: "internal core"})
 	if err != nil {
@@ -596,7 +596,7 @@ func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *t
 		rootDir:  searchableIndex(),
 		childDir: searchableIndexForMetadataPath(childDir, "go.mod"),
 	}}
-	service := services.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+	service := search.NewSearchCommandService(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
 
 	err := service.RunWithOptions("", ports.SearchOptions{PathQuery: "*core"})
 	if err != nil {
@@ -790,4 +790,82 @@ func searchableIndexForMetadataPath(directoryPath string, fileName string) *doma
 	index.DocumentCount = 1
 	index.AverageDocLength = 1
 	return index
+}
+
+// fakeProjectTree implements ports.ProjectTree for testing.
+type fakeProjectTree struct {
+	currentDir string
+	gitRoot    string
+	readDirMap map[string][]domain.DirectoryEntry
+	readDirErr map[string]error
+	existing   map[string]bool
+	removed    []string
+	removeErrs map[string]error
+	writes     map[string]string
+	gitRootErr error
+}
+
+func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
+	return &fakeProjectTree{
+		currentDir: currentDir,
+		gitRoot:    gitRoot,
+		readDirMap: map[string][]domain.DirectoryEntry{},
+		readDirErr: map[string]error{},
+		existing:   map[string]bool{},
+		removed:    []string{},
+		removeErrs: map[string]error{},
+		writes:     map[string]string{},
+	}
+}
+
+func (tree *fakeProjectTree) CurrentDir() (string, error) {
+	return tree.currentDir, nil
+}
+
+func (tree *fakeProjectTree) FindGitRoot(startDir string) (string, error) {
+	if tree.gitRootErr != nil {
+		return "", tree.gitRootErr
+	}
+
+	return tree.gitRoot, nil
+}
+
+func (tree *fakeProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, error) {
+	if err, ok := tree.readDirErr[path]; ok {
+		return nil, err
+	}
+
+	entries, ok := tree.readDirMap[path]
+	if !ok {
+		return []domain.DirectoryEntry{}, nil
+	}
+
+	return entries, nil
+}
+
+func (tree *fakeProjectTree) Exists(path string) (bool, error) {
+	return tree.existing[path], nil
+}
+
+func (tree *fakeProjectTree) RemoveAll(path string) error {
+	tree.removed = append(tree.removed, path)
+	if err, hasError := tree.removeErrs[path]; hasError {
+		return err
+	}
+
+	return nil
+}
+
+func (tree *fakeProjectTree) WriteFile(path string, content []byte) error {
+	tree.writes[path] = string(content)
+	return nil
+}
+
+type capturingTextOutput struct {
+	lines []string
+}
+
+func (output *capturingTextOutput) WriteLine(text string) error {
+	output.lines = append(output.lines, text)
+	return nil
 }

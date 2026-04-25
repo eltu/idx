@@ -1,4 +1,4 @@
-package services_test
+package search_test
 
 import (
 	"context"
@@ -14,7 +14,8 @@ import (
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/adapters/repository"
 	"idx/internal/core/domain"
-	"idx/internal/core/services"
+	"idx/internal/core/services/indexing"
+	search "idx/internal/core/services/search"
 )
 
 type benchmarkCorpusSpec struct {
@@ -146,21 +147,21 @@ func benchmarkFileContent(filesPerDir int, directory int, file int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func buildBenchmarkSearchService(b testing.TB, repositoryPath string) services.SearchCommandService {
+func buildBenchmarkSearchService(b testing.TB, repositoryPath string) search.SearchCommandService {
 	b.Helper()
 	projectTree := benchmarkProjectTree{currentDir: repositoryPath, rootDir: repositoryPath}
 	output := cli.NewLineWriter(io.Discard)
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	fileReader := repository.NewOSFileReader()
-	indexer := services.NewBM25IndexService()
+	indexer := indexing.NewBM25IndexService()
 	indexRepo := repository.NewBinaryIndexRepository(projectTree)
 	checksumRepo := repository.NewDirectoryChecksumRepository()
-	initService := services.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
+	initService := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
 	if err := initService.Run(); err != nil {
 		b.Fatalf("expected benchmark indexing to succeed, got %v", err)
 	}
 
-	return services.NewSearchCommandService(projectTree, output, fileReader, indexRepo)
+	return search.NewSearchCommandService(projectTree, output, fileReader, indexRepo)
 }
 
 func (tree benchmarkProjectTree) CurrentDir() (string, error) {

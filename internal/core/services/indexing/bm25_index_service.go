@@ -1,4 +1,4 @@
-package services
+package indexing
 
 import (
 	"idx/internal/core/domain"
