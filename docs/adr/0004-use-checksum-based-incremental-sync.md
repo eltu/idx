@@ -11,7 +11,7 @@ The sync command currently rebuilds every directory index on each run, even when
 The current search flow reads per-directory BM25 indices from .idx/index.idx and expects those files to keep the same structure and semantics.
 
 ## Decision
-Sync now uses per-directory checksum metadata stored in .idx/checksum.
+Sync now uses per-directory checksum metadata stored in .idx/checksum.idx.
 
 For each eligible directory:
 - Compute SHA-256 checksums for all allowed files.

@@ -63,7 +63,7 @@ func TestDirectoryChecksumRepositoryLoadReloadsWhenDiskChecksumChanges(t *testin
 		t.Fatalf("expected payload marshal to succeed, got %v", err)
 	}
 
-	checksumPath := filepath.Join(dir, ".idx", "checksum")
+	checksumPath := filepath.Join(dir, ".idx", "checksum.idx")
 	if err := os.WriteFile(checksumPath, content, 0600); err != nil {
 		t.Fatalf("expected external write to succeed, got %v", err)
 	}
@@ -96,7 +96,7 @@ func TestDirectoryChecksumRepositoryLoadClearsCacheWhenFileRemoved(t *testing.T)
 		t.Fatalf("expected load to succeed, got %v", err)
 	}
 
-	checksumPath := filepath.Join(dir, ".idx", "checksum")
+	checksumPath := filepath.Join(dir, ".idx", "checksum.idx")
 	if err := os.Remove(checksumPath); err != nil {
 		t.Fatalf("expected checksum removal to succeed, got %v", err)
 	}
@@ -152,7 +152,7 @@ func TestDirectoryChecksumRepositoryLoadSnapshotSupportsLegacyPayload(t *testing
 		t.Fatalf("expected legacy payload marshal to succeed, got %v", err)
 	}
 
-	checksumPath := filepath.Join(dir, ".idx", "checksum")
+	checksumPath := filepath.Join(dir, ".idx", "checksum.idx")
 	if err := os.MkdirAll(filepath.Dir(checksumPath), 0750); err != nil {
 		t.Fatalf("expected checksum dir creation to succeed, got %v", err)
 	}

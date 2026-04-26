@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -252,7 +253,7 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		return err
 	}
 
-	currentSnapshot, changed, err := service.computeDirectorySnapshot(fileEntries, storedSnapshot)
+	currentSnapshot, changed, changedFileNames, err := service.computeDirectorySnapshot(fileEntries, storedSnapshot)
 	if err != nil {
 		return err
 	}
@@ -263,7 +264,7 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		return nil
 	}
 
-	if err := service.buildAndSaveIndex(directoryPath, fileEntries); err != nil {
+	if err := service.buildAndSaveIndex(directoryPath, fileEntries, currentSnapshot, changedFileNames); err != nil {
 		return err
 	}
 
@@ -311,9 +312,10 @@ func (service InitCommandService) saveChecksumSnapshot(directoryPath string, sna
 	return service.checksumRepo.Save(directoryPath, checksums)
 }
 
-func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.DirectoryEntry, stored ports.DirectoryChecksumSnapshot) (ports.DirectoryChecksumSnapshot, bool, error) {
+func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.DirectoryEntry, stored ports.DirectoryChecksumSnapshot) (ports.DirectoryChecksumSnapshot, bool, map[string]struct{}, error) {
 	current := ports.DirectoryChecksumSnapshot{Files: make(map[string]ports.FileChecksumState, len(fileEntries))}
 	changed := false
+	changedFileNames := make(map[string]struct{})
 
 	if len(stored.Files) != len(fileEntries) {
 		changed = true
@@ -328,7 +330,7 @@ func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.
 
 		checksum, err := service.fileChecksum(entry)
 		if err != nil {
-			return ports.DirectoryChecksumSnapshot{}, false, err
+			return ports.DirectoryChecksumSnapshot{}, false, nil, err
 		}
 
 		currentState := ports.FileChecksumState{Checksum: checksum, Size: entry.Size, ModTimeUnixNano: entry.ModTimeUnixNano}
@@ -336,6 +338,7 @@ func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.
 
 		if !exists || storedState.Checksum != checksum {
 			changed = true
+			changedFileNames[entry.Name] = struct{}{}
 		}
 	}
 
@@ -343,7 +346,7 @@ func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.
 		changed = true
 	}
 
-	return current, changed, nil
+	return current, changed, changedFileNames, nil
 }
 
 func metadataUnchanged(entry domain.DirectoryEntry, stored ports.FileChecksumState) bool {
@@ -443,7 +446,7 @@ func sameChecksums(stored map[string]string, current map[string]string) bool {
 	return true
 }
 
-func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry) error {
+func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry, snapshot ports.DirectoryChecksumSnapshot, changedFileNames map[string]struct{}) error {
 	// Read all files and build index documents.
 	documents := make([]domain.IndexDocument, 0, len(fileEntries))
 	for _, entry := range fileEntries {
@@ -470,7 +473,39 @@ func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEn
 		return err
 	}
 
+	logEntries := buildChangedLogEntries(fileEntries, snapshot, changedFileNames, time.Now().UTC())
+
+	if err := appendIndexedFilesLog(directoryPath, logEntries); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func buildChangedLogEntries(fileEntries []domain.DirectoryEntry, snapshot ports.DirectoryChecksumSnapshot, changedFileNames map[string]struct{}, indexedAt time.Time) []indexedFileLogEntry {
+	if len(changedFileNames) == 0 {
+		return []indexedFileLogEntry{}
+	}
+
+	entries := make([]indexedFileLogEntry, 0, len(changedFileNames))
+	for _, entry := range fileEntries {
+		if _, changed := changedFileNames[entry.Name]; !changed {
+			continue
+		}
+
+		state, exists := snapshot.Files[entry.Name]
+		if !exists || state.Checksum == "" {
+			continue
+		}
+
+		entries = append(entries, indexedFileLogEntry{
+			Path:      entry.Path,
+			Checksum:  state.Checksum,
+			IndexedAt: indexedAt,
+		})
+	}
+
+	return entries
 }
 
 func (service InitCommandService) indexChildren(entries []domain.DirectoryEntry, projectRoot string, matcher ports.IgnoreMatcher) error {
