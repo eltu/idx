@@ -159,7 +159,7 @@ func (service InitCommandService) runIndex() error {
 	}
 
 	if hasIndex {
-		return service.output.WriteLine("ℹ️ Este projeto ja possui indice. Voce pode executar idx search.")
+		return service.output.WriteLine("ℹ️ This project is already indexed. You can run idx search.")
 	}
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)

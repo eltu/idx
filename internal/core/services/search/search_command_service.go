@@ -101,7 +101,7 @@ func (service SearchCommandService) writeEmptySearchResults(options ports.Search
 		return service.output.WriteLine("[]")
 	}
 
-	return service.output.WriteLine("Nenhum resultado encontrado.")
+	return service.output.WriteLine("No results found.")
 }
 
 func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions) error {

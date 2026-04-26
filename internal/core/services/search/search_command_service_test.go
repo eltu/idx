@@ -156,7 +156,7 @@ func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
 		t.Fatalf("expected 1 output line, got %d", len(output.lines))
 	}
 
-	if output.lines[0] != "Nenhum resultado encontrado." {
+	if output.lines[0] != "No results found." {
 		t.Fatalf("unexpected output message %q", output.lines[0])
 	}
 }

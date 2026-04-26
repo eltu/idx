@@ -98,7 +98,7 @@ Success output:
 Output when an index already exists in the current directory:
 
 ```text
-ℹ️ Este projeto ja possui indice. Voce pode executar idx search.
+ℹ️ This project is already indexed. You can run idx search.
 ```
 
 ### 2) `sync`
@@ -209,7 +209,7 @@ internal/adapters/repository/os_project_tree.go (score: 1.0000)
 When no results are found:
 
 ```text
-Nenhum resultado encontrado.
+No results found.
 ```
 
 ### 5) `destroy`
