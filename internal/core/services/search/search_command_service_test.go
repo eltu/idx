@@ -81,30 +81,35 @@ func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 		t.Fatalf("expected load for %q, got %v", rootDir, repo.loaded)
 	}
 
+	// Header: 1 line
 	// guide.md (score 1.0000): 1 file header + 1 matching line + blank
 	// readme.md (score 0.0000): 1 file header + 2 matching lines (go / search on separate lines) + blank
-	if len(output.lines) != 7 {
-		t.Fatalf("expected 7 output lines, got %d: %v", len(output.lines), output.lines)
+	if len(output.lines) != 8 {
+		t.Fatalf("expected 8 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "./guide.md (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "./guide.md (score: 1.0000)" {
 		t.Fatalf("expected best result file header first, got %q", output.lines[0])
 	}
 
-	if stripANSICodes(output.lines[1]) != "└── 1: go search guide" {
-		t.Fatalf("expected guide.md matched line, got %q", output.lines[1])
+	if stripANSICodes(output.lines[1]) != "./guide.md (score: 1.0000)" {
+		t.Fatalf("expected best result file header first, got %q", output.lines[1])
 	}
 
-	if stripANSICodes(output.lines[3]) != "./readme.md (score: 0.0000)" {
-		t.Fatalf("expected second result file header, got %q", output.lines[3])
+	if stripANSICodes(output.lines[2]) != "└── 1: go search guide" {
+		t.Fatalf("expected guide.md matched line, got %q", output.lines[2])
 	}
 
-	if stripANSICodes(output.lines[4]) != "├── 1: go content" {
-		t.Fatalf("expected readme.md first matched line, got %q", output.lines[4])
+	if stripANSICodes(output.lines[4]) != "./readme.md (score: 0.0000)" {
+		t.Fatalf("expected second result file header, got %q", output.lines[4])
 	}
 
-	if stripANSICodes(output.lines[5]) != "└── 2: search topic" {
-		t.Fatalf("expected readme.md second matched line, got %q", output.lines[5])
+	if stripANSICodes(output.lines[5]) != "├── 1: go content" {
+		t.Fatalf("expected readme.md first matched line, got %q", output.lines[5])
+	}
+
+	if stripANSICodes(output.lines[6]) != "└── 2: search topic" {
+		t.Fatalf("expected readme.md second matched line, got %q", output.lines[6])
 	}
 }
 
@@ -127,13 +132,13 @@ func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// file header + 1 matched line + blank
-	if len(output.lines) != 3 {
-		t.Fatalf("expected 3 output lines, got %d: %v", len(output.lines), output.lines)
+	// file header + 1 matched line + blank + search header
+	if len(output.lines) != 4 {
+		t.Fatalf("expected 4 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "./go.mod (score: 1.0000)" {
-		t.Fatalf("expected only full match result, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected only full match result, got %q", output.lines[1])
 	}
 }
 
@@ -188,29 +193,29 @@ func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// near.txt: header + 1 line + blank; far.txt: header + 2 lines + blank
-	if len(output.lines) != 7 {
-		t.Fatalf("expected 7 output lines, got %d: %v", len(output.lines), output.lines)
+	// header + near.txt: header + 1 line + blank; far.txt: header + 2 lines + blank
+	if len(output.lines) != 8 {
+		t.Fatalf("expected 8 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "./near.txt (score: 1.0000)" {
-		t.Fatalf("expected nearby terms file first, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "./near.txt (score: 1.0000)" {
+		t.Fatalf("expected nearby terms file first, got %q", output.lines[1])
 	}
 
-	if stripANSICodes(output.lines[1]) != "└── 1: module idx" {
-		t.Fatalf("expected near.txt matched line, got %q", output.lines[1])
+	if stripANSICodes(output.lines[2]) != "└── 1: module idx" {
+		t.Fatalf("expected near.txt matched line, got %q", output.lines[2])
 	}
 
-	if stripANSICodes(output.lines[3]) != "./far.txt (score: 0.0000)" {
-		t.Fatalf("expected far terms file second, got %q", output.lines[3])
+	if stripANSICodes(output.lines[4]) != "./far.txt (score: 0.0000)" {
+		t.Fatalf("expected far terms file second, got %q", output.lines[4])
 	}
 
-	if stripANSICodes(output.lines[4]) != "├── 1: module" {
-		t.Fatalf("expected far.txt first line, got %q", output.lines[4])
+	if stripANSICodes(output.lines[5]) != "├── 1: module" {
+		t.Fatalf("expected far.txt first line, got %q", output.lines[5])
 	}
 
-	if stripANSICodes(output.lines[5]) != "└── 2: idx" {
-		t.Fatalf("expected far.txt second line, got %q", output.lines[5])
+	if stripANSICodes(output.lines[6]) != "└── 2: idx" {
+		t.Fatalf("expected far.txt second line, got %q", output.lines[6])
 	}
 }
 
@@ -233,12 +238,12 @@ func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 3 {
-		t.Fatalf("expected 3 output lines, got %d: %v", len(output.lines), output.lines)
+	if len(output.lines) != 4 {
+		t.Fatalf("expected 4 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "internal/core/go.mod (score: 1.0000)" {
-		t.Fatalf("expected project-relative path output, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+		t.Fatalf("expected project-relative path output, got %q", output.lines[1])
 	}
 }
 
@@ -261,17 +266,17 @@ func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// 2 files, each with header + 1 matched line + blank
-	if len(output.lines) != 6 {
-		t.Fatalf("expected 6 output lines, got %d: %v", len(output.lines), output.lines)
+	// header + 2 files, each with header + 1 matched line + blank
+	if len(output.lines) != 7 {
+		t.Fatalf("expected 7 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "docs/guide.md (score: 1.0000)" {
-		t.Fatalf("expected child directory file header, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "docs/guide.md (score: 1.0000)" {
+		t.Fatalf("expected child directory file header, got %q", output.lines[1])
 	}
 
-	if stripANSICodes(output.lines[3]) != "./root.md (score: 1.0000)" {
-		t.Fatalf("expected root directory file header, got %q", output.lines[3])
+	if stripANSICodes(output.lines[4]) != "./root.md (score: 1.0000)" {
+		t.Fatalf("expected root directory file header, got %q", output.lines[4])
 	}
 }
 
@@ -294,25 +299,35 @@ func TestSearchCommandServiceRunWithOptionsReturnsJSONOutput(t *testing.T) {
 		t.Fatalf("expected a single JSON line, got %d: %v", len(output.lines), output.lines)
 	}
 
-	var payload []map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
 		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
 	}
 
-	if len(payload) != 1 {
-		t.Fatalf("expected a single JSON result, got %d", len(payload))
+	if response["count"] != float64(1) {
+		t.Fatalf("expected count 1, got %v", response["count"])
 	}
 
-	if payload[0]["file"] != "./go.mod" {
-		t.Fatalf("expected file ./go.mod, got %v", payload[0]["file"])
+	results, ok := response["results"].([]any)
+	if !ok {
+		t.Fatalf("expected results array, got %T", response["results"])
 	}
 
-	if payload[0]["name"] != "go.mod" {
-		t.Fatalf("expected name go.mod, got %v", payload[0]["name"])
+	if len(results) != 1 {
+		t.Fatalf("expected a single JSON result, got %d", len(results))
 	}
 
-	if payload[0]["path"] != "./go.mod" {
-		t.Fatalf("expected path ./go.mod, got %v", payload[0]["path"])
+	payload := results[0].(map[string]any)
+	if payload["file"] != "./go.mod" {
+		t.Fatalf("expected file ./go.mod, got %v", payload["file"])
+	}
+
+	if payload["name"] != "go.mod" {
+		t.Fatalf("expected name go.mod, got %v", payload["name"])
+	}
+
+	if payload["path"] != "./go.mod" {
+		t.Fatalf("expected path ./go.mod, got %v", payload["path"])
 	}
 }
 
@@ -339,9 +354,13 @@ func TestSearchCommandServiceRunWithOptionsReturnsPrettyJSONOutput(t *testing.T)
 		t.Fatalf("expected pretty JSON with line breaks, got %q", output.lines[0])
 	}
 
-	var payload []map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
 		t.Fatalf("expected valid pretty JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if response["count"] != float64(1) {
+		t.Fatalf("expected count 1, got %v", response["count"])
 	}
 }
 
@@ -360,24 +379,24 @@ func TestSearchCommandServiceRunWithOptionsIncludesContextLines(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 5 {
-		t.Fatalf("expected 5 output lines, got %d: %v", len(output.lines), output.lines)
+	if len(output.lines) != 6 {
+		t.Fatalf("expected 6 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "./go.mod (score: 1.0000)" {
-		t.Fatalf("expected go.mod header, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected go.mod header, got %q", output.lines[1])
 	}
 
-	if stripANSICodes(output.lines[1]) != "├── 1: alpha" {
-		t.Fatalf("expected first context line, got %q", output.lines[1])
+	if stripANSICodes(output.lines[2]) != "├── 1: alpha" {
+		t.Fatalf("expected first context line, got %q", output.lines[2])
 	}
 
-	if stripANSICodes(output.lines[2]) != "├── 2: module idx" {
-		t.Fatalf("expected matched line, got %q", output.lines[2])
+	if stripANSICodes(output.lines[3]) != "├── 2: module idx" {
+		t.Fatalf("expected matched line, got %q", output.lines[3])
 	}
 
-	if stripANSICodes(output.lines[3]) != "└── 3: omega" {
-		t.Fatalf("expected last context line, got %q", output.lines[3])
+	if stripANSICodes(output.lines[4]) != "└── 3: omega" {
+		t.Fatalf("expected last context line, got %q", output.lines[4])
 	}
 }
 
@@ -396,18 +415,24 @@ func TestSearchCommandServiceRunWithOptionsMatchesOnlyFiltersContextLines(t *tes
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	var payload []map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
 		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
 	}
 
-	if len(payload) != 1 {
-		t.Fatalf("expected one file result, got %d", len(payload))
+	results, ok := response["results"].([]any)
+	if !ok {
+		t.Fatalf("expected results array, got %T", response["results"])
 	}
 
-	matches, ok := payload[0]["matches"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("expected one file result, got %d", len(results))
+	}
+
+	file := results[0].(map[string]any)
+	matches, ok := file["matches"].([]any)
 	if !ok {
-		t.Fatalf("expected matches array, got %T", payload[0]["matches"])
+		t.Fatalf("expected matches array, got %T", file["matches"])
 	}
 
 	if len(matches) != 1 {
@@ -440,13 +465,22 @@ func TestSearchCommandServiceRunWithOptionsSizeRestrictsResultCount(t *testing.T
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	var payload []map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
 		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
 	}
 
-	if len(payload) != 1 {
-		t.Fatalf("expected one file result with size, got %d", len(payload))
+	if response["count"] != float64(2) {
+		t.Fatalf("expected count 2 (total before size limit), got %v", response["count"])
+	}
+
+	results, ok := response["results"].([]any)
+	if !ok {
+		t.Fatalf("expected results array, got %T", response["results"])
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected one file result with size, got %d", len(results))
 	}
 }
 
@@ -466,17 +500,85 @@ func TestSearchCommandServiceRunWithOptionsFromAndSizePaginateResults(t *testing
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	var payload []map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
 		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
 	}
 
-	if len(payload) != 1 {
-		t.Fatalf("expected one paginated file result, got %d", len(payload))
+	if response["count"] != float64(2) {
+		t.Fatalf("expected count 2 (total before from/size), got %v", response["count"])
 	}
 
-	if payload[0]["file"] != "./readme.md" {
-		t.Fatalf("expected second-ranked file ./readme.md for from=1,size=1, got %v", payload[0]["file"])
+	results, ok := response["results"].([]any)
+	if !ok {
+		t.Fatalf("expected results array, got %T", response["results"])
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected one paginated file result, got %d", len(results))
+	}
+
+	payload := results[0].(map[string]any)
+	if payload["file"] != "./readme.md" {
+		t.Fatalf("expected second-ranked file ./readme.md for from=1,size=1, got %v", payload["file"])
+	}
+}
+
+func TestSearchCommandServiceDisplaysMatchCountInTextFormat(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputText})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) == 0 {
+		t.Fatalf("expected at least one output line, got 0")
+	}
+
+	headerLine := output.lines[0]
+	if !strings.Contains(headerLine, "Found 2 file(s)") {
+		t.Fatalf("expected match count header, got %q", headerLine)
+	}
+	if !strings.Contains(headerLine, "📁") {
+		t.Fatalf("expected emoji in header, got %q", headerLine)
+	}
+}
+
+func TestSearchCommandServiceDisplaysMatchCountWithPaginationInTextFormat(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputText, Size: 1})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) == 0 {
+		t.Fatalf("expected at least one output line, got 0")
+	}
+
+	headerLine := output.lines[0]
+	if !strings.Contains(headerLine, "Found 2 file(s)") {
+		t.Fatalf("expected total match count header, got %q", headerLine)
+	}
+	if !strings.Contains(headerLine, "showing 1") {
+		t.Fatalf("expected pagination info in header, got %q", headerLine)
 	}
 }
 
@@ -496,14 +598,14 @@ func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// Should have 2 files only (guide.md and readme.md), one per line
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 output lines, got %d: %v", len(output.lines), output.lines)
+	// Should have header + 2 files only (guide.md and readme.md), one per line
+	if len(output.lines) != 3 {
+		t.Fatalf("expected 3 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
 	// Strip ANSI codes to check content
-	line1 := stripANSICodes(output.lines[0])
-	line2 := stripANSICodes(output.lines[1])
+	line1 := stripANSICodes(output.lines[1])
+	line2 := stripANSICodes(output.lines[2])
 
 	if line1 != "./guide.md" && line1 != "./readme.md" {
 		t.Fatalf("expected file path, got %q", line1)
@@ -605,15 +707,15 @@ func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *tes
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected header and blank line for metadata-only result, got %d: %v", len(output.lines), output.lines)
+	if len(output.lines) != 3 {
+		t.Fatalf("expected header, file and blank line for metadata-only result, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "internal/core/go.mod (score: 1.0000)" {
-		t.Fatalf("expected metadata-only path result, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+		t.Fatalf("expected metadata-only path result, got %q", output.lines[1])
 	}
-	if output.lines[1] != "" {
-		t.Fatalf("expected trailing blank line, got %q", output.lines[1])
+	if output.lines[2] != "" {
+		t.Fatalf("expected trailing blank line, got %q", output.lines[2])
 	}
 }
 
@@ -633,12 +735,12 @@ func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *t
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected one metadata-only result, got %d lines: %v", len(output.lines), output.lines)
+	if len(output.lines) != 3 {
+		t.Fatalf("expected header, file and blank lines with wildcard filter, got %d lines: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[0]) != "internal/core/go.mod (score: 1.0000)" {
-		t.Fatalf("expected internal/core/go.mod with suffix wildcard, got %q", output.lines[0])
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+		t.Fatalf("expected internal/core/go.mod with suffix wildcard, got %q", output.lines[1])
 	}
 }
 

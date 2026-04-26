@@ -1,6 +1,7 @@
 package search
 
 import (
+	"encoding/json"
 	"testing"
 
 	"idx/internal/core/ports"
@@ -104,7 +105,22 @@ func TestWriteEmptySearchResultsFormats(t *testing.T) {
 	if err := service.writeEmptySearchResults(ports.SearchOptions{Format: ports.SearchOutputJSON}); err != nil {
 		t.Fatalf("expected json empty result write success, got %v", err)
 	}
-	if output.lines[1] != "[]" {
-		t.Fatalf("unexpected json empty output %q", output.lines[1])
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[1]), &response); err != nil {
+		t.Fatalf("expected valid JSON empty output, got error %v with payload %q", err, output.lines[1])
+	}
+
+	if response["count"] != float64(0) {
+		t.Fatalf("expected count 0, got %v", response["count"])
+	}
+
+	results, ok := response["results"].([]any)
+	if !ok {
+		t.Fatalf("expected results array, got %T", response["results"])
+	}
+
+	if len(results) != 0 {
+		t.Fatalf("expected empty results array, got %d items", len(results))
 	}
 }

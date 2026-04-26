@@ -6,6 +6,11 @@ import (
 	"idx/internal/core/ports"
 )
 
+type jsonSearchResponse struct {
+	Count   int                `json:"count"`
+	Results []jsonSearchResult `json:"results"`
+}
+
 type jsonSearchResult struct {
 	File    string                `json:"file"`
 	Name    string                `json:"name"`
@@ -20,7 +25,7 @@ type jsonSearchMatchLine struct {
 	Match   bool   `json:"match"`
 }
 
-func (service SearchCommandService) writeResultsJSON(results []searchResult, projectRoot string, options ports.SearchOptions) error {
+func (service SearchCommandService) writeResultsJSON(results []searchResult, projectRoot string, options ports.SearchOptions, totalMatches int) error {
 	if options.FilesOnly {
 		// For --files-only, return just an array of file paths.
 		filePaths := make([]string, 0, len(results))
@@ -71,14 +76,20 @@ func (service SearchCommandService) writeResultsJSON(results []searchResult, pro
 		})
 	}
 
+	// Wrap with count metadata.
+	response := jsonSearchResponse{
+		Count:   totalMatches,
+		Results: payload,
+	}
+
 	var (
 		encoded []byte
 		err     error
 	)
 	if options.PrettyJSON {
-		encoded, err = json.MarshalIndent(payload, "", "  ")
+		encoded, err = json.MarshalIndent(response, "", "  ")
 	} else {
-		encoded, err = json.Marshal(payload)
+		encoded, err = json.Marshal(response)
 	}
 	if err != nil {
 		return err
