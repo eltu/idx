@@ -34,12 +34,12 @@ type checksumCacheEntry struct {
 	files   map[string]ports.FileChecksumState
 }
 
-// NewDirectoryChecksumRepository creates a checksum repository stored in .idx/checksum.
+// NewDirectoryChecksumRepository creates a checksum repository stored in .idx/checksum.idx.
 func NewDirectoryChecksumRepository() *DirectoryChecksumRepository {
 	return &DirectoryChecksumRepository{cache: map[string]checksumCacheEntry{}}
 }
 
-// Load reads checksum data from .idx/checksum in the target directory.
+// Load reads checksum data from .idx/checksum.idx in the target directory.
 func (repo *DirectoryChecksumRepository) Load(directoryPath string) (map[string]string, bool, error) {
 	snapshot, exists, err := repo.LoadSnapshot(directoryPath)
 	if err != nil {
@@ -49,7 +49,7 @@ func (repo *DirectoryChecksumRepository) Load(directoryPath string) (map[string]
 	return snapshotToChecksums(snapshot), exists, nil
 }
 
-// LoadSnapshot reads checksum snapshot data from .idx/checksum in the target directory.
+// LoadSnapshot reads checksum snapshot data from .idx/checksum.idx in the target directory.
 func (repo *DirectoryChecksumRepository) LoadSnapshot(directoryPath string) (ports.DirectoryChecksumSnapshot, bool, error) {
 	checksumPath := checksumFilePath(directoryPath)
 	fileInfo, err := os.Stat(checksumPath)
@@ -89,7 +89,7 @@ func (repo *DirectoryChecksumRepository) LoadSnapshot(directoryPath string) (por
 	return ports.DirectoryChecksumSnapshot{Files: cloneSnapshotFiles(snapshot.Files)}, true, nil
 }
 
-// Save writes checksum data to .idx/checksum in the target directory.
+// Save writes checksum data to .idx/checksum.idx in the target directory.
 func (repo *DirectoryChecksumRepository) Save(directoryPath string, checksums map[string]string) error {
 	files := make(map[string]ports.FileChecksumState, len(checksums))
 	for fileName, checksum := range checksums {
@@ -99,7 +99,7 @@ func (repo *DirectoryChecksumRepository) Save(directoryPath string, checksums ma
 	return repo.SaveSnapshot(directoryPath, ports.DirectoryChecksumSnapshot{Files: files})
 }
 
-// SaveSnapshot writes checksum snapshot data to .idx/checksum in the target directory.
+// SaveSnapshot writes checksum snapshot data to .idx/checksum.idx in the target directory.
 func (repo *DirectoryChecksumRepository) SaveSnapshot(directoryPath string, snapshot ports.DirectoryChecksumSnapshot) error {
 	checksumPath := checksumFilePath(directoryPath)
 	clonedSnapshot := ports.DirectoryChecksumSnapshot{Files: cloneSnapshotFiles(snapshot.Files)}
@@ -224,5 +224,5 @@ func snapshotToPayload(snapshot ports.DirectoryChecksumSnapshot) checksumPayload
 }
 
 func checksumFilePath(directoryPath string) string {
-	return filepath.Join(directoryPath, ".idx", "checksum")
+	return filepath.Join(directoryPath, ".idx", "checksum.idx")
 }

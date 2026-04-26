@@ -301,6 +301,36 @@ IDX_CONCURRENCY_TIMEOUT_SECONDS=60 RACE_COUNT=4 make test-concurrency-ci
 go test ./internal/core/services/search -run '^$' -bench BenchmarkSearchVsGrep -benchmem
 ```
 
+## Indexing logs
+
+During `idx init` and `idx sync`, each indexed directory writes file-level indexing logs under:
+
+```text
+<directory>/.idx/logs/
+```
+
+Files:
+
+- Active log: `tlog.idx`
+- Rotated logs: `tlog_YYYYMMDDHHMMSS.log`
+
+Rotation policy:
+
+- Rotate when active log reaches/exceeds `1MB`
+- Keep up to `5` rotated logs per directory
+
+Standard log line format:
+
+```text
+path=<file-path>\thash=<sha256>\tindexed_at=<RFC3339-UTC>
+```
+
+Example:
+
+```text
+path=/repo/internal/app/service.go	hash=0d7e7f4b4ddf0f6f8d3d6317086f8c7d3f5ab5a889a2c7e9a6f43c1ab4d74f7d	indexed_at=2026-04-26T14:22:30Z
+```
+
 ## Common errors
 
 No command:
