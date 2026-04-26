@@ -75,6 +75,32 @@ func TestDestroyCommandServiceRunRequiresProjectRoot(t *testing.T) {
 	}
 }
 
+func TestDestroyCommandServiceRunFailsWhenCurrentDirResolutionFails(t *testing.T) {
+	tree := newFakeProjectTree("/repo", "/repo")
+	tree.gitRootErr = errors.New("git root unavailable")
+	tree.currentDir = ""
+	output := &capturingTextOutput{}
+	service := lifecycle.NewDestroyCommandService(tree, output)
+
+	_, _ = tree.CurrentDir()
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected error when current directory cannot be resolved")
+	}
+}
+
+func TestDestroyCommandServiceRunFailsWhenGitRootLookupFails(t *testing.T) {
+	tree := newFakeProjectTree("/repo", "/repo")
+	tree.gitRootErr = errors.New("not a git repository")
+	output := &capturingTextOutput{}
+	service := lifecycle.NewDestroyCommandService(tree, output)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected git root lookup error")
+	}
+}
+
 func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	apiDir := filepath.Join(rootDir, "cmd", "api")
@@ -142,6 +168,10 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 }
 
 func (tree *fakeProjectTree) CurrentDir() (string, error) {
+	if tree.currentDir == "" {
+		return "", errors.New("cwd unavailable")
+	}
+
 	return tree.currentDir, nil
 }
 

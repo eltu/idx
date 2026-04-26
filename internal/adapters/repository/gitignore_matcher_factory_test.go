@@ -99,6 +99,14 @@ func TestGitIgnoreMatcherMatchesReturnsErrorWhenGitFails(t *testing.T) {
 	}
 }
 
+func TestGitIgnoreMatcherFactoryNewReturnsErrorForNonGitDirectory(t *testing.T) {
+	factory := NewGitIgnoreMatcherFactory()
+	_, err := factory.New(t.TempDir())
+	if err == nil {
+		t.Fatal("expected matcher factory to fail outside git repository")
+	}
+}
+
 func runGitCommand(t *testing.T, directory string, args ...string) {
 	t.Helper()
 

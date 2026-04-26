@@ -87,6 +87,13 @@ func TestOSProjectTreeReadDirExistsRemoveAllAndWriteFile(t *testing.T) {
 		t.Fatalf("unexpected read dir entries: %#v", entries)
 	}
 
+	if entries[0].Size == 0 {
+		t.Fatal("expected file size metadata to be populated")
+	}
+	if entries[0].ModTimeUnixNano == 0 {
+		t.Fatal("expected file modtime metadata to be populated")
+	}
+
 	if err := tree.RemoveAll(filepath.Join(root, "deep")); err != nil {
 		t.Fatalf("expected remove all to succeed, got %v", err)
 	}
@@ -97,5 +104,25 @@ func TestOSProjectTreeReadDirExistsRemoveAllAndWriteFile(t *testing.T) {
 	}
 	if exists {
 		t.Fatal("expected file to be removed")
+	}
+}
+
+func TestOSProjectTreeErrorBranches(t *testing.T) {
+	tree := NewOSProjectTree()
+
+	if _, err := tree.ReadDir(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("expected ReadDir error for missing path")
+	}
+
+	if _, err := tree.Exists("\x00invalid"); err == nil {
+		t.Fatal("expected Exists error for invalid path")
+	}
+
+	if err := tree.RemoveAll("\x00invalid"); err == nil {
+		t.Fatal("expected RemoveAll error for invalid path")
+	}
+
+	if err := tree.WriteFile("\x00invalid", []byte("x")); err == nil {
+		t.Fatal("expected WriteFile error for invalid path")
 	}
 }

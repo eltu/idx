@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -43,6 +44,33 @@ func TestBinaryIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) 
 	_, err := repo.LoadIndex(t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for missing index file, got nil")
+	}
+}
+
+func TestBinaryIndexRepositoryLoadIndexReturnsErrorForInvalidBinaryPayload(t *testing.T) {
+	dir := t.TempDir()
+	indexPath := filepath.Join(dir, ".idx", "index.idx")
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0750); err != nil {
+		t.Fatalf("expected index directory creation to succeed, got %v", err)
+	}
+	if err := os.WriteFile(indexPath, []byte("not-gob"), 0600); err != nil {
+		t.Fatalf("expected invalid payload write to succeed, got %v", err)
+	}
+
+	repo := NewBinaryIndexRepository(NewOSProjectTree())
+	_, err := repo.LoadIndex(dir)
+	if err == nil {
+		t.Fatal("expected parse error for invalid binary payload")
+	}
+}
+
+func TestBinaryIndexRepositorySaveIndexReturnsErrorForInvalidDirectory(t *testing.T) {
+	repo := NewBinaryIndexRepository(NewOSProjectTree())
+	index := domain.NewInvertedIndex()
+
+	err := repo.SaveIndex("\x00invalid", index)
+	if err == nil {
+		t.Fatal("expected save error for invalid directory path")
 	}
 }
 
