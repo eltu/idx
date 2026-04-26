@@ -163,6 +163,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--files-only",
 		"--path", "internal/core",
 		"--path", "cmd/idx",
+		"--from", "1",
 		"--size", "5",
 	}, initCommand, destroyCommand, searchCommand)
 
@@ -184,6 +185,10 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 
 	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Size != 5 {
 		t.Fatalf("expected context=2 and size=5, got context=%d size=%d", searchCommand.lastOptions.Context, searchCommand.lastOptions.Size)
+	}
+
+	if searchCommand.lastOptions.From != 1 {
+		t.Fatalf("expected from=1, got from=%d", searchCommand.lastOptions.From)
 	}
 
 	if len(searchCommand.lastOptions.PathQueries) != 2 {
@@ -290,6 +295,17 @@ func TestCommandRunnerRunRejectsInvalidSize(t *testing.T) {
 	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "-2"}, initCommand, destroyCommand, searchCommand)
 	if err := runnerNegative.Run(); err == nil {
 		t.Fatal("expected error for negative --size, got nil")
+	}
+}
+
+func TestCommandRunnerRunRejectsInvalidFrom(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--from", "-1"}, initCommand, destroyCommand, searchCommand)
+	if err := runner.Run(); err == nil {
+		t.Fatal("expected error for negative --from, got nil")
 	}
 }
 

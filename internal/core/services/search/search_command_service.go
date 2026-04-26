@@ -127,6 +127,10 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 		normalized.PrettyJSON = false
 	}
 
+	if normalized.From < 0 {
+		normalized.From = 0
+	}
+
 	if normalized.Size < 0 {
 		normalized.Size = 0
 	}
@@ -169,7 +173,20 @@ func applySearchResultOptions(results []searchResult, options ports.SearchOption
 		filtered = matchesOnlyResults(filtered)
 	}
 
-	return limitedResults(filtered, options.Size)
+	return paginatedResults(filtered, options.From, options.Size)
+}
+
+func paginatedResults(results []searchResult, from int, size int) []searchResult {
+	if from < 0 {
+		from = 0
+	}
+
+	if from >= len(results) {
+		return []searchResult{}
+	}
+
+	sliced := results[from:]
+	return limitedResults(sliced, size)
 }
 
 func filesOnlyResults(results []searchResult) []searchResult {

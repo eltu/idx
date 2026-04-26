@@ -158,6 +158,7 @@ idx search module idx --format json --matches-only
 idx search module idx --files-only
 idx search module idx --format json --files-only
 idx search module idx --format json --size 5
+idx search module idx --format json --from 10 --size 5
 idx search module idx --path internal/core
 idx search --path internal/core
 ```
@@ -175,6 +176,7 @@ Current behavior:
 - Optional `--context <N>` includes `N` surrounding lines before/after each match.
 - Optional `--matches-only` keeps only direct matched lines in the output.
 - Optional `--files-only` returns only file paths, ignoring matches and context (deduplicates results by file).
+- Optional `--from <N>` skips the first `N` ranked files (zero-based offset).
 - Optional `--size <N>` limits output to the top `N` files.
 - Optional `--path <pattern>` filters by indexed metadata path (repeatable).
 - Metadata-only search is supported with `--path` even when query terms are empty.
@@ -187,6 +189,7 @@ Supported `search` flags:
 - `--json-pretty` (requires `--format json`)
 - `--matches-only`
 - `--files-only`
+- `--from <N>`
 - `--size <N>`
 - `--path <pattern>` (repeatable)
 

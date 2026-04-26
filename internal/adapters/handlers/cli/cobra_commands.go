@@ -82,6 +82,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	var legacyMatchesOnly bool
 	var filesOnly bool
 	var pathQueries []string
+	var from int
 	var size int
 
 	var searchCommand *cobra.Command
@@ -91,6 +92,10 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			if contextLines < 0 {
 				return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
+			}
+
+			if from < 0 {
+				return fmt.Errorf("invalid --from value %d: expected a non-negative integer", from)
 			}
 
 			if size < 0 {
@@ -121,6 +126,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 				MatchesOnly: matchesOnly || legacyMatchesOnly,
 				FilesOnly:   filesOnly,
 				PathQueries: pathQueries,
+				From:        from,
 				Size:        size,
 			}
 
@@ -140,6 +146,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	searchCommand.Flags().MarkHidden("macthes-only")
 	searchCommand.Flags().BoolVar(&filesOnly, "files-only", false, "Show only matched file paths")
 	searchCommand.Flags().StringArrayVar(&pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
+	searchCommand.Flags().IntVar(&from, "from", 0, "Skip the first N ranked files")
 	searchCommand.Flags().IntVar(&size, "size", 0, "Limit results to top N files")
 
 	return searchCommand
