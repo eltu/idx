@@ -59,6 +59,46 @@ func TestGitIgnoreMatcherMatchesTrackedPathWithNoIndex(t *testing.T) {
 	}
 }
 
+func TestGitIgnoreMatcherMatchesReturnsFalseForNonIgnoredPath(t *testing.T) {
+	projectRoot := t.TempDir()
+
+	runGitCommand(t, projectRoot, "init")
+	runGitCommand(t, projectRoot, "config", "user.email", "idx@example.com")
+	runGitCommand(t, projectRoot, "config", "user.name", "idx-test")
+
+	if err := os.WriteFile(filepath.Join(projectRoot, "main.go"), []byte("package main\n"), 0600); err != nil {
+		t.Fatalf("expected to create main.go, got %v", err)
+	}
+
+	factory := NewGitIgnoreMatcherFactory()
+	matcher, err := factory.New(projectRoot)
+	if err != nil {
+		t.Fatalf("expected matcher creation to succeed, got %v", err)
+	}
+
+	matched, err := matcher.Matches("main.go")
+	if err != nil {
+		t.Fatalf("expected matcher evaluation to succeed, got %v", err)
+	}
+
+	if matched {
+		t.Fatal("expected main.go to not match ignore rules")
+	}
+}
+
+func TestGitIgnoreMatcherMatchesReturnsErrorWhenGitFails(t *testing.T) {
+	matcher := gitIgnoreMatcher{projectRoot: filepath.Join(t.TempDir(), "missing-project")}
+
+	matched, err := matcher.Matches("main.go")
+	if err == nil {
+		t.Fatal("expected git check-ignore failure, got nil")
+	}
+
+	if matched {
+		t.Fatal("expected matched to be false when command fails")
+	}
+}
+
 func runGitCommand(t *testing.T, directory string, args ...string) {
 	t.Helper()
 

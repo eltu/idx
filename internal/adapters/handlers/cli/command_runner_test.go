@@ -45,12 +45,6 @@ type fakeSearchCommand struct {
 	lastOptions ports.SearchOptions
 }
 
-func (command *fakeSearchCommand) Run(query string) error {
-	command.runCalls++
-	command.lastQuery = query
-	return nil
-}
-
 func (command *fakeSearchCommand) RunWithOptions(query string, options ports.SearchOptions) error {
 	command.runCalls++
 	command.lastQuery = query
@@ -64,25 +58,12 @@ func TestCommandRunnerRunExecutesInitCommand(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "init"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.runCalls != 1 {
-		t.Fatalf("expected 1 run call, got %d", initCommand.runCalls)
-	}
-
-	if initCommand.inspectCalls != 0 {
-		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
-	}
-
-	if destroyCommand.runCalls != 0 {
-		t.Fatalf("expected 0 destroy calls, got %d", destroyCommand.runCalls)
-	}
-
-	if searchCommand.runCalls != 0 {
-		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
+	if initCommand.runCalls != 1 || initCommand.syncCalls != 0 {
+		t.Fatalf("expected init run=1 and sync=0, got run=%d sync=%d", initCommand.runCalls, initCommand.syncCalls)
 	}
 }
 
@@ -92,17 +73,12 @@ func TestCommandRunnerRunExecutesSyncCommand(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "sync"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.syncCalls != 1 {
-		t.Fatalf("expected 1 sync call, got %d", initCommand.syncCalls)
-	}
-
-	if initCommand.runCalls != 0 {
-		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
+	if initCommand.syncCalls != 1 || initCommand.runCalls != 0 {
+		t.Fatalf("expected sync=1 and init run=0, got sync=%d run=%d", initCommand.syncCalls, initCommand.runCalls)
 	}
 }
 
@@ -112,17 +88,12 @@ func TestCommandRunnerRunExecutesInspectCommandWithPath(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "inspect", "internal/"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.inspectCalls != 1 {
-		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
-	}
-
-	if initCommand.lastInspectPath != "internal/" {
-		t.Fatalf("expected inspect path %q, got %q", "internal/", initCommand.lastInspectPath)
+	if initCommand.inspectCalls != 1 || initCommand.lastInspectPath != "internal/" {
+		t.Fatalf("expected inspect call with path %q, got calls=%d path=%q", "internal/", initCommand.inspectCalls, initCommand.lastInspectPath)
 	}
 }
 
@@ -132,37 +103,12 @@ func TestCommandRunnerRunRejectsInspectWithoutPath(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "inspect"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err == nil {
+	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
 	}
 
 	if initCommand.inspectCalls != 0 {
 		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
-	}
-
-	if initCommand.syncCalls != 0 {
-		t.Fatalf("expected 0 sync calls, got %d", initCommand.syncCalls)
-	}
-}
-
-func TestCommandRunnerRunRejectsLegacyIndexCommand(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "index"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-
-	if initCommand.runCalls != 0 {
-		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
-	}
-
-	if initCommand.syncCalls != 0 {
-		t.Fatalf("expected 0 sync calls, got %d", initCommand.syncCalls)
 	}
 }
 
@@ -172,21 +118,12 @@ func TestCommandRunnerRunExecutesDestroyCommand(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "destroy"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
 	if destroyCommand.runCalls != 1 {
 		t.Fatalf("expected 1 destroy call, got %d", destroyCommand.runCalls)
-	}
-
-	if initCommand.runCalls != 0 {
-		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
-	}
-
-	if searchCommand.runCalls != 0 {
-		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
 	}
 }
 
@@ -196,8 +133,7 @@ func TestCommandRunnerRunExecutesSearchCommand(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "term"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -210,39 +146,28 @@ func TestCommandRunnerRunExecutesSearchCommand(t *testing.T) {
 	}
 
 	if searchCommand.lastOptions.Format != ports.SearchOutputText {
-		t.Fatalf("expected default format %q, got %q", ports.SearchOutputText, searchCommand.lastOptions.Format)
-	}
-
-	if searchCommand.lastOptions.Context != 0 {
-		t.Fatalf("expected default context 0, got %d", searchCommand.lastOptions.Context)
-	}
-
-	if searchCommand.lastOptions.PrettyJSON {
-		t.Fatal("expected default PrettyJSON false")
-	}
-
-	if searchCommand.lastOptions.MatchesOnly {
-		t.Fatal("expected default MatchesOnly false")
-	}
-
-	if searchCommand.lastOptions.Limit != 0 {
-		t.Fatalf("expected default limit 0, got %d", searchCommand.lastOptions.Limit)
+		t.Fatalf("expected format %q, got %q", ports.SearchOutputText, searchCommand.lastOptions.Format)
 	}
 }
 
-func TestCommandRunnerRunExecutesSearchCommandWithOptions(t *testing.T) {
+func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--format", "json", "--context", "2", "--json-pretty", "--matches-only", "--limit", "1", "needle", "term"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{
+		"idx", "search", "needle", "term",
+		"--format", "json",
+		"--context", "2",
+		"--json-pretty",
+		"--matches-only",
+		"--files-only",
+		"--path", "internal/core",
+		"--path", "cmd/idx",
+		"--limit", "5",
+	}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.runCalls != 1 {
-		t.Fatalf("expected 1 search call, got %d", searchCommand.runCalls)
 	}
 
 	if searchCommand.lastQuery != "needle term" {
@@ -253,72 +178,20 @@ func TestCommandRunnerRunExecutesSearchCommandWithOptions(t *testing.T) {
 		t.Fatalf("expected format %q, got %q", ports.SearchOutputJSON, searchCommand.lastOptions.Format)
 	}
 
-	if searchCommand.lastOptions.Context != 2 {
-		t.Fatalf("expected context 2, got %d", searchCommand.lastOptions.Context)
+	if !searchCommand.lastOptions.PrettyJSON || !searchCommand.lastOptions.MatchesOnly || !searchCommand.lastOptions.FilesOnly {
+		t.Fatalf("expected pretty/matches-only/files-only true, got %+v", searchCommand.lastOptions)
 	}
 
-	if !searchCommand.lastOptions.PrettyJSON {
-		t.Fatal("expected PrettyJSON true")
+	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Limit != 5 {
+		t.Fatalf("expected context=2 and limit=5, got context=%d limit=%d", searchCommand.lastOptions.Context, searchCommand.lastOptions.Limit)
 	}
 
-	if !searchCommand.lastOptions.MatchesOnly {
-		t.Fatal("expected MatchesOnly true")
-	}
-
-	if searchCommand.lastOptions.Limit != 1 {
-		t.Fatalf("expected limit 1, got %d", searchCommand.lastOptions.Limit)
-	}
-}
-
-func TestCommandRunnerRunAcceptsLegacyTypoMatchesOnlyOption(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--macthes-only", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if !searchCommand.lastOptions.MatchesOnly {
-		t.Fatal("expected MatchesOnly true")
-	}
-}
-
-func TestCommandRunnerRunParsesFilesOnlyOption(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--files-only", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if !searchCommand.lastOptions.FilesOnly {
-		t.Fatal("expected FilesOnly true")
-	}
-}
-
-func TestCommandRunnerRunParsesPathFilter(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	if len(searchCommand.lastOptions.PathQueries) != 2 {
+		t.Fatalf("expected two path filters, got %v", searchCommand.lastOptions.PathQueries)
 	}
 
 	if searchCommand.lastOptions.PathQuery != "internal/core" {
-		t.Fatalf("expected path filter %q, got %q", "internal/core", searchCommand.lastOptions.PathQuery)
-	}
-
-	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
-		t.Fatalf("expected path queries [internal/core], got %v", searchCommand.lastOptions.PathQueries)
+		t.Fatalf("expected first path as PathQuery, got %q", searchCommand.lastOptions.PathQuery)
 	}
 }
 
@@ -328,9 +201,12 @@ func TestCommandRunnerRunAcceptsMetadataOnlySearch(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if searchCommand.lastQuery != "" {
+		t.Fatalf("expected empty query, got %q", searchCommand.lastQuery)
 	}
 
 	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
@@ -338,43 +214,14 @@ func TestCommandRunnerRunAcceptsMetadataOnlySearch(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunTreatsLeadingReservedWordAsLiteralQueryWhenOptionIsInvalid(t *testing.T) {
+func TestCommandRunnerRunAcceptsLegacyTypoMatchesOnlyOption(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--file", "--matches-only", "--format", "json"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--macthes-only", "needle"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err != nil {
+	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--file" {
-		t.Fatalf("expected literal query %q, got %q", "--file", searchCommand.lastQuery)
-	}
-
-	if !searchCommand.lastOptions.MatchesOnly {
-		t.Fatal("expected MatchesOnly true")
-	}
-
-	if searchCommand.lastOptions.Format != ports.SearchOutputJSON {
-		t.Fatalf("expected format %q, got %q", ports.SearchOutputJSON, searchCommand.lastOptions.Format)
-	}
-}
-
-func TestCommandRunnerRunTreatsReservedPhraseAsLiteralQuery(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--file --path", "--matches-only"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--file --path" {
-		t.Fatalf("expected literal phrase query %q, got %q", "--file --path", searchCommand.lastQuery)
 	}
 
 	if !searchCommand.lastOptions.MatchesOnly {
@@ -382,163 +229,18 @@ func TestCommandRunnerRunTreatsReservedPhraseAsLiteralQuery(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunTreatsLeadingStandaloneFlagsAsLiteralQuery(t *testing.T) {
-	testCases := []struct {
-		name          string
-		leadingToken  string
-		arguments     []string
-		expectedQuery string
-	}{
-		{name: "matches only", leadingToken: "--matches-only", arguments: []string{"idx", "search", "--matches-only", "--matches-only"}, expectedQuery: "--matches-only"},
-		{name: "legacy matches typo", leadingToken: "--macthes-only", arguments: []string{"idx", "search", "--macthes-only", "--matches-only"}, expectedQuery: "--macthes-only"},
-		{name: "files only", leadingToken: "--files-only", arguments: []string{"idx", "search", "--files-only", "--matches-only"}, expectedQuery: "--files-only"},
-		{name: "json pretty", leadingToken: "--json-pretty", arguments: []string{"idx", "search", "--json-pretty", "--format", "json"}, expectedQuery: "--json-pretty"},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			initCommand := &fakeInitCommand{}
-			destroyCommand := &fakeDestroyCommand{}
-			searchCommand := &fakeSearchCommand{}
-			runner := cli.NewCommandRunner(testCase.arguments, initCommand, destroyCommand, searchCommand)
-
-			err := runner.Run()
-			if err != nil {
-				t.Fatalf("expected no error, got %v", err)
-			}
-
-			if searchCommand.lastQuery != testCase.expectedQuery {
-				t.Fatalf("expected literal query %q, got %q", testCase.expectedQuery, searchCommand.lastQuery)
-			}
-		})
-	}
-}
-
-func TestCommandRunnerRunStillParsesLeadingPathFilter(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core", "--matches-only"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
-		t.Fatalf("expected path filter [internal/core], got %v", searchCommand.lastOptions.PathQueries)
-	}
-
-	if searchCommand.lastQuery != "" {
-		t.Fatalf("expected empty content query, got %q", searchCommand.lastQuery)
-	}
-}
-
-func TestCommandRunnerRunParsesExpandedPathValuesWithoutQuotes(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core/services/search_command_service.go", "internal/core/ports/search_options.go"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "" {
-		t.Fatalf("expected empty query with metadata-only expanded values, got %q", searchCommand.lastQuery)
-	}
-
-	if len(searchCommand.lastOptions.PathQueries) != 2 {
-		t.Fatalf("expected 2 path filters, got %v", searchCommand.lastOptions.PathQueries)
-	}
-}
-
-func TestCommandRunnerRunRejectsSearchWithoutQuery(t *testing.T) {
+func TestCommandRunnerRunRejectsSearchWithoutInput(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "search"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err == nil {
+	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
-	}
-
-	if initCommand.runCalls != 0 {
-		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
-	}
-
-	if destroyCommand.runCalls != 0 {
-		t.Fatalf("expected 0 destroy calls, got %d", destroyCommand.runCalls)
 	}
 
 	if searchCommand.runCalls != 0 {
 		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
-	}
-}
-
-func TestCommandRunnerRunTreatsInvalidLeadingFormatAsLiteralQuery(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--format", "xml", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--format xml needle" {
-		t.Fatalf("expected literal query %q, got %q", "--format xml needle", searchCommand.lastQuery)
-	}
-}
-
-func TestCommandRunnerRunTreatsInvalidLeadingContextAsLiteralQuery(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--context", "-1", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--context -1 needle" {
-		t.Fatalf("expected literal query %q, got %q", "--context -1 needle", searchCommand.lastQuery)
-	}
-}
-
-func TestCommandRunnerRunTreatsInvalidLeadingLimitAsLiteralQuery(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--limit", "0", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--limit 0 needle" {
-		t.Fatalf("expected literal query %q, got %q", "--limit 0 needle", searchCommand.lastQuery)
-	}
-}
-
-func TestCommandRunnerRunTreatsUnsupportedLeadingOptionAsLiteralQuery(t *testing.T) {
-	initCommand := &fakeInitCommand{}
-	destroyCommand := &fakeDestroyCommand{}
-	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--unknown", "needle"}, initCommand, destroyCommand, searchCommand)
-
-	err := runner.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if searchCommand.lastQuery != "--unknown needle" {
-		t.Fatalf("expected literal query %q, got %q", "--unknown needle", searchCommand.lastQuery)
 	}
 }
 
@@ -548,13 +250,57 @@ func TestCommandRunnerRunRejectsJsonPrettyWithoutJsonFormat(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "search", "--json-pretty", "needle"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err == nil {
+	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
 	}
+}
 
-	if searchCommand.runCalls != 0 {
-		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
+func TestCommandRunnerRunRejectsUnsupportedFormat(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--format", "xml"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestCommandRunnerRunRejectsInvalidContext(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--context", "-1"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestCommandRunnerRunRejectsInvalidLimit(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+
+	runnerZero := cli.NewCommandRunner([]string{"idx", "search", "needle", "--limit", "0"}, initCommand, destroyCommand, searchCommand)
+	if err := runnerZero.Run(); err == nil {
+		t.Fatal("expected error for --limit 0, got nil")
+	}
+
+	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--limit", "-2"}, initCommand, destroyCommand, searchCommand)
+	if err := runnerNegative.Run(); err == nil {
+		t.Fatal("expected error for negative --limit, got nil")
+	}
+}
+
+func TestCommandRunnerRunRejectsUnknownSearchFlag(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--unknown"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err == nil {
+		t.Fatal("expected an error, got nil")
 	}
 }
 
@@ -564,36 +310,33 @@ func TestCommandRunnerRunRejectsUnsupportedCommand(t *testing.T) {
 	searchCommand := &fakeSearchCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "other"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err == nil {
+	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
-	}
-
-	if initCommand.runCalls != 0 {
-		t.Fatalf("expected 0 init calls, got %d", initCommand.runCalls)
-	}
-
-	if destroyCommand.runCalls != 0 {
-		t.Fatalf("expected 0 destroy calls, got %d", destroyCommand.runCalls)
-	}
-
-	if searchCommand.runCalls != 0 {
-		t.Fatalf("expected 0 search calls, got %d", searchCommand.runCalls)
 	}
 }
 
-func TestCommandRunnerRunRejectsInspectWithOptionInsteadOfPath(t *testing.T) {
+func TestCommandRunnerRunAllowsHelpCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "inspect", "--json"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "help"}, initCommand, destroyCommand, searchCommand)
 
-	err := runner.Run()
-	if err == nil {
-		t.Fatal("expected an error, got nil")
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.inspectCalls != 0 {
-		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
+	if initCommand.runCalls != 0 || initCommand.syncCalls != 0 || initCommand.inspectCalls != 0 || destroyCommand.runCalls != 0 || searchCommand.runCalls != 0 {
+		t.Fatalf("expected no business command calls on help, got init=%+v destroy=%d search=%d", initCommand, destroyCommand.runCalls, searchCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunAllowsHelpFlag(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "--help"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }

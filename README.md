@@ -219,6 +219,17 @@ Success output:
 🧹 Index metadata removed from project.
 ```
 
+### 6) `help` / `--help`
+
+Shows command usage and available subcommands (provided by Cobra).
+
+Usage:
+
+```bash
+idx help
+idx --help
+```
+
 ## Tokenization
 
 Current tokenization rules:
@@ -252,7 +263,7 @@ Quick examples:
 - Command:
 
 ```bash
-go test ./internal/core/services -run '^$' -bench BenchmarkSearchVsGrep -benchmem
+go test ./internal/core/services/search -run '^$' -bench BenchmarkSearchVsGrep -benchmem
 ```
 
 ## Common errors

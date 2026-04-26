@@ -176,3 +176,43 @@ func TestDirectoryChecksumRepositoryLoadSnapshotSupportsLegacyPayload(t *testing
 		t.Fatalf("expected empty metadata for legacy payload, got %+v", state)
 	}
 }
+
+func TestCloneChecksumMapReturnsIndependentCopy(t *testing.T) {
+	original := map[string]string{"a.go": "111"}
+	cloned := cloneChecksumMap(original)
+
+	if cloned["a.go"] != "111" {
+		t.Fatalf("expected cloned value 111, got %q", cloned["a.go"])
+	}
+
+	original["a.go"] = "changed"
+	if cloned["a.go"] != "111" {
+		t.Fatalf("expected clone to remain immutable after source change, got %q", cloned["a.go"])
+	}
+}
+
+func TestCloneChecksumMapNilInputReturnsEmptyMap(t *testing.T) {
+	cloned := cloneChecksumMap(nil)
+	if len(cloned) != 0 {
+		t.Fatalf("expected empty map for nil input, got %d entries", len(cloned))
+	}
+}
+
+func TestPayloadToSnapshotPrefersFileStatesOverLegacyFiles(t *testing.T) {
+	payload := checksumPayload{
+		Files: map[string]string{"legacy.go": "legacy"},
+		FileStates: map[string]checksumFileState{
+			"modern.go": {Checksum: "modern", Size: 42, ModTimeUnixNano: 77},
+		},
+	}
+
+	snapshot := payloadToSnapshot(payload)
+	if len(snapshot.Files) != 1 {
+		t.Fatalf("expected only fileStates to be used, got %d entries", len(snapshot.Files))
+	}
+
+	state := snapshot.Files["modern.go"]
+	if state.Checksum != "modern" || state.Size != 42 || state.ModTimeUnixNano != 77 {
+		t.Fatalf("unexpected snapshot state %+v", state)
+	}
+}
