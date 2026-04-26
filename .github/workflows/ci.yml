@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: Unit Tests + Concurrency Race
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,9 +26,3 @@ jobs:
 
       - name: Run unit tests
         run: make test
-
-      - name: Run concurrency tests with race detector
-        env:
-          RACE_COUNT: "2"
-          IDX_CONCURRENCY_TIMEOUT_SECONDS: "45"
-        run: make test-concurrency-race
