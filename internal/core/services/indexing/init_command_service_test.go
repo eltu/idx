@@ -141,6 +141,7 @@ func (repo *fakeIndexRepository) LoadIndex(directoryPath string) (*domain.Invert
 
 type fakeChecksumRepository struct {
 	checksums map[string]map[string]string
+	snapshots map[string]ports.DirectoryChecksumSnapshot
 	exists    map[string]bool
 	saveCount map[string]int
 }
@@ -148,6 +149,7 @@ type fakeChecksumRepository struct {
 func newFakeChecksumRepository() *fakeChecksumRepository {
 	return &fakeChecksumRepository{
 		checksums: map[string]map[string]string{},
+		snapshots: map[string]ports.DirectoryChecksumSnapshot{},
 		exists:    map[string]bool{},
 		saveCount: map[string]int{},
 	}
@@ -169,14 +171,71 @@ func (repo *fakeChecksumRepository) Load(directoryPath string) (map[string]strin
 
 func (repo *fakeChecksumRepository) Save(directoryPath string, checksums map[string]string) error {
 	cloned := make(map[string]string, len(checksums))
+	files := make(map[string]ports.FileChecksumState, len(checksums))
 	for fileName, checksum := range checksums {
 		cloned[fileName] = checksum
+		files[fileName] = ports.FileChecksumState{Checksum: checksum}
 	}
 
 	repo.exists[directoryPath] = true
 	repo.checksums[directoryPath] = cloned
+	repo.snapshots[directoryPath] = ports.DirectoryChecksumSnapshot{Files: files}
 	repo.saveCount[directoryPath]++
 	return nil
+}
+
+func (repo *fakeChecksumRepository) LoadSnapshot(directoryPath string) (ports.DirectoryChecksumSnapshot, bool, error) {
+	if !repo.exists[directoryPath] {
+		return ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{}}, false, nil
+	}
+
+	snapshot, ok := repo.snapshots[directoryPath]
+	if !ok {
+		files := make(map[string]ports.FileChecksumState, len(repo.checksums[directoryPath]))
+		for fileName, checksum := range repo.checksums[directoryPath] {
+			files[fileName] = ports.FileChecksumState{Checksum: checksum}
+		}
+
+		return ports.DirectoryChecksumSnapshot{Files: files}, true, nil
+	}
+
+	cloned := make(map[string]ports.FileChecksumState, len(snapshot.Files))
+	for fileName, state := range snapshot.Files {
+		cloned[fileName] = state
+	}
+
+	return ports.DirectoryChecksumSnapshot{Files: cloned}, true, nil
+}
+
+func (repo *fakeChecksumRepository) SaveSnapshot(directoryPath string, snapshot ports.DirectoryChecksumSnapshot) error {
+	checksums := make(map[string]string, len(snapshot.Files))
+	files := make(map[string]ports.FileChecksumState, len(snapshot.Files))
+	for fileName, state := range snapshot.Files {
+		checksums[fileName] = state.Checksum
+		files[fileName] = state
+	}
+
+	repo.exists[directoryPath] = true
+	repo.checksums[directoryPath] = checksums
+	repo.snapshots[directoryPath] = ports.DirectoryChecksumSnapshot{Files: files}
+	repo.saveCount[directoryPath]++
+
+	return nil
+}
+
+type countingFileReader struct {
+	files     map[string]string
+	readCount int
+}
+
+func (reader *countingFileReader) ReadFile(path string) (string, error) {
+	reader.readCount++
+	content, ok := reader.files[path]
+	if !ok {
+		return "", errors.New("file not found")
+	}
+
+	return content, nil
 }
 
 func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
@@ -680,6 +739,98 @@ func TestInitCommandServiceInspectLoadsNestedIndexFromRelativePath(t *testing.T)
 
 	if payload.DocumentCount != 2 {
 		t.Fatalf("expected inspect payload with 2 documents, got %d", payload.DocumentCount)
+	}
+}
+
+func TestInitCommandServiceSyncSkipsRehashWhenMetadataUnchanged(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	filePath := filepath.Join(rootDir, "root.txt")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "root.txt", Path: filePath, IsDir: false, Size: int64(len("root content")), ModTimeUnixNano: 42},
+	}
+
+	reader := &countingFileReader{files: map[string]string{filePath: "root content"}}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+	checksumRepo := newFakeChecksumRepository()
+	checksumRepo.exists[rootDir] = true
+	checksumRepo.snapshots[rootDir] = ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{
+		"root.txt": {
+			Checksum:        checksumFromContent("root content"),
+			Size:            int64(len("root content")),
+			ModTimeUnixNano: 42,
+		},
+	}}
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		reader,
+		&fakeBM25Indexer{},
+		indexRepo,
+		checksumRepo,
+	)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if reader.readCount != 0 {
+		t.Fatalf("expected 0 file reads when metadata is unchanged, got %d", reader.readCount)
+	}
+
+	if len(indexRepo.savedIndices) != 0 {
+		t.Fatalf("expected no index save for unchanged metadata, got %d", len(indexRepo.savedIndices))
+	}
+}
+
+func TestInitCommandServiceSyncRehashesWhenMetadataChanges(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	filePath := filepath.Join(rootDir, "root.txt")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true},
+		{Name: "root.txt", Path: filePath, IsDir: false, Size: int64(len("new content")), ModTimeUnixNano: 200},
+	}
+
+	reader := &countingFileReader{files: map[string]string{filePath: "new content"}}
+	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
+	checksumRepo := newFakeChecksumRepository()
+	checksumRepo.exists[rootDir] = true
+	checksumRepo.snapshots[rootDir] = ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{
+		"root.txt": {
+			Checksum:        checksumFromContent("old content"),
+			Size:            int64(len("old content")),
+			ModTimeUnixNano: 100,
+		},
+	}}
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		reader,
+		&fakeBM25Indexer{},
+		indexRepo,
+		checksumRepo,
+	)
+
+	err := service.Sync()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if reader.readCount == 0 {
+		t.Fatal("expected at least one file read when metadata changes")
+	}
+
+	if checksumRepo.saveCount[rootDir] != 1 {
+		t.Fatalf("expected checksum snapshot save count 1, got %d", checksumRepo.saveCount[rootDir])
 	}
 }
 
