@@ -450,6 +450,36 @@ func TestSearchCommandServiceRunWithOptionsSizeRestrictsResultCount(t *testing.T
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsFromAndSizePaginateResults(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "guide.md"):  "go search guide",
+		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
+	}}
+	service := search.NewSearchCommandService(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, From: 1, Size: 1})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if len(payload) != 1 {
+		t.Fatalf("expected one paginated file result, got %d", len(payload))
+	}
+
+	if payload[0]["file"] != "./readme.md" {
+		t.Fatalf("expected second-ranked file ./readme.md for from=1,size=1, got %v", payload[0]["file"])
+	}
+}
+
 func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)

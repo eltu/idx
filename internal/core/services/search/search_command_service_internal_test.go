@@ -13,6 +13,7 @@ func TestNormalizedSearchOptions(t *testing.T) {
 		PrettyJSON:  true,
 		PathQuery:   "  internal/core  ",
 		PathQueries: []string{"", "internal/core", "internal/core", " docs "},
+		From:        -3,
 		Size:        -2,
 	})
 
@@ -24,6 +25,9 @@ func TestNormalizedSearchOptions(t *testing.T) {
 	}
 	if options.PrettyJSON {
 		t.Fatal("expected pretty json disabled when format is text")
+	}
+	if options.From != 0 {
+		t.Fatalf("expected normalized from 0, got %d", options.From)
 	}
 	if options.Size != 0 {
 		t.Fatalf("expected normalized size 0, got %d", options.Size)
@@ -56,6 +60,24 @@ func TestSearchResultOptionHelpers(t *testing.T) {
 	limited := limitedResults(results, 1)
 	if len(limited) != 1 {
 		t.Fatalf("expected one limited result, got %d", len(limited))
+	}
+
+	paginated := paginatedResults(results, 1, 1)
+	if len(paginated) != 1 {
+		t.Fatalf("expected one paginated result, got %d", len(paginated))
+	}
+	if paginated[0].fileName != "a.go" || paginated[0].score != 0.5 {
+		t.Fatalf("expected second ranked result after from=1, got %+v", paginated[0])
+	}
+
+	pageWithoutSize := paginatedResults(results, 2, 0)
+	if len(pageWithoutSize) != 1 {
+		t.Fatalf("expected one result from from=2 and size=0, got %d", len(pageWithoutSize))
+	}
+
+	outOfRange := paginatedResults(results, 10, 1)
+	if len(outOfRange) != 0 {
+		t.Fatalf("expected empty result for out-of-range from, got %d", len(outOfRange))
 	}
 }
 
