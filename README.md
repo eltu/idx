@@ -14,7 +14,7 @@ The goal of `idx` is to provide fast and relevant search for Git projects while 
 
 ## Requirements
 
-- Go `1.24+`
+- Go `1.26+`
 - A Git repository (required to resolve the project root from `.git`).
 
 ## Build, test and run
@@ -158,6 +158,8 @@ idx search module idx --format json --matches-only
 idx search module idx --files-only
 idx search module idx --format json --files-only
 idx search module idx --format json --limit 5
+idx search module idx --path internal/core
+idx search --path internal/core
 ```
 
 Current behavior:
@@ -174,7 +176,19 @@ Current behavior:
 - Optional `--matches-only` keeps only direct matched lines in the output.
 - Optional `--files-only` returns only file paths, ignoring matches and context (deduplicates results by file).
 - Optional `--limit <N>` limits output to the top `N` files.
+- Optional `--path <pattern>` filters by indexed metadata path (repeatable).
+- Metadata-only search is supported with `--path` even when query terms are empty.
 - Without options, output stays in the current human-friendly tree format.
+
+Supported `search` flags:
+
+- `--format <text|json>`
+- `--context <N>`
+- `--json-pretty` (requires `--format json`)
+- `--matches-only`
+- `--files-only`
+- `--path <pattern>` (repeatable)
+- `--limit <N>`
 
 Output format:
 
@@ -254,6 +268,27 @@ Quick examples:
 4. Build binaries with `make build` when needed.
 5. Re-run `idx sync` whenever you want to regenerate existing indexes.
 6. Run `idx destroy` to clean index metadata.
+
+## Concurrency test profiles
+
+The repository includes dedicated concurrency targets where `sync` writes while `search` reads:
+
+```bash
+make test-concurrency
+make test-concurrency-race
+make test-concurrency-ci
+make test-concurrency-heavy
+```
+
+Notes:
+
+- `test-concurrency-race` runs with `-race` and `RACE_COUNT` (default `3`).
+- `test-concurrency-ci` uses a race-safe default workload to reduce timeout flakiness in CI.
+- You can override workload via env vars, for example:
+
+```bash
+IDX_CONCURRENCY_TIMEOUT_SECONDS=60 RACE_COUNT=4 make test-concurrency-ci
+```
 
 ## Benchmark
 
