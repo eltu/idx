@@ -37,11 +37,11 @@ bench-search-vs-grep:
 
 ## Concurrency test: sync writes while search reads
 test-concurrency:
-	go test ./internal/core/services/search -run '^TestSyncAndSearchRunConcurrently' -count=1
+	IDX_RUN_CONCURRENCY_TESTS=1 go test ./internal/core/services/search -run '^TestSyncAndSearchRunConcurrently' -count=1
 
 ## Concurrency test with race detector (recommended for CI)
 test-concurrency-race:
-	go test ./internal/core/services/search -run '^TestSyncAndSearchRunConcurrently' -race -count=$${RACE_COUNT:-3}
+	IDX_RUN_CONCURRENCY_TESTS=1 go test ./internal/core/services/search -run '^TestSyncAndSearchRunConcurrently' -race -count=$${RACE_COUNT:-3}
 
 ## Concurrency test profile used by CI workflow
 test-concurrency-ci:
@@ -57,6 +57,7 @@ test-concurrency-ci:
 
 ## High-load concurrency test (configurable via env vars)
 test-concurrency-heavy:
+	IDX_RUN_CONCURRENCY_TESTS=1 \
 	IDX_CONCURRENCY_FILES=$${IDX_CONCURRENCY_FILES:-240} \
 	IDX_CONCURRENCY_SUBDIRS=$${IDX_CONCURRENCY_SUBDIRS:-10} \
 	IDX_CONCURRENCY_FILES_PER_DIR=$${IDX_CONCURRENCY_FILES_PER_DIR:-50} \

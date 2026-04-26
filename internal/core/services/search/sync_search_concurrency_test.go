@@ -101,6 +101,10 @@ func (output concurrentDiscardOutput) WriteLine(text string) error {
 }
 
 func TestSyncAndSearchRunConcurrentlyWithoutInterference(t *testing.T) {
+	if !concurrencyTestsEnabled() {
+		t.Skip("skipping concurrency tests; set IDX_RUN_CONCURRENCY_TESTS=1 to enable")
+	}
+
 	if testing.Short() {
 		t.Skip("skipping concurrency stress test in short mode")
 	}
@@ -135,6 +139,10 @@ func TestSyncAndSearchRunConcurrentlyWithoutInterference(t *testing.T) {
 }
 
 func TestSyncAndSearchRunConcurrentlyAcrossDirectories(t *testing.T) {
+	if !concurrencyTestsEnabled() {
+		t.Skip("skipping concurrency tests; set IDX_RUN_CONCURRENCY_TESTS=1 to enable")
+	}
+
 	if testing.Short() {
 		t.Skip("skipping concurrency stress test in short mode")
 	}
@@ -264,6 +272,11 @@ func envInt(name string, defaultValue int) int {
 	}
 
 	return parsed
+}
+
+func concurrencyTestsEnabled() bool {
+	raw := strings.TrimSpace(os.Getenv("IDX_RUN_CONCURRENCY_TESTS"))
+	return raw == "1" || strings.EqualFold(raw, "true")
 }
 
 func createConcurrencyCorpus(t *testing.T, rootDir string, files int) []string {
