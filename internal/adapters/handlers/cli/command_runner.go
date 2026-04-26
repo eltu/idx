@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"idx/internal/core/ports"
 )
@@ -19,7 +17,6 @@ type indexableCommand interface {
 }
 
 type searchableCommand interface {
-	Run(query string) error
 	RunWithOptions(query string, options ports.SearchOptions) error
 }
 
@@ -48,275 +45,20 @@ func (runner CommandRunner) Run() error {
 		return fmt.Errorf("missing command: got %v, expected one of [sync init inspect destroy search]", runner.arguments)
 	}
 
-	switch runner.arguments[1] {
-	case "sync":
-		return runner.indexCommand.Sync()
-	case "init":
-		return runner.indexCommand.Run()
-	case "inspect":
-		return runner.runInspect()
-	case "destroy":
-		return runner.destroyCommand.Run()
-	case "search":
-		return runner.runSearch()
-	default:
+	if !canExecuteWithCobra(runner.arguments[1]) {
 		return fmt.Errorf("unsupported command %q: expected one of [sync init inspect destroy search]", runner.arguments[1])
 	}
+
+	root := runner.newRootCommand()
+	root.SetArgs(runner.arguments[1:])
+	return root.Execute()
 }
 
-func (runner CommandRunner) runInspect() error {
-	inspectPath, err := parseInspectArguments(runner.arguments[2:])
-	if err != nil {
-		return err
-	}
-
-	return runner.indexCommand.Inspect(inspectPath)
-}
-
-func (runner CommandRunner) runSearch() error {
-	if len(runner.arguments) < 3 {
-		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", runner.arguments)
-	}
-
-	query, options, err := parseSearchArguments(runner.arguments[2:])
-	if err != nil {
-		return err
-	}
-
-	if !hasSearchInput(query, options) {
-		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", runner.arguments)
-	}
-
-	return runner.searchCommand.RunWithOptions(query, options)
-}
-
-func parseSearchArguments(arguments []string) (string, ports.SearchOptions, error) {
-	queryTerms := make([]string, 0, len(arguments))
-	options := ports.SearchOptions{Format: ports.SearchOutputText}
-
-	for index := 0; index < len(arguments); index++ {
-		argument := arguments[index]
-		if shouldTreatAsLiteralPhrase(argument) {
-			queryTerms = append(queryTerms, argument)
-			continue
-		}
-
-		if shouldTreatAsLiteralStandaloneFlag(arguments, index, argument, queryTerms) {
-			queryTerms = append(queryTerms, argument)
-			continue
-		}
-
-		switch argument {
-		case "--format":
-			selectedFormat, err := parseFormatOption(arguments, index)
-			if err != nil {
-				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-					queryTerms = append(queryTerms, argument)
-					continue
-				}
-
-				return "", options, err
-			}
-
-			options.Format = selectedFormat
-			index++
-		case "--context":
-			parsedContext, err := parseContextOption(arguments, index)
-			if err != nil {
-				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-					queryTerms = append(queryTerms, argument)
-					continue
-				}
-
-				return "", options, err
-			}
-
-			options.Context = parsedContext
-			index++
-		case "--json-pretty":
-			options.PrettyJSON = true
-		case "--matches-only", "--macthes-only":
-			options.MatchesOnly = true
-		case "--files-only":
-			options.FilesOnly = true
-		case "--path":
-			pathQueries, consumed, err := parseTextOptionValues(arguments, index, argument)
-			if err != nil {
-				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-					queryTerms = append(queryTerms, argument)
-					continue
-				}
-
-				return "", options, err
-			}
-
-			if options.PathQuery == "" {
-				options.PathQuery = pathQueries[0]
-			}
-			options.PathQueries = append(options.PathQueries, pathQueries...)
-			index += consumed
-		case "--limit":
-			parsedLimit, err := parseLimitOption(arguments, index)
-			if err != nil {
-				if shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-					queryTerms = append(queryTerms, argument)
-					continue
-				}
-
-				return "", options, err
-			}
-
-			options.Limit = parsedLimit
-			index++
-		default:
-			if err := validateSearchOption(argument); err != nil {
-				queryTerms = append(queryTerms, argument)
-				continue
-			}
-
-			queryTerms = append(queryTerms, argument)
-		}
-	}
-
-	if err := validatePrettyJSONOption(options); err != nil {
-		return "", options, err
-	}
-
-	return strings.Join(queryTerms, " "), options, nil
-}
-
-func shouldTreatAsLiteralPhrase(argument string) bool {
-	return strings.Contains(argument, " ")
-}
-
-func shouldTreatAsLiteralReservedTerm(index int, queryTerms []string) bool {
-	return index == 0 && len(queryTerms) == 0
-}
-
-func shouldTreatAsLiteralStandaloneFlag(arguments []string, index int, argument string, queryTerms []string) bool {
-	if !shouldTreatAsLiteralReservedTerm(index, queryTerms) {
-		return false
-	}
-
-	if !isStandaloneSearchFlag(argument) {
-		return false
-	}
-
-	if index+1 >= len(arguments) {
-		return false
-	}
-
-	return strings.HasPrefix(strings.TrimSpace(arguments[index+1]), "--")
-}
-
-func isStandaloneSearchFlag(argument string) bool {
-	switch argument {
-	case "--json-pretty", "--matches-only", "--macthes-only", "--files-only":
+func canExecuteWithCobra(command string) bool {
+	switch command {
+	case "sync", "init", "inspect", "destroy", "search", "help", "--help", "-h":
 		return true
 	default:
 		return false
 	}
-}
-
-func parseInspectArguments(arguments []string) (string, error) {
-	if len(arguments) != 1 {
-		return "", fmt.Errorf("inspect requires exactly one path: got %v, expected idx inspect <path>", arguments)
-	}
-
-	inspectPath := strings.TrimSpace(arguments[0])
-	if inspectPath == "" || strings.HasPrefix(inspectPath, "--") {
-		return "", fmt.Errorf("invalid inspect path %q: expected idx inspect <path>", arguments[0])
-	}
-
-	return inspectPath, nil
-}
-
-func parseFormatOption(arguments []string, index int) (string, error) {
-	if index+1 >= len(arguments) {
-		return "", fmt.Errorf("missing --format value: got %q, expected one of [%s %s]", arguments[index], ports.SearchOutputText, ports.SearchOutputJSON)
-	}
-
-	selectedFormat := arguments[index+1]
-	if selectedFormat != ports.SearchOutputText && selectedFormat != ports.SearchOutputJSON {
-		return "", fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", selectedFormat, ports.SearchOutputText, ports.SearchOutputJSON)
-	}
-
-	return selectedFormat, nil
-}
-
-func parseContextOption(arguments []string, index int) (int, error) {
-	if index+1 >= len(arguments) {
-		return 0, fmt.Errorf("missing --context value: got %q, expected a non-negative integer", arguments[index])
-	}
-
-	contextValue := arguments[index+1]
-	parsedContext, err := strconv.Atoi(contextValue)
-	if err != nil || parsedContext < 0 {
-		return 0, fmt.Errorf("invalid --context value %q: expected a non-negative integer", contextValue)
-	}
-
-	return parsedContext, nil
-}
-
-func parseLimitOption(arguments []string, index int) (int, error) {
-	if index+1 >= len(arguments) {
-		return 0, fmt.Errorf("missing --limit value: got %q, expected a positive integer", arguments[index])
-	}
-
-	limitValue := arguments[index+1]
-	parsedLimit, err := strconv.Atoi(limitValue)
-	if err != nil || parsedLimit <= 0 {
-		return 0, fmt.Errorf("invalid --limit value %q: expected a positive integer", limitValue)
-	}
-
-	return parsedLimit, nil
-}
-
-func parseTextOptionValues(arguments []string, index int, option string) ([]string, int, error) {
-	if index+1 >= len(arguments) {
-		return nil, 0, fmt.Errorf("missing %s value: got %q, expected non-empty text", option, arguments[index])
-	}
-
-	values := make([]string, 0)
-	consumed := 0
-	for valueIndex := index + 1; valueIndex < len(arguments); valueIndex++ {
-		raw := strings.TrimSpace(arguments[valueIndex])
-		if raw == "" {
-			consumed++
-			continue
-		}
-
-		if strings.HasPrefix(raw, "--") {
-			break
-		}
-
-		values = append(values, raw)
-		consumed++
-	}
-
-	if len(values) == 0 {
-		return nil, 0, fmt.Errorf("invalid %s value %q: expected non-empty text", option, arguments[index+1])
-	}
-
-	return values, consumed, nil
-}
-
-func validateSearchOption(argument string) error {
-	if strings.HasPrefix(argument, "--") {
-		return fmt.Errorf("unsupported search option %q: expected --format <text|json>, --json-pretty, --context <n>, --matches-only, --files-only, --path <text>, or --limit <n>", argument)
-	}
-
-	return nil
-}
-
-func hasSearchInput(query string, options ports.SearchOptions) bool {
-	return query != "" || options.PathQuery != "" || len(options.PathQueries) > 0
-}
-
-func validatePrettyJSONOption(options ports.SearchOptions) error {
-	if options.PrettyJSON && options.Format != ports.SearchOutputJSON {
-		return fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, options.Format)
-	}
-
-	return nil
 }

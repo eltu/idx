@@ -1,0 +1,146 @@
+package cli
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"idx/internal/core/ports"
+)
+
+func (runner CommandRunner) newRootCommand() *cobra.Command {
+	root := &cobra.Command{
+		Use:           "idx",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+
+	root.AddCommand(runner.newSyncCommand())
+	root.AddCommand(runner.newInitCommand())
+	root.AddCommand(runner.newInspectCommand())
+	root.AddCommand(runner.newDestroyCommand())
+	root.AddCommand(runner.newSearchCommand())
+
+	return root
+}
+
+func (runner CommandRunner) newSyncCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "sync",
+		Short: "Synchronize project indices",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runner.indexCommand.Sync()
+		},
+	}
+}
+
+func (runner CommandRunner) newInitCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "init",
+		Short: "Initialize project index",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runner.indexCommand.Run()
+		},
+	}
+}
+
+func (runner CommandRunner) newInspectCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "inspect <path>",
+		Short: "Inspect an index payload",
+		Args: func(_ *cobra.Command, args []string) error {
+			_, err := parseInspectArguments(args)
+			return err
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			inspectPath, err := parseInspectArguments(args)
+			if err != nil {
+				return err
+			}
+
+			return runner.indexCommand.Inspect(inspectPath)
+		},
+	}
+}
+
+func (runner CommandRunner) newDestroyCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "destroy",
+		Short: "Destroy index metadata",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runner.destroyCommand.Run()
+		},
+	}
+}
+
+func (runner CommandRunner) newSearchCommand() *cobra.Command {
+	var format string
+	var contextLines int
+	var prettyJSON bool
+	var matchesOnly bool
+	var legacyMatchesOnly bool
+	var filesOnly bool
+	var pathQueries []string
+	var limit int
+
+	var searchCommand *cobra.Command
+	searchCommand = &cobra.Command{
+		Use:   "search [query terms]",
+		Short: "Search indexed content",
+		RunE: func(_ *cobra.Command, args []string) error {
+			if contextLines < 0 {
+				return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
+			}
+
+			if limit < 0 {
+				return fmt.Errorf("invalid --limit value %d: expected a positive integer", limit)
+			}
+
+			if limit == 0 && searchCommand.Flags().Changed("limit") {
+				return fmt.Errorf("invalid --limit value %d: expected a positive integer", limit)
+			}
+
+			if format != ports.SearchOutputText && format != ports.SearchOutputJSON {
+				return fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", format, ports.SearchOutputText, ports.SearchOutputJSON)
+			}
+
+			if prettyJSON && format != ports.SearchOutputJSON {
+				return fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, format)
+			}
+
+			query := strings.Join(args, " ")
+			if query == "" && len(pathQueries) == 0 {
+				return fmt.Errorf("missing search query: got %v, expected idx search <terms>", runner.arguments)
+			}
+
+			options := ports.SearchOptions{
+				Format:      format,
+				Context:     contextLines,
+				PrettyJSON:  prettyJSON,
+				MatchesOnly: matchesOnly || legacyMatchesOnly,
+				FilesOnly:   filesOnly,
+				PathQueries: pathQueries,
+				Limit:       limit,
+			}
+
+			if len(pathQueries) > 0 {
+				options.PathQuery = pathQueries[0]
+			}
+
+			return runner.searchCommand.RunWithOptions(query, options)
+		},
+	}
+
+	searchCommand.Flags().StringVar(&format, "format", ports.SearchOutputText, "Output format: text|json")
+	searchCommand.Flags().IntVar(&contextLines, "context", 0, "Number of context lines around matches")
+	searchCommand.Flags().BoolVar(&prettyJSON, "json-pretty", false, "Pretty-print JSON output")
+	searchCommand.Flags().BoolVar(&matchesOnly, "matches-only", false, "Show only directly matched lines")
+	searchCommand.Flags().BoolVar(&legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
+	searchCommand.Flags().MarkHidden("macthes-only")
+	searchCommand.Flags().BoolVar(&filesOnly, "files-only", false, "Show only matched file paths")
+	searchCommand.Flags().StringArrayVar(&pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
+	searchCommand.Flags().IntVar(&limit, "limit", 0, "Limit results to top N files")
+
+	return searchCommand
+}
