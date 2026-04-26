@@ -75,7 +75,7 @@ func TestWriteEmptySearchResultsFormats(t *testing.T) {
 	if err := service.writeEmptySearchResults(ports.SearchOptions{Format: ports.SearchOutputText}); err != nil {
 		t.Fatalf("expected text empty result write success, got %v", err)
 	}
-	if output.lines[0] != "Nenhum resultado encontrado." {
+	if output.lines[0] != "No results found." {
 		t.Fatalf("unexpected text empty output %q", output.lines[0])
 	}
 

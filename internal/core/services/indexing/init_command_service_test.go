@@ -345,7 +345,7 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 		t.Fatalf("expected 1 output line, got %d", len(output.lines))
 	}
 
-	if output.lines[0] != "ℹ️ Este projeto ja possui indice. Voce pode executar idx search." {
+	if output.lines[0] != "ℹ️ This project is already indexed. You can run idx search." {
 		t.Fatalf("unexpected output message %q", output.lines[0])
 	}
 
