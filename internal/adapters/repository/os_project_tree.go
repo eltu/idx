@@ -52,10 +52,17 @@ func (tree OSProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, error) 
 
 	entries := make([]domain.DirectoryEntry, 0, len(directoryEntries))
 	for _, entry := range directoryEntries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read metadata for entry %q in %q: got error %v, expected accessible file metadata", entry.Name(), path, err)
+		}
+
 		entries = append(entries, domain.DirectoryEntry{
-			Name:  entry.Name(),
-			Path:  filepath.Join(path, entry.Name()),
-			IsDir: entry.IsDir(),
+			Name:            entry.Name(),
+			Path:            filepath.Join(path, entry.Name()),
+			IsDir:           entry.IsDir(),
+			Size:            info.Size(),
+			ModTimeUnixNano: info.ModTime().UnixNano(),
 		})
 	}
 

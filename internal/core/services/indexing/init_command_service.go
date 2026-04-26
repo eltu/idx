@@ -242,15 +242,22 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		return service.removeDirectoryIndex(directoryPath)
 	}
 
-	checksums, err := service.directoryChecksums(fileEntries)
+	hasIndex, err := service.hasDirectoryIndex(directoryPath)
 	if err != nil {
 		return err
 	}
 
-	shouldReindex, err := service.shouldReindexDirectory(directoryPath, checksums)
+	storedSnapshot, hasSnapshot, err := service.loadChecksumSnapshot(directoryPath)
 	if err != nil {
 		return err
 	}
+
+	currentSnapshot, changed, err := service.computeDirectorySnapshot(fileEntries, storedSnapshot)
+	if err != nil {
+		return err
+	}
+
+	shouldReindex := !hasIndex || !hasSnapshot || changed
 
 	if !shouldReindex {
 		return nil
@@ -260,12 +267,128 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		return err
 	}
 
+	return service.saveChecksumSnapshot(directoryPath, currentSnapshot)
+}
+
+func (service InitCommandService) hasDirectoryIndex(directoryPath string) (bool, error) {
+	currentIndexPath := indexFilePath(directoryPath)
+	hasIndex, err := service.projectTree.Exists(currentIndexPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to check index file %q: got error %v, expected readable filesystem", currentIndexPath, err)
+	}
+
+	return hasIndex, nil
+}
+
+func (service InitCommandService) loadChecksumSnapshot(directoryPath string) (ports.DirectoryChecksumSnapshot, bool, error) {
+	if repositoryWithSnapshot, ok := service.checksumRepo.(ports.DirectoryChecksumSnapshotRepository); ok {
+		return repositoryWithSnapshot.LoadSnapshot(directoryPath)
+	}
+
+	checksums, exists, err := service.checksumRepo.Load(directoryPath)
+	if err != nil {
+		return ports.DirectoryChecksumSnapshot{}, false, err
+	}
+
+	files := make(map[string]ports.FileChecksumState, len(checksums))
+	for fileName, checksum := range checksums {
+		files[fileName] = ports.FileChecksumState{Checksum: checksum}
+	}
+
+	return ports.DirectoryChecksumSnapshot{Files: files}, exists, nil
+}
+
+func (service InitCommandService) saveChecksumSnapshot(directoryPath string, snapshot ports.DirectoryChecksumSnapshot) error {
+	if repositoryWithSnapshot, ok := service.checksumRepo.(ports.DirectoryChecksumSnapshotRepository); ok {
+		return repositoryWithSnapshot.SaveSnapshot(directoryPath, snapshot)
+	}
+
+	checksums := make(map[string]string, len(snapshot.Files))
+	for fileName, state := range snapshot.Files {
+		checksums[fileName] = state.Checksum
+	}
+
 	return service.checksumRepo.Save(directoryPath, checksums)
 }
 
+func (service InitCommandService) computeDirectorySnapshot(fileEntries []domain.DirectoryEntry, stored ports.DirectoryChecksumSnapshot) (ports.DirectoryChecksumSnapshot, bool, error) {
+	current := ports.DirectoryChecksumSnapshot{Files: make(map[string]ports.FileChecksumState, len(fileEntries))}
+	changed := false
+
+	if len(stored.Files) != len(fileEntries) {
+		changed = true
+	}
+
+	for _, entry := range fileEntries {
+		storedState, exists := stored.Files[entry.Name]
+		if exists && metadataUnchanged(entry, storedState) && storedState.Checksum != "" {
+			current.Files[entry.Name] = storedState
+			continue
+		}
+
+		checksum, err := service.fileChecksum(entry)
+		if err != nil {
+			return ports.DirectoryChecksumSnapshot{}, false, err
+		}
+
+		currentState := ports.FileChecksumState{Checksum: checksum, Size: entry.Size, ModTimeUnixNano: entry.ModTimeUnixNano}
+		current.Files[entry.Name] = currentState
+
+		if !exists || storedState.Checksum != checksum {
+			changed = true
+		}
+	}
+
+	if !changed && !sameSnapshotChecksums(stored.Files, current.Files) {
+		changed = true
+	}
+
+	return current, changed, nil
+}
+
+func metadataUnchanged(entry domain.DirectoryEntry, stored ports.FileChecksumState) bool {
+	if entry.Size == 0 && entry.ModTimeUnixNano == 0 {
+		return false
+	}
+
+	if stored.ModTimeUnixNano == 0 && stored.Size == 0 {
+		return false
+	}
+
+	return entry.Size == stored.Size && entry.ModTimeUnixNano == stored.ModTimeUnixNano
+}
+
+func (service InitCommandService) fileChecksum(entry domain.DirectoryEntry) (string, error) {
+	content, err := service.fileReader.ReadFile(entry.Path)
+	if err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func sameSnapshotChecksums(stored map[string]ports.FileChecksumState, current map[string]ports.FileChecksumState) bool {
+	if len(stored) != len(current) {
+		return false
+	}
+
+	for fileName, storedState := range stored {
+		currentState, exists := current[fileName]
+		if !exists {
+			return false
+		}
+
+		if storedState.Checksum != currentState.Checksum {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (service InitCommandService) shouldReindexDirectory(directoryPath string, currentChecksums map[string]string) (bool, error) {
-	currentIndexPath := indexFilePath(directoryPath)
-	hasIndex, err := service.projectTree.Exists(currentIndexPath)
+	hasIndex, err := service.hasDirectoryIndex(directoryPath)
 	if err != nil {
 		return false, err
 	}

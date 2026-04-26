@@ -3,7 +3,7 @@ BUILD_DIR  := bin
 CMD_MAIN   := ./cmd/idx
 ALL_PKGS   := ./...
 
-.PHONY: all build fmt lint test clean check
+.PHONY: all build fmt lint test clean check bench-sync bench-search-vs-grep
 
 ## Default: format, lint, test, and build
 all: fmt lint test build
@@ -26,6 +26,14 @@ lint:
 ## Run unit tests
 test:
 	go test $(ALL_PKGS)
+
+## Benchmark sync incremental mode (time + file read syscalls proxy)
+bench-sync:
+	go test ./internal/core/services/indexing -run '^$$' -bench '^BenchmarkSyncMetadataIncremental$$' -benchmem
+
+## Benchmark idx search vs grep
+bench-search-vs-grep:
+	go test ./internal/core/services/search -run '^$$' -bench '^BenchmarkSearchVsGrep$$' -benchmem
 
 ## Format + lint + test (no build)
 check: fmt lint test

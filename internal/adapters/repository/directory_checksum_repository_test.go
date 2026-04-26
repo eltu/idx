@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"idx/internal/core/ports"
 )
 
 func TestDirectoryChecksumRepositoryLoadUsesInMemoryCacheWhenFileUnchanged(t *testing.T) {
@@ -108,5 +110,69 @@ func TestDirectoryChecksumRepositoryLoadClearsCacheWhenFileRemoved(t *testing.T)
 	}
 	if len(loaded) != 0 {
 		t.Fatalf("expected empty checksum map when file is absent, got %d entries", len(loaded))
+	}
+}
+
+func TestDirectoryChecksumRepositorySaveAndLoadSnapshotPreservesMetadata(t *testing.T) {
+	repo := NewDirectoryChecksumRepository()
+	dir := t.TempDir()
+
+	snapshot := ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{
+		"a.go": {Checksum: "111", Size: 10, ModTimeUnixNano: 100},
+		"b.go": {Checksum: "222", Size: 20, ModTimeUnixNano: 200},
+	}}
+
+	if err := repo.SaveSnapshot(dir, snapshot); err != nil {
+		t.Fatalf("expected snapshot save to succeed, got %v", err)
+	}
+
+	loaded, exists, err := repo.LoadSnapshot(dir)
+	if err != nil {
+		t.Fatalf("expected snapshot load to succeed, got %v", err)
+	}
+	if !exists {
+		t.Fatal("expected snapshot to exist")
+	}
+
+	if loaded.Files["a.go"].Size != 10 || loaded.Files["a.go"].ModTimeUnixNano != 100 {
+		t.Fatalf("expected metadata for a.go to be preserved, got %+v", loaded.Files["a.go"])
+	}
+	if loaded.Files["b.go"].Checksum != "222" {
+		t.Fatalf("expected checksum for b.go to be preserved, got %q", loaded.Files["b.go"].Checksum)
+	}
+}
+
+func TestDirectoryChecksumRepositoryLoadSnapshotSupportsLegacyPayload(t *testing.T) {
+	repo := NewDirectoryChecksumRepository()
+	dir := t.TempDir()
+
+	legacy := checksumPayload{Files: map[string]string{"legacy.go": "abc"}}
+	encoded, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatalf("expected legacy payload marshal to succeed, got %v", err)
+	}
+
+	checksumPath := filepath.Join(dir, ".idx", "checksum")
+	if err := os.MkdirAll(filepath.Dir(checksumPath), 0750); err != nil {
+		t.Fatalf("expected checksum dir creation to succeed, got %v", err)
+	}
+	if err := os.WriteFile(checksumPath, encoded, 0600); err != nil {
+		t.Fatalf("expected legacy payload write to succeed, got %v", err)
+	}
+
+	snapshot, exists, err := repo.LoadSnapshot(dir)
+	if err != nil {
+		t.Fatalf("expected snapshot load to succeed for legacy payload, got %v", err)
+	}
+	if !exists {
+		t.Fatal("expected snapshot to exist for legacy payload")
+	}
+
+	state := snapshot.Files["legacy.go"]
+	if state.Checksum != "abc" {
+		t.Fatalf("expected legacy checksum to be loaded, got %q", state.Checksum)
+	}
+	if state.Size != 0 || state.ModTimeUnixNano != 0 {
+		t.Fatalf("expected empty metadata for legacy payload, got %+v", state)
 	}
 }
