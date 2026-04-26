@@ -424,7 +424,7 @@ func TestSearchCommandServiceRunWithOptionsMatchesOnlyFiltersContextLines(t *tes
 	}
 }
 
-func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.T) {
+func TestSearchCommandServiceRunWithOptionsSizeRestrictsResultCount(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	output := &capturingTextOutput{}
@@ -435,7 +435,7 @@ func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.
 	}}
 	service := search.NewSearchCommandService(tree, output, fileReader, repo)
 
-	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, Limit: 1})
+	err := service.RunWithOptions("go search", ports.SearchOptions{Format: ports.SearchOutputJSON, Size: 1})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -446,7 +446,7 @@ func TestSearchCommandServiceRunWithOptionsLimitRestrictsResultCount(t *testing.
 	}
 
 	if len(payload) != 1 {
-		t.Fatalf("expected one file result with limit, got %d", len(payload))
+		t.Fatalf("expected one file result with size, got %d", len(payload))
 	}
 }
 

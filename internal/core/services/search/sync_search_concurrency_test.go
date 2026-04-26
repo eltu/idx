@@ -205,7 +205,7 @@ func runSyncSearchConcurrencyScenario(t *testing.T, indexService indexing.InitCo
 		go func(workerID int) {
 			defer workers.Done()
 			for iteration := 0; iteration < settings.searchIterations; iteration++ {
-				err := searchService.RunWithOptions("needle", ports.SearchOptions{FilesOnly: true, Limit: 25})
+				err := searchService.RunWithOptions("needle", ports.SearchOptions{FilesOnly: true, Size: 25})
 				if err != nil {
 					errorCh <- fmt.Errorf("search worker %d failed at iteration %d: %w", workerID, iteration, err)
 					return

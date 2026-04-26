@@ -14,5 +14,5 @@ type SearchOptions struct {
 	FilesOnly   bool
 	PathQuery   string
 	PathQueries []string
-	Limit       int
+	Size        int
 }
