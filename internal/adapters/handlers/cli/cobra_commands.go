@@ -82,7 +82,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	var legacyMatchesOnly bool
 	var filesOnly bool
 	var pathQueries []string
-	var limit int
+	var size int
 
 	var searchCommand *cobra.Command
 	searchCommand = &cobra.Command{
@@ -93,12 +93,12 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 				return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
 			}
 
-			if limit < 0 {
-				return fmt.Errorf("invalid --limit value %d: expected a positive integer", limit)
+			if size < 0 {
+				return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
 			}
 
-			if limit == 0 && searchCommand.Flags().Changed("limit") {
-				return fmt.Errorf("invalid --limit value %d: expected a positive integer", limit)
+			if size == 0 && searchCommand.Flags().Changed("size") {
+				return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
 			}
 
 			if format != ports.SearchOutputText && format != ports.SearchOutputJSON {
@@ -121,7 +121,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 				MatchesOnly: matchesOnly || legacyMatchesOnly,
 				FilesOnly:   filesOnly,
 				PathQueries: pathQueries,
-				Limit:       limit,
+				Size:        size,
 			}
 
 			if len(pathQueries) > 0 {
@@ -140,7 +140,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	searchCommand.Flags().MarkHidden("macthes-only")
 	searchCommand.Flags().BoolVar(&filesOnly, "files-only", false, "Show only matched file paths")
 	searchCommand.Flags().StringArrayVar(&pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
-	searchCommand.Flags().IntVar(&limit, "limit", 0, "Limit results to top N files")
+	searchCommand.Flags().IntVar(&size, "size", 0, "Limit results to top N files")
 
 	return searchCommand
 }

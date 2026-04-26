@@ -13,7 +13,7 @@ func TestNormalizedSearchOptions(t *testing.T) {
 		PrettyJSON:  true,
 		PathQuery:   "  internal/core  ",
 		PathQueries: []string{"", "internal/core", "internal/core", " docs "},
-		Limit:       -2,
+		Size:        -2,
 	})
 
 	if options.Format != ports.SearchOutputText {
@@ -25,8 +25,8 @@ func TestNormalizedSearchOptions(t *testing.T) {
 	if options.PrettyJSON {
 		t.Fatal("expected pretty json disabled when format is text")
 	}
-	if options.Limit != 0 {
-		t.Fatalf("expected normalized limit 0, got %d", options.Limit)
+	if options.Size != 0 {
+		t.Fatalf("expected normalized size 0, got %d", options.Size)
 	}
 	if len(options.PathQueries) != 2 {
 		t.Fatalf("expected deduplicated path queries, got %v", options.PathQueries)

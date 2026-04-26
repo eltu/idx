@@ -163,7 +163,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--files-only",
 		"--path", "internal/core",
 		"--path", "cmd/idx",
-		"--limit", "5",
+		"--size", "5",
 	}, initCommand, destroyCommand, searchCommand)
 
 	if err := runner.Run(); err != nil {
@@ -182,8 +182,8 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		t.Fatalf("expected pretty/matches-only/files-only true, got %+v", searchCommand.lastOptions)
 	}
 
-	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Limit != 5 {
-		t.Fatalf("expected context=2 and limit=5, got context=%d limit=%d", searchCommand.lastOptions.Context, searchCommand.lastOptions.Limit)
+	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Size != 5 {
+		t.Fatalf("expected context=2 and size=5, got context=%d size=%d", searchCommand.lastOptions.Context, searchCommand.lastOptions.Size)
 	}
 
 	if len(searchCommand.lastOptions.PathQueries) != 2 {
@@ -277,19 +277,19 @@ func TestCommandRunnerRunRejectsInvalidContext(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunRejectsInvalidLimit(t *testing.T) {
+func TestCommandRunnerRunRejectsInvalidSize(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
 
-	runnerZero := cli.NewCommandRunner([]string{"idx", "search", "needle", "--limit", "0"}, initCommand, destroyCommand, searchCommand)
+	runnerZero := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "0"}, initCommand, destroyCommand, searchCommand)
 	if err := runnerZero.Run(); err == nil {
-		t.Fatal("expected error for --limit 0, got nil")
+		t.Fatal("expected error for --size 0, got nil")
 	}
 
-	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--limit", "-2"}, initCommand, destroyCommand, searchCommand)
+	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "-2"}, initCommand, destroyCommand, searchCommand)
 	if err := runnerNegative.Run(); err == nil {
-		t.Fatal("expected error for negative --limit, got nil")
+		t.Fatal("expected error for negative --size, got nil")
 	}
 }
 

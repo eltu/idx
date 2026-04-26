@@ -127,8 +127,8 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 		normalized.PrettyJSON = false
 	}
 
-	if normalized.Limit < 0 {
-		normalized.Limit = 0
+	if normalized.Size < 0 {
+		normalized.Size = 0
 	}
 
 	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
@@ -169,7 +169,7 @@ func applySearchResultOptions(results []searchResult, options ports.SearchOption
 		filtered = matchesOnlyResults(filtered)
 	}
 
-	return limitedResults(filtered, options.Limit)
+	return limitedResults(filtered, options.Size)
 }
 
 func filesOnlyResults(results []searchResult) []searchResult {
