@@ -198,6 +198,19 @@ func TestCloneChecksumMapNilInputReturnsEmptyMap(t *testing.T) {
 	}
 }
 
+func TestDirectoryChecksumRepositoryLoadAndSaveSnapshotInvalidPathErrors(t *testing.T) {
+	repo := NewDirectoryChecksumRepository()
+
+	if _, _, err := repo.LoadSnapshot("\x00invalid"); err == nil {
+		t.Fatal("expected load snapshot error for invalid directory path")
+	}
+
+	err := repo.SaveSnapshot("\x00invalid", ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{"a.go": {Checksum: "1"}}})
+	if err == nil {
+		t.Fatal("expected save snapshot error for invalid directory path")
+	}
+}
+
 func TestPayloadToSnapshotPrefersFileStatesOverLegacyFiles(t *testing.T) {
 	payload := checksumPayload{
 		Files: map[string]string{"legacy.go": "legacy"},
