@@ -1,6 +1,7 @@
 package search
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -87,26 +88,44 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 		return err
 	}
 
+	totalMatches := len(results)
 	results = applySearchResultOptions(results, normalizedOptions, len(terms) > 0)
 
 	if len(results) == 0 {
 		return service.writeEmptySearchResults(normalizedOptions)
 	}
 
-	return service.writeSearchResults(results, projectRoot, terms, normalizedOptions)
+	return service.writeSearchResults(results, projectRoot, terms, normalizedOptions, totalMatches)
 }
 
 func (service SearchCommandService) writeEmptySearchResults(options ports.SearchOptions) error {
 	if options.Format == ports.SearchOutputJSON {
-		return service.output.WriteLine("[]")
+		emptyResponse := map[string]any{"count": 0, "results": []any{}}
+		var encoded []byte
+		var err error
+		if options.PrettyJSON {
+			encoded, err = json.MarshalIndent(emptyResponse, "", "  ")
+		} else {
+			var jsonBytes []byte
+			jsonBytes, err = json.Marshal(emptyResponse)
+			encoded = jsonBytes
+		}
+		if err != nil {
+			return err
+		}
+		return service.output.WriteLine(string(encoded))
 	}
 
 	return service.output.WriteLine("No results found.")
 }
 
-func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions) error {
+func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions, totalMatches int) error {
 	if options.Format == ports.SearchOutputJSON {
-		return service.writeResultsJSON(results, projectRoot, options)
+		return service.writeResultsJSON(results, projectRoot, options, totalMatches)
+	}
+
+	if err := service.writeResultsHeader(len(results), totalMatches, options); err != nil {
+		return err
 	}
 
 	useANSI := true
@@ -256,6 +275,16 @@ func limitedResults(results []searchResult, limit int) []searchResult {
 	}
 
 	return results[:limit]
+}
+
+func (service SearchCommandService) writeResultsHeader(displayedCount int, totalCount int, options ports.SearchOptions) error {
+	var msg string
+	if displayedCount == totalCount {
+		msg = fmt.Sprintf("📁 Found %d file(s) matching your search", totalCount)
+	} else {
+		msg = fmt.Sprintf("📁 Found %d file(s) matching your search (showing %d with pagination)", totalCount, displayedCount)
+	}
+	return service.output.WriteLine(msg)
 }
 
 func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {

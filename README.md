@@ -195,24 +195,85 @@ Supported `search` flags:
 
 Output format:
 
-```text
-<file> (score: <0.0000..1.0000>)
-├── <line>: <content>
-└── <line>: <content>
-```
+**Text format:**
 
-Example:
+- Shows a friendly header with match count: `📁 Found 42 file(s) matching your search`
+- Includes pagination info when `--from` or `--size` is used
+- Tree-like display with file paths and line numbers
+- Each line prefixed with `├──` or `└──` for readability
+- ANSI colors for file paths and line numbers (when output is terminal)
+
+Example text output:
 
 ```text
+📁 Found 2 file(s) matching your search
 internal/adapters/repository/os_project_tree.go (score: 1.0000)
 ├── 19: func (tree OSProjectTree) CurrentDir() (string, error) {
 └── 28: func (tree OSProjectTree) FindGitRoot(startDir string) (string, error) {
+
+cmd/idx/main.go (score: 0.8500)
+└── 42: projectTree := adapters.NewOSProjectTree()
 ```
+
+**JSON format (`--format json`):**
+
+- Returns structured object with `count` (total matches) and `results` array
+- Each result includes `file`, `name`, `path`, `score`, and `matches` array
+- Each match has `line` (number), `content` (full line text), and `match` (boolean flag)
+- The `match` boolean flag distinguishes actual matches from context lines (`true` = matched term, `false` = context line)
+- Pretty-printed with `--json-pretty` for human readability
+
+Example JSON output (showing 1 file from a total of 2 matching files):
+
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "file": "./go.mod",
+      "name": "go.mod",
+      "path": "./go.mod",
+      "score": 1,
+      "matches": [
+        {
+          "line": 1,
+          "content": "module idx",
+          "match": true
+        },
+        {
+          "line": 2,
+          "content": "go 1.26",
+          "match": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Key differences:**
+
+| Feature | Text | JSON |
+|---------|------|------|
+| Match count header | ✅ Visual "📁 Found X" | ✅ `count` field with total |
+| Match vs context indicator | ❌ Not indicated | ✅ `match: true/false` field |
+| Human-readable | ✅ Yes | ❌ Machine-friendly |
+| Structured | ❌ Visual format | ✅ Parseable objects |
+| Colors (terminal) | ✅ ANSI codes | ❌ Plain text |
 
 When no results are found:
 
+**Text format:**
 ```text
 No results found.
+```
+
+**JSON format:**
+```json
+{
+  "count": 0,
+  "results": []
+}
 ```
 
 ### 5) `destroy`
