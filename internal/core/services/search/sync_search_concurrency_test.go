@@ -235,18 +235,19 @@ type concurrencyTestSettings struct {
 }
 
 func concurrencyTestSettingsFromEnv() concurrencyTestSettings {
-	timeoutSeconds := envInt("IDX_CONCURRENCY_TIMEOUT_SECONDS", 20)
+	defaults := defaultConcurrencyTestSettings()
+	timeoutSeconds := envInt("IDX_CONCURRENCY_TIMEOUT_SECONDS", int(defaults.timeout.Seconds()))
 	if timeoutSeconds < 1 {
 		timeoutSeconds = 1
 	}
 
 	return concurrencyTestSettings{
-		files:            envInt("IDX_CONCURRENCY_FILES", 120),
-		subdirs:          envInt("IDX_CONCURRENCY_SUBDIRS", 6),
-		filesPerDir:      envInt("IDX_CONCURRENCY_FILES_PER_DIR", 30),
-		syncIterations:   envInt("IDX_CONCURRENCY_SYNC_ITERATIONS", 140),
-		searchWorkers:    envInt("IDX_CONCURRENCY_SEARCH_WORKERS", 6),
-		searchIterations: envInt("IDX_CONCURRENCY_SEARCH_ITERATIONS", 260),
+		files:            envInt("IDX_CONCURRENCY_FILES", defaults.files),
+		subdirs:          envInt("IDX_CONCURRENCY_SUBDIRS", defaults.subdirs),
+		filesPerDir:      envInt("IDX_CONCURRENCY_FILES_PER_DIR", defaults.filesPerDir),
+		syncIterations:   envInt("IDX_CONCURRENCY_SYNC_ITERATIONS", defaults.syncIterations),
+		searchWorkers:    envInt("IDX_CONCURRENCY_SEARCH_WORKERS", defaults.searchWorkers),
+		searchIterations: envInt("IDX_CONCURRENCY_SEARCH_ITERATIONS", defaults.searchIterations),
 		timeout:          time.Duration(timeoutSeconds) * time.Second,
 	}
 }
