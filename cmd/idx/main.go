@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"idx/internal/adapters/handlers/cli"
@@ -11,8 +12,17 @@ import (
 	"idx/internal/core/services/search"
 )
 
+var exitProcess = os.Exit
+
 func main() {
-	writer := cli.NewLineWriter(os.Stdout)
+	if err := run(os.Args, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		exitProcess(1)
+	}
+}
+
+func run(arguments []string, output io.Writer) error {
+	writer := cli.NewLineWriter(output)
 	projectTree := repository.NewOSProjectTree()
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	fileReader := repository.NewOSFileReader()
@@ -22,10 +32,7 @@ func main() {
 	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo)
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
-	runner := cli.NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand)
 
-	if err := runner.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
+	return runner.Run()
 }
