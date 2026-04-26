@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"idx/internal/core/domain"
@@ -41,5 +43,64 @@ func TestBinaryIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) 
 	_, err := repo.LoadIndex(t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for missing index file, got nil")
+	}
+}
+
+func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
+	tree := NewOSProjectTree()
+	repo := NewBinaryIndexRepository(tree)
+	dir := t.TempDir()
+
+	seed := domain.NewInvertedIndex()
+	seed.AddDocument("seed.txt", filepath.Join(dir, "seed.txt"), 1)
+	seed.AddTerm("seed", "seed.txt", 1, []int{0})
+	seed.CalculateAverageDocLen()
+	seed.CalculateIDF()
+	if err := repo.SaveIndex(dir, seed); err != nil {
+		t.Fatalf("expected seed save to succeed, got %v", err)
+	}
+
+	const iterations = 120
+	errorsCh := make(chan error, iterations*2)
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+
+	go func() {
+		defer workers.Done()
+		for index := 0; index < iterations; index++ {
+			current := domain.NewInvertedIndex()
+			name := fmt.Sprintf("doc-%03d.txt", index)
+			current.AddDocument(name, filepath.Join(dir, name), 2)
+			current.AddTerm("needle", name, 1, []int{index})
+			current.CalculateAverageDocLen()
+			current.CalculateIDF()
+			if err := repo.SaveIndex(dir, current); err != nil {
+				errorsCh <- err
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer workers.Done()
+		for index := 0; index < iterations; index++ {
+			loaded, err := repo.LoadIndex(dir)
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+
+			if loaded.DocumentCount < 1 {
+				errorsCh <- fmt.Errorf("expected at least one document in loaded index, got %d", loaded.DocumentCount)
+				return
+			}
+		}
+	}()
+
+	workers.Wait()
+	close(errorsCh)
+	for err := range errorsCh {
+		t.Fatalf("expected concurrent save/load without corruption, got %v", err)
 	}
 }

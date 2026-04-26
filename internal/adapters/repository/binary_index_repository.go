@@ -39,17 +39,27 @@ func (repo *BinaryIndexRepository) SaveIndex(directoryPath string, index *domain
 		return fmt.Errorf("failed to create index directory %q: got error %v, expected writable path", indexDir, err)
 	}
 
-	// Create file for binary writing
-	f, err := os.Create(indexPath) //nolint:gosec
+	// Write to a temporary file first, then atomically replace the target.
+	tempFile, err := os.CreateTemp(indexDir, "index-*.tmp") //nolint:gosec
 	if err != nil {
-		return fmt.Errorf("failed to create index file %q: got error %v, expected writable path", indexPath, err)
+		return fmt.Errorf("failed to create temporary index file in %q: got error %v, expected writable path", indexDir, err)
 	}
-	defer func() { _ = f.Close() }()
+	tempPath := tempFile.Name()
+	defer func() { _ = os.Remove(tempPath) }()
 
 	// Encode index to binary format using gob
-	encoder := gob.NewEncoder(f)
+	encoder := gob.NewEncoder(tempFile)
 	if err := encoder.Encode(index); err != nil {
+		_ = tempFile.Close()
 		return fmt.Errorf("failed to serialize index to %q: got error %v, expected valid index structure", indexPath, err)
+	}
+
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary index file %q: got error %v, expected flushable file handle", tempPath, err)
+	}
+
+	if err := os.Rename(tempPath, indexPath); err != nil {
+		return fmt.Errorf("failed to atomically replace index file %q with %q: got error %v, expected writable path", indexPath, tempPath, err)
 	}
 
 	return nil
