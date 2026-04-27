@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -27,13 +28,25 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 }
 
 func (runner CommandRunner) newWatchCommand() *cobra.Command {
-	return &cobra.Command{
+	var showUpdatedFiles bool
+	var debounce time.Duration
+
+	watchCommand := &cobra.Command{
 		Use:   "watch",
 		Short: "Watch project files and keep indices synchronized in real time",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runner.indexCommand.Watch()
+			if debounce <= 0 {
+				return fmt.Errorf("invalid --debounce value %s: expected a duration greater than 0", debounce)
+			}
+
+			return runner.indexCommand.Watch(showUpdatedFiles, debounce)
 		},
 	}
+
+	watchCommand.Flags().BoolVar(&showUpdatedFiles, "show-updated-files", false, "Print updated files in each synchronized batch")
+	watchCommand.Flags().DurationVar(&debounce, "debounce", 750*time.Millisecond, "Debounce window for batching file events (e.g. 250ms, 1s)")
+
+	return watchCommand
 }
 
 func (runner CommandRunner) newSyncCommand() *cobra.Command {

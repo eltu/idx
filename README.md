@@ -193,6 +193,8 @@ Usage:
 
 ```bash
 idx watch
+idx watch --show-updated-files
+idx watch --debounce 500ms
 ```
 
 Current behavior:
@@ -201,7 +203,9 @@ Current behavior:
 - Detects file and directory changes recursively.
 - Ignores `.git`, `.idx`, and paths ignored by `.gitignore`.
 - Uses a short debounce window to batch frequent file events.
+- Optional `--debounce <duration>` controls the event batch window (default: `750ms`).
 - Reindexes only affected directories using the same sync logic.
+- Optional `--show-updated-files` prints the deduplicated list of updated files in each synchronized batch.
 - If the root index does not exist yet, creates the initial index automatically before entering watch mode.
 
 Output examples:
@@ -209,6 +213,9 @@ Output examples:
 ```text
 👀 Watch mode started. Press Ctrl+C to stop.
 🔄 Synchronized 3 changed directorie(s).
+  updated files:
+  - internal/core/services/search/search_command_service.go
+  - internal/core/services/indexing/watch_command_service.go
 🛑 Watch mode stopped.
 ```
 

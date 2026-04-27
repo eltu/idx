@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"idx/internal/core/ports"
 )
@@ -14,7 +15,7 @@ type indexableCommand interface {
 	Run() error
 	Sync() error
 	Inspect(indexPath string) error
-	Watch() error
+	Watch(showUpdatedFiles bool, debounce time.Duration) error
 }
 
 type searchableCommand interface {

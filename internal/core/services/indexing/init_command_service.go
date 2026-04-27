@@ -162,12 +162,16 @@ func (service InitCommandService) Inspect(indexPath string) error {
 	return service.writeInspectIndex(targetDirectory)
 }
 
-func (service InitCommandService) Watch() error {
+func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Duration) error {
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
 
-	return service.watchLoop()
+	if debounce <= 0 {
+		return fmt.Errorf("failed to run watch command: got invalid debounce %s, expected duration greater than 0", debounce)
+	}
+
+	return service.watchLoop(showUpdatedFiles, debounce)
 }
 
 func (service InitCommandService) validateDependencies() error {
