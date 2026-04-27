@@ -2,6 +2,7 @@ package cli
 
 import (
 	"testing"
+	"time"
 
 	"idx/internal/core/ports"
 )
@@ -11,7 +12,9 @@ type noOpIndexCommand struct{}
 func (noOpIndexCommand) Run() error           { return nil }
 func (noOpIndexCommand) Sync() error          { return nil }
 func (noOpIndexCommand) Inspect(string) error { return nil }
-func (noOpIndexCommand) Watch() error         { return nil }
+func (noOpIndexCommand) Watch(bool, time.Duration) error {
+	return nil
+}
 
 type noOpDestroyCommand struct{}
 

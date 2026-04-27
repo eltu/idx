@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"testing"
+	"time"
 
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/core/ports"
@@ -12,6 +13,8 @@ type fakeInitCommand struct {
 	syncCalls       int
 	inspectCalls    int
 	watchCalls      int
+	watchShowFiles  bool
+	watchDebounce   time.Duration
 	lastInspectPath string
 }
 
@@ -31,8 +34,10 @@ func (command *fakeInitCommand) Inspect(indexPath string) error {
 	return nil
 }
 
-func (command *fakeInitCommand) Watch() error {
+func (command *fakeInitCommand) Watch(showUpdatedFiles bool, debounce time.Duration) error {
 	command.watchCalls++
+	command.watchShowFiles = showUpdatedFiles
+	command.watchDebounce = debounce
 	return nil
 }
 
@@ -145,6 +150,55 @@ func TestCommandRunnerRunExecutesWatchCommand(t *testing.T) {
 
 	if initCommand.watchCalls != 1 {
 		t.Fatalf("expected 1 watch call, got %d", initCommand.watchCalls)
+	}
+
+	if initCommand.watchShowFiles {
+		t.Fatal("expected watch show files disabled by default")
+	}
+
+	if initCommand.watchDebounce != 750*time.Millisecond {
+		t.Fatalf("expected default debounce 750ms, got %s", initCommand.watchDebounce)
+	}
+}
+
+func TestCommandRunnerRunExecutesWatchCommandWithShowUpdatedFilesFlag(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--show-updated-files"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !initCommand.watchShowFiles {
+		t.Fatal("expected watch show files enabled with --show-updated-files")
+	}
+}
+
+func TestCommandRunnerRunExecutesWatchCommandWithDebounceFlag(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "250ms"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.watchDebounce != 250*time.Millisecond {
+		t.Fatalf("expected watch debounce 250ms, got %s", initCommand.watchDebounce)
+	}
+}
+
+func TestCommandRunnerRunRejectsWatchWithInvalidDebounce(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "0s"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err == nil {
+		t.Fatal("expected error for non-positive debounce")
 	}
 }
 

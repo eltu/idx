@@ -26,7 +26,9 @@ Implementation notes:
 - Uses `fsnotify` for cross-platform filesystem notifications.
 - Runs once from the project and watches directories recursively.
 - Applies a debounce window to batch bursts of events.
+- Exposes configurable debounce via `--debounce` (default `750ms`).
 - Reuses existing sync/indexing logic (`syncDirectoryIndex`) per affected directory.
+- Supports optional `--show-updated-files` output to print deduplicated file updates per batch.
 - Respects `.gitignore` and ignores `.git` and `.idx` internals.
 - If root index does not exist, creates initial index before watch loop starts.
 
