@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"idx/internal/core/domain"
-	"idx/internal/core/ports"
 )
 
 func init() {
@@ -20,19 +19,25 @@ func init() {
 
 // BinaryIndexRepository handles serialization/deserialization of BM25 indices using gob.
 // Gob is a Go-specific binary format that is more efficient than JSON for memory usage.
-type BinaryIndexRepository struct {
-	projectTree ports.ProjectTree
-}
+type BinaryIndexRepository struct{}
 
 // NewBinaryIndexRepository creates a new binary index repository.
-func NewBinaryIndexRepository(projectTree ports.ProjectTree) *BinaryIndexRepository {
-	return &BinaryIndexRepository{projectTree: projectTree}
+func NewBinaryIndexRepository() *BinaryIndexRepository {
+	return &BinaryIndexRepository{}
 }
 
 // SaveIndex serializes an index to binary format and writes it to disk.
 func (repo *BinaryIndexRepository) SaveIndex(directoryPath string, index *domain.InvertedIndex) error {
+	if repo == nil {
+		return fmt.Errorf("failed to save index for directory %q: got nil repository, expected initialized BinaryIndexRepository", directoryPath)
+	}
+
 	indexPath := indexFilePath(directoryPath)
 	indexDir := filepath.Dir(indexPath)
+
+	if index == nil {
+		return fmt.Errorf("failed to serialize index to %q: got nil index, expected valid index structure", indexPath)
+	}
 
 	// Create directory structure if needed
 	if err := os.MkdirAll(indexDir, 0750); err != nil {
@@ -67,6 +72,10 @@ func (repo *BinaryIndexRepository) SaveIndex(directoryPath string, index *domain
 
 // LoadIndex deserializes a binary index from disk.
 func (repo *BinaryIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
+	if repo == nil {
+		return nil, fmt.Errorf("failed to load index for directory %q: got nil repository, expected initialized BinaryIndexRepository", directoryPath)
+	}
+
 	indexPath := indexFilePath(directoryPath)
 
 	f, err := os.Open(indexPath) //nolint:gosec

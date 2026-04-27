@@ -15,10 +15,12 @@ import (
 
 type fakeProjectTree struct {
 	currentDir string
+	currentErr error
 	gitRoot    string
 	readDirMap map[string][]domain.DirectoryEntry
 	readDirErr map[string]error
 	existing   map[string]bool
+	existsErr  map[string]error
 	removed    []string
 	removeErrs map[string]error
 	writes     map[string]string
@@ -32,6 +34,7 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 		readDirMap: map[string][]domain.DirectoryEntry{},
 		readDirErr: map[string]error{},
 		existing:   map[string]bool{},
+		existsErr:  map[string]error{},
 		removed:    []string{},
 		removeErrs: map[string]error{},
 		writes:     map[string]string{},
@@ -39,6 +42,10 @@ func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
 }
 
 func (tree *fakeProjectTree) CurrentDir() (string, error) {
+	if tree.currentErr != nil {
+		return "", tree.currentErr
+	}
+
 	return tree.currentDir, nil
 }
 
@@ -64,6 +71,10 @@ func (tree *fakeProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, erro
 }
 
 func (tree *fakeProjectTree) Exists(path string) (bool, error) {
+	if err, ok := tree.existsErr[path]; ok {
+		return false, err
+	}
+
 	return tree.existing[path], nil
 }
 
@@ -83,10 +94,15 @@ func (tree *fakeProjectTree) WriteFile(path string, content []byte) error {
 
 type fakeIgnoreMatcherFactory struct {
 	ignoredPaths map[string]bool
+	err          error
 }
 
 func (factory fakeIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatcher, error) {
-	return fakeIgnoreMatcher(factory), nil
+	if factory.err != nil {
+		return nil, factory.err
+	}
+
+	return fakeIgnoreMatcher{ignoredPaths: factory.ignoredPaths}, nil
 }
 
 type fakeIgnoreMatcher struct {
@@ -321,6 +337,182 @@ func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
 	err := service.Run()
 	if err == nil {
 		t.Fatal("expected an error, got nil")
+	}
+}
+
+func TestInitCommandServiceRunReturnsCurrentDirError(t *testing.T) {
+	tree := newFakeProjectTree("", "")
+	tree.currentErr = errors.New("cwd unavailable")
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected current directory error, got nil")
+	}
+}
+
+func TestInitCommandServiceSyncReturnsCurrentDirError(t *testing.T) {
+	tree := newFakeProjectTree("", "")
+	tree.currentErr = errors.New("cwd unavailable")
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Sync()
+	if err == nil {
+		t.Fatal("expected current directory error, got nil")
+	}
+}
+
+func TestInitCommandServiceInspectReturnsCurrentDirError(t *testing.T) {
+	tree := newFakeProjectTree("", "")
+	tree.currentErr = errors.New("cwd unavailable")
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Inspect(".")
+	if err == nil {
+		t.Fatal("expected current directory error, got nil")
+	}
+}
+
+func TestInitCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected dependency validation error, got nil")
+	}
+}
+
+func TestInitCommandServiceSyncReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil)
+
+	err := service.Sync()
+	if err == nil {
+		t.Fatal("expected dependency validation error, got nil")
+	}
+}
+
+func TestInitCommandServiceInspectReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil)
+
+	err := service.Inspect(".")
+	if err == nil {
+		t.Fatal("expected dependency validation error, got nil")
+	}
+}
+
+func TestInitCommandServiceRunReturnsMatcherFactoryError(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected matcher factory error, got nil")
+	}
+}
+
+func TestInitCommandServiceSyncReturnsMatcherFactoryError(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Sync()
+	if err == nil {
+		t.Fatal("expected matcher factory error, got nil")
+	}
+}
+
+func TestInitCommandServiceRunPropagatesChildDirectoryReadError(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	childDir := filepath.Join(rootDir, "child")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: "child", Path: childDir, IsDir: true},
+	}
+	tree.readDirErr[childDir] = errors.New("cannot read child")
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected child directory read error, got nil")
+	}
+}
+
+func TestInitCommandServiceRunPropagatesFileReadErrorOnIndexBuild(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.readDirMap[rootDir] = []domain.DirectoryEntry{
+		{Name: "missing.txt", Path: filepath.Join(rootDir, "missing.txt"), IsDir: false},
+	}
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+	)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected file read error, got nil")
 	}
 }
 

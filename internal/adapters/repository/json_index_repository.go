@@ -21,7 +21,19 @@ func NewJSONIndexRepository(projectTree ports.ProjectTree) *JSONIndexRepository 
 
 // SaveIndex serializes an index to JSON and writes it to disk.
 func (repo *JSONIndexRepository) SaveIndex(directoryPath string, index *domain.InvertedIndex) error {
+	if repo == nil {
+		return fmt.Errorf("failed to save index for directory %q: got nil repository, expected initialized JSONIndexRepository", directoryPath)
+	}
+
 	indexPath := indexFilePath(directoryPath)
+
+	if index == nil {
+		return fmt.Errorf("failed to serialize index to %q: got nil index, expected valid index structure", indexPath)
+	}
+
+	if repo.projectTree == nil {
+		return fmt.Errorf("failed to write index file %q: got nil projectTree dependency, expected non-nil ports.ProjectTree", indexPath)
+	}
 
 	data, err := json.MarshalIndent(index, "", "  ")
 	if err != nil {
@@ -37,6 +49,10 @@ func (repo *JSONIndexRepository) SaveIndex(directoryPath string, index *domain.I
 
 // LoadIndex deserializes a JSON index from disk.
 func (repo *JSONIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
+	if repo == nil {
+		return nil, fmt.Errorf("failed to load index for directory %q: got nil repository, expected initialized JSONIndexRepository", directoryPath)
+	}
+
 	indexPath := indexFilePath(directoryPath)
 
 	// Try to read the file

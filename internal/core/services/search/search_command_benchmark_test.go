@@ -154,7 +154,7 @@ func buildBenchmarkSearchService(b testing.TB, repositoryPath string) search.Sea
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	fileReader := repository.NewOSFileReader()
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	initService := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
 	if err := initService.Run(); err != nil {

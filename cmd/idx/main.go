@@ -27,7 +27,7 @@ func run(arguments []string, output io.Writer) error {
 	matcherFactory := repository.NewGitIgnoreMatcherFactory()
 	fileReader := repository.NewOSFileReader()
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo)
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
