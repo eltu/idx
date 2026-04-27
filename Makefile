@@ -2,8 +2,9 @@ BINARY     := idx
 BUILD_DIR  := bin
 CMD_MAIN   := ./cmd/idx
 ALL_PKGS   := ./...
+CYCLO_LIMIT := 15
 
-.PHONY: all build fmt lint test clean check bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci
+.PHONY: all build fmt lint test complexity clean check bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci
 
 ## Default: format, lint, test, and build
 all: fmt lint test build
@@ -26,6 +27,10 @@ lint:
 ## Run unit tests
 test:
 	go test $(ALL_PKGS)
+
+## Fail when any function exceeds cyclomatic complexity threshold
+complexity:
+	@go run github.com/fzipp/gocyclo/cmd/gocyclo@latest . | sort -rn | awk -v limit=$(CYCLO_LIMIT) '$$0 !~ /_test\.go:/ && $$1 > limit {print; found=1} END {if (found) exit 1}'
 
 ## Benchmark sync incremental mode (time + file read syscalls proxy)
 bench-sync:

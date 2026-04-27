@@ -7,6 +7,7 @@ linters:
     - govet          # go vet checks
     - staticcheck    # static analysis (supersedes gosimple, stylecheck, etc.)
     - unused         # unused code
+    - gocyclo        # cyclomatic complexity limits
     - gosec          # security issues (OWASP-aligned)
     - misspell       # common spelling mistakes
     - godot          # comment punctuation
@@ -17,6 +18,8 @@ linters:
 linters-settings:
   dupl:
     threshold: 100
+  gocyclo:
+    min-complexity: 15
   godot:
     scope: declarations
   misspell:
@@ -31,3 +34,4 @@ issues:
       linters:
         - dupl
         - gosec
+        - gocyclo

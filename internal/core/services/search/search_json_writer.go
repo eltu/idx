@@ -27,26 +27,12 @@ type jsonSearchMatchLine struct {
 
 func (service SearchCommandService) writeResultsJSON(results []searchResult, projectRoot string, options ports.SearchOptions, totalMatches int) error {
 	if options.FilesOnly {
-		// For --files-only, return just an array of file paths.
-		filePaths := make([]string, 0, len(results))
-		for _, result := range results {
-			projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
-			if err != nil {
-				return err
-			}
-
-			filePaths = append(filePaths, projectRelativePath)
+		filePaths, err := service.jsonFilePaths(results, projectRoot)
+		if err != nil {
+			return err
 		}
 
-		var (
-			encoded []byte
-			err     error
-		)
-		if options.PrettyJSON {
-			encoded, err = json.MarshalIndent(filePaths, "", "  ")
-		} else {
-			encoded, err = json.Marshal(filePaths)
-		}
+		encoded, err := encodeSearchJSON(filePaths, options.PrettyJSON)
 		if err != nil {
 			return err
 		}
@@ -54,46 +40,75 @@ func (service SearchCommandService) writeResultsJSON(results []searchResult, pro
 		return service.output.WriteLine(string(encoded))
 	}
 
-	// Standard JSON output with matches.
-	payload := make([]jsonSearchResult, 0, len(results))
-	for _, result := range results {
-		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
-		if err != nil {
-			return err
-		}
-
-		matches := make([]jsonSearchMatchLine, 0, len(result.matchedLines))
-		for _, line := range result.matchedLines {
-			matches = append(matches, jsonSearchMatchLine{Line: line.lineNumber, Content: line.content, Match: line.isMatch})
-		}
-
-		payload = append(payload, jsonSearchResult{
-			File:    projectRelativePath,
-			Name:    result.fileName,
-			Path:    projectRelativePath,
-			Score:   result.score,
-			Matches: matches,
-		})
+	response, err := service.jsonSearchResponse(results, projectRoot, totalMatches)
+	if err != nil {
+		return err
 	}
 
-	// Wrap with count metadata.
-	response := jsonSearchResponse{
-		Count:   totalMatches,
-		Results: payload,
-	}
-
-	var (
-		encoded []byte
-		err     error
-	)
-	if options.PrettyJSON {
-		encoded, err = json.MarshalIndent(response, "", "  ")
-	} else {
-		encoded, err = json.Marshal(response)
-	}
+	encoded, err := encodeSearchJSON(response, options.PrettyJSON)
 	if err != nil {
 		return err
 	}
 
 	return service.output.WriteLine(string(encoded))
+}
+
+func (service SearchCommandService) jsonFilePaths(results []searchResult, projectRoot string) ([]string, error) {
+	filePaths := make([]string, 0, len(results))
+	for _, result := range results {
+		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
+		if err != nil {
+			return nil, err
+		}
+
+		filePaths = append(filePaths, projectRelativePath)
+	}
+
+	return filePaths, nil
+}
+
+func (service SearchCommandService) jsonSearchResponse(results []searchResult, projectRoot string, totalMatches int) (jsonSearchResponse, error) {
+	payload := make([]jsonSearchResult, 0, len(results))
+	for _, result := range results {
+		jsonResult, err := service.jsonSearchResult(result, projectRoot)
+		if err != nil {
+			return jsonSearchResponse{}, err
+		}
+
+		payload = append(payload, jsonResult)
+	}
+
+	return jsonSearchResponse{Count: totalMatches, Results: payload}, nil
+}
+
+func (service SearchCommandService) jsonSearchResult(result searchResult, projectRoot string) (jsonSearchResult, error) {
+	projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
+	if err != nil {
+		return jsonSearchResult{}, err
+	}
+
+	return jsonSearchResult{
+		File:    projectRelativePath,
+		Name:    result.fileName,
+		Path:    projectRelativePath,
+		Score:   result.score,
+		Matches: jsonMatchLines(result.matchedLines),
+	}, nil
+}
+
+func jsonMatchLines(matchedLines []matchedLine) []jsonSearchMatchLine {
+	matches := make([]jsonSearchMatchLine, 0, len(matchedLines))
+	for _, line := range matchedLines {
+		matches = append(matches, jsonSearchMatchLine{Line: line.lineNumber, Content: line.content, Match: line.isMatch})
+	}
+
+	return matches
+}
+
+func encodeSearchJSON(value any, pretty bool) ([]byte, error) {
+	if pretty {
+		return json.MarshalIndent(value, "", "  ")
+	}
+
+	return json.Marshal(value)
 }

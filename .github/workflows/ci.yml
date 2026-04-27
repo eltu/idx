@@ -24,5 +24,8 @@ jobs:
         with:
           go-version: "1.24.x"
 
+      - name: Run cyclomatic complexity check
+        run: make complexity
+
       - name: Run unit tests
         run: make test
