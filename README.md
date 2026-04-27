@@ -185,6 +185,33 @@ Current behavior:
 - Changing only `--from`/`--size` reuses cached ranked results and renews TTL by 1 minute.
 - Without options, output stays in the current human-friendly tree format.
 
+### 5) `watch`
+
+Watches the project recursively and keeps indices synchronized in real time.
+
+Usage:
+
+```bash
+idx watch
+```
+
+Current behavior:
+
+- Runs as a single process for the whole Git project (no need to run one watcher per directory).
+- Detects file and directory changes recursively.
+- Ignores `.git`, `.idx`, and paths ignored by `.gitignore`.
+- Uses a short debounce window to batch frequent file events.
+- Reindexes only affected directories using the same sync logic.
+- If the root index does not exist yet, creates the initial index automatically before entering watch mode.
+
+Output examples:
+
+```text
+👀 Watch mode started. Press Ctrl+C to stop.
+🔄 Synchronized 3 changed directorie(s).
+🛑 Watch mode stopped.
+```
+
 Supported `search` flags:
 
 - `--format <text|json>`

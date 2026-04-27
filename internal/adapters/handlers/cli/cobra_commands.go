@@ -19,10 +19,21 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	root.AddCommand(runner.newSyncCommand())
 	root.AddCommand(runner.newInitCommand())
 	root.AddCommand(runner.newInspectCommand())
+	root.AddCommand(runner.newWatchCommand())
 	root.AddCommand(runner.newDestroyCommand())
 	root.AddCommand(runner.newSearchCommand())
 
 	return root
+}
+
+func (runner CommandRunner) newWatchCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "watch",
+		Short: "Watch project files and keep indices synchronized in real time",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runner.indexCommand.Watch()
+		},
+	}
 }
 
 func (runner CommandRunner) newSyncCommand() *cobra.Command {

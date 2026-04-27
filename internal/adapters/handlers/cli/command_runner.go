@@ -14,6 +14,7 @@ type indexableCommand interface {
 	Run() error
 	Sync() error
 	Inspect(indexPath string) error
+	Watch() error
 }
 
 type searchableCommand interface {
@@ -42,11 +43,11 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [sync init inspect destroy search]", runner.arguments)
+		return fmt.Errorf("missing command: got %v, expected one of [sync init inspect watch destroy search]", runner.arguments)
 	}
 
 	if !canExecuteWithCobra(runner.arguments[1]) {
-		return fmt.Errorf("unsupported command %q: expected one of [sync init inspect destroy search]", runner.arguments[1])
+		return fmt.Errorf("unsupported command %q: expected one of [sync init inspect watch destroy search]", runner.arguments[1])
 	}
 
 	root := runner.newRootCommand()
@@ -56,7 +57,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "inspect", "destroy", "search", "help", "--help", "-h":
+	case "sync", "init", "inspect", "watch", "destroy", "search", "help", "--help", "-h":
 		return true
 	default:
 		return false
