@@ -11,6 +11,7 @@ type fakeInitCommand struct {
 	runCalls        int
 	syncCalls       int
 	inspectCalls    int
+	watchCalls      int
 	lastInspectPath string
 }
 
@@ -27,6 +28,11 @@ func (command *fakeInitCommand) Sync() error {
 func (command *fakeInitCommand) Inspect(indexPath string) error {
 	command.inspectCalls++
 	command.lastInspectPath = indexPath
+	return nil
+}
+
+func (command *fakeInitCommand) Watch() error {
+	command.watchCalls++
 	return nil
 }
 
@@ -124,6 +130,21 @@ func TestCommandRunnerRunExecutesDestroyCommand(t *testing.T) {
 
 	if destroyCommand.runCalls != 1 {
 		t.Fatalf("expected 1 destroy call, got %d", destroyCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunExecutesWatchCommand(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch"}, initCommand, destroyCommand, searchCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.watchCalls != 1 {
+		t.Fatalf("expected 1 watch call, got %d", initCommand.watchCalls)
 	}
 }
 

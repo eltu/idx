@@ -162,6 +162,14 @@ func (service InitCommandService) Inspect(indexPath string) error {
 	return service.writeInspectIndex(targetDirectory)
 }
 
+func (service InitCommandService) Watch() error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
+	return service.watchLoop()
+}
+
 func (service InitCommandService) validateDependencies() error {
 	if service.projectTree == nil {
 		return fmt.Errorf("failed to run init command: got nil projectTree dependency, expected non-nil ports.ProjectTree")
