@@ -55,6 +55,12 @@ Run linter:
 make lint
 ```
 
+Run cyclomatic complexity check (fails if any non-test function is above 15):
+
+```bash
+make complexity
+```
+
 Clean build artifacts:
 
 ```bash

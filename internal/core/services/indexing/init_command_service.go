@@ -51,59 +51,93 @@ func (service InitCommandService) Sync() error {
 		return err
 	}
 
+	projectRoot, matcher, staleDirectories, eligibleDirectories, err := service.syncPlan()
+	if err != nil {
+		return err
+	}
+
+	if err := service.removeStaleDirectories(staleDirectories); err != nil {
+		return err
+	}
+
+	if err := service.syncEligibleDirectories(eligibleDirectories, projectRoot, matcher); err != nil {
+		return err
+	}
+
+	return service.output.WriteLine("✅ Project indices synchronized.")
+}
+
+func (service InitCommandService) syncPlan() (string, ports.IgnoreMatcher, []string, []string, error) {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+		return "", nil, nil, nil, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
 	if err != nil {
-		return err
+		return "", nil, nil, nil, err
 	}
 
 	if filepath.Clean(currentDir) != filepath.Clean(projectRoot) {
-		return fmt.Errorf("sync must run from project root: got current directory %q, expected root directory %q", currentDir, projectRoot)
+		return "", nil, nil, nil, fmt.Errorf("sync must run from project root: got current directory %q, expected root directory %q", currentDir, projectRoot)
 	}
 
-	rootIndexPath := indexFilePath(projectRoot)
-	hasRootIndex, err := service.projectTree.Exists(rootIndexPath)
+	matcher, err := service.syncMatcher(projectRoot)
 	if err != nil {
-		return err
-	}
-
-	if !hasRootIndex {
-		return fmt.Errorf("sync requires project root to be indexed: no index found at %q, run idx init first", rootIndexPath)
-	}
-
-	matcher, err := service.matcherFactory.New(projectRoot)
-	if err != nil {
-		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
+		return "", nil, nil, nil, err
 	}
 
 	directories, err := IndexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
-		return err
+		return "", nil, nil, nil, err
 	}
 
-	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	eligibleDirectories, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
 	if err != nil {
-		return err
+		return "", nil, nil, nil, err
 	}
 
-	staleDirectories := staleIndexedDirectories(directories, eligible)
+	staleDirectories := staleIndexedDirectories(directories, eligibleDirectories)
+	return projectRoot, matcher, staleDirectories, eligibleDirectories, nil
+}
+
+func (service InitCommandService) syncMatcher(projectRoot string) (ports.IgnoreMatcher, error) {
+	rootIndexPath := indexFilePath(projectRoot)
+	hasRootIndex, err := service.projectTree.Exists(rootIndexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !hasRootIndex {
+		return nil, fmt.Errorf("sync requires project root to be indexed: no index found at %q, run idx init first", rootIndexPath)
+	}
+
+	matcher, err := service.matcherFactory.New(projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
+	}
+
+	return matcher, nil
+}
+
+func (service InitCommandService) removeStaleDirectories(staleDirectories []string) error {
 	for _, directoryPath := range staleDirectories {
 		if err := service.removeDirectoryIndex(directoryPath); err != nil {
 			return err
 		}
 	}
 
-	for _, directoryPath := range eligible {
+	return nil
+}
+
+func (service InitCommandService) syncEligibleDirectories(directories []string, projectRoot string, matcher ports.IgnoreMatcher) error {
+	for _, directoryPath := range directories {
 		if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
 			return err
 		}
 	}
 
-	return service.output.WriteLine("✅ Project indices synchronized.")
+	return nil
 }
 
 func (service InitCommandService) removeDirectoryIndex(directoryPath string) error {
@@ -292,45 +326,19 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 		return err
 	}
 
-	entries, err := service.projectTree.ReadDir(directoryPath)
-	if err != nil {
-		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
-	}
-
-	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
+	fileEntries, err := service.indexableFileEntries(directoryPath, projectRoot, matcher)
 	if err != nil {
 		return err
-	}
-
-	fileEntries := make([]domain.DirectoryEntry, 0)
-	for _, entry := range allowedEntries {
-		if entry.IsDir {
-			continue
-		}
-
-		fileEntries = append(fileEntries, entry)
 	}
 
 	if len(fileEntries) == 0 {
 		return service.removeDirectoryIndex(directoryPath)
 	}
 
-	hasIndex, err := service.hasDirectoryIndex(directoryPath)
+	currentSnapshot, changedFileNames, shouldReindex, err := service.reindexState(directoryPath, fileEntries)
 	if err != nil {
 		return err
 	}
-
-	storedSnapshot, hasSnapshot, err := service.loadChecksumSnapshot(directoryPath)
-	if err != nil {
-		return err
-	}
-
-	currentSnapshot, changed, changedFileNames, err := service.computeDirectorySnapshot(fileEntries, storedSnapshot)
-	if err != nil {
-		return err
-	}
-
-	shouldReindex := !hasIndex || !hasSnapshot || changed
 
 	if !shouldReindex {
 		return nil
@@ -341,6 +349,54 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 	}
 
 	return service.saveChecksumSnapshot(directoryPath, currentSnapshot)
+}
+
+func (service InitCommandService) indexableFileEntries(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) ([]domain.DirectoryEntry, error) {
+	entries, err := service.projectTree.ReadDir(directoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
+	}
+
+	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
+	if err != nil {
+		return nil, err
+	}
+
+	return filesFromEntries(allowedEntries), nil
+}
+
+func filesFromEntries(entries []domain.DirectoryEntry) []domain.DirectoryEntry {
+	fileEntries := make([]domain.DirectoryEntry, 0)
+	for _, entry := range entries {
+		if entry.IsDir {
+			continue
+		}
+
+		fileEntries = append(fileEntries, entry)
+	}
+
+	return fileEntries
+}
+
+func (service InitCommandService) reindexState(directoryPath string, fileEntries []domain.DirectoryEntry) (ports.DirectoryChecksumSnapshot, map[string]struct{}, bool, error) {
+
+	hasIndex, err := service.hasDirectoryIndex(directoryPath)
+	if err != nil {
+		return ports.DirectoryChecksumSnapshot{}, nil, false, err
+	}
+
+	storedSnapshot, hasSnapshot, err := service.loadChecksumSnapshot(directoryPath)
+	if err != nil {
+		return ports.DirectoryChecksumSnapshot{}, nil, false, err
+	}
+
+	currentSnapshot, changed, changedFileNames, err := service.computeDirectorySnapshot(fileEntries, storedSnapshot)
+	if err != nil {
+		return ports.DirectoryChecksumSnapshot{}, nil, false, err
+	}
+
+	shouldReindex := !hasIndex || !hasSnapshot || changed
+	return currentSnapshot, changedFileNames, shouldReindex, nil
 }
 
 func (service InitCommandService) hasDirectoryIndex(directoryPath string) (bool, error) {

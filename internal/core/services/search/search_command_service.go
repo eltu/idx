@@ -99,52 +99,15 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 	}
 
 	normalizedOptions := normalizedSearchOptions(options)
-
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	projectRoot, err := service.projectRoot()
 	if err != nil {
 		return err
 	}
 
 	terms := uniqueQueryTerms(query)
-
-	var (
-		results []searchResult
-		exists  bool
-	)
-
-	if service.cacheEnabled && service.cache != nil {
-		cacheKey := cacheKeyFor(query, normalizedOptions)
-		results, exists = service.cache.getFromCache(cacheKey)
-		if !exists {
-			dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
-			if err != nil {
-				return err
-			}
-
-			results, err = service.rankedResults(dirs, terms, normalizedOptions)
-			if err != nil {
-				return err
-			}
-
-			service.cache.setInCache(cacheKey, results)
-		} else {
-			service.cache.renewCacheTTL(cacheKey)
-		}
-	} else {
-		dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
-		if err != nil {
-			return err
-		}
-
-		results, err = service.rankedResults(dirs, terms, normalizedOptions)
-		if err != nil {
-			return err
-		}
+	results, err := service.runRankedSearch(query, projectRoot, terms, normalizedOptions)
+	if err != nil {
+		return err
 	}
 
 	totalMatches := len(results)
@@ -155,6 +118,54 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 	}
 
 	return service.writeSearchResults(results, projectRoot, terms, normalizedOptions, totalMatches)
+}
+
+func (service SearchCommandService) projectRoot() (string, error) {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return "", err
+	}
+
+	return projectRoot, nil
+}
+
+func (service SearchCommandService) runRankedSearch(query string, projectRoot string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	if service.cacheEnabled && service.cache != nil {
+		return service.cachedRankedResults(query, projectRoot, terms, options)
+	}
+
+	return service.computeRankedResults(projectRoot, terms, options)
+}
+
+func (service SearchCommandService) cachedRankedResults(query string, projectRoot string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	cacheKey := cacheKeyFor(query, options)
+	results, exists := service.cache.getFromCache(cacheKey)
+	if exists {
+		service.cache.renewCacheTTL(cacheKey)
+		return results, nil
+	}
+
+	results, err := service.computeRankedResults(projectRoot, terms, options)
+	if err != nil {
+		return nil, err
+	}
+
+	service.cache.setInCache(cacheKey, results)
+	return results, nil
+}
+
+func (service SearchCommandService) computeRankedResults(projectRoot string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	directories, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return service.rankedResults(directories, terms, options)
 }
 
 func (service SearchCommandService) validateDependencies() error {
@@ -398,56 +409,78 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 	}
 
 	if options.FilesOnly {
-		// For --files-only, just output the paths, one per line.
-		for _, result := range results {
-			projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
-			if err != nil {
-				return err
-			}
-
-			if err := service.output.WriteLine(projectRelativePath); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return service.writeFilesOnlyResults(results, projectRoot)
 	}
 
-	// Standard output with matches and context.
+	return service.writeDetailedResults(results, projectRoot, terms, useANSI)
+}
+
+func (service SearchCommandService) writeFilesOnlyResults(results []searchResult, projectRoot string) error {
 	for _, result := range results {
 		projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 		if err != nil {
 			return err
 		}
 
-		header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath, useANSI), result.score)
-		if err := service.output.WriteLine(header); err != nil {
-			return err
-		}
-
-		for i, ml := range result.matchedLines {
-			prefix := "├──"
-			if i == len(result.matchedLines)-1 {
-				prefix = "└──"
-			}
-
-			lineContent := ml.content
-			if ml.isMatch {
-				lineContent = highlightTermsInLine(ml.content, terms, useANSI)
-			}
-
-			entry := fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(ml.lineNumber, useANSI), lineContent)
-			if err := service.output.WriteLine(entry); err != nil {
-				return err
-			}
-		}
-
-		if err := service.output.WriteLine(""); err != nil {
+		if err := service.output.WriteLine(projectRelativePath); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (service SearchCommandService) writeDetailedResults(results []searchResult, projectRoot string, terms []string, useANSI bool) error {
+	for _, result := range results {
+		if err := service.writeResultBlock(result, projectRoot, terms, useANSI); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (service SearchCommandService) writeResultBlock(result searchResult, projectRoot string, terms []string, useANSI bool) error {
+	projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
+	if err != nil {
+		return err
+	}
+
+	header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath, useANSI), result.score)
+	if err := service.output.WriteLine(header); err != nil {
+		return err
+	}
+
+	if err := service.writeMatchedLines(result.matchedLines, terms, useANSI); err != nil {
+		return err
+	}
+
+	return service.output.WriteLine("")
+}
+
+func (service SearchCommandService) writeMatchedLines(lines []matchedLine, terms []string, useANSI bool) error {
+	for index, line := range lines {
+		entry := formattedMatchedLine(index, len(lines), line, terms, useANSI)
+		if err := service.output.WriteLine(entry); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func formattedMatchedLine(index int, total int, line matchedLine, terms []string, useANSI bool) string {
+	prefix := "├──"
+	if index == total-1 {
+		prefix = "└──"
+	}
+
+	lineContent := line.content
+	if line.isMatch {
+		lineContent = highlightTermsInLine(line.content, terms, useANSI)
+	}
+
+	return fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(line.lineNumber, useANSI), lineContent)
 }
 
 func (service SearchCommandService) rankedResults(directories []string, terms []string, options ports.SearchOptions) ([]searchResult, error) {

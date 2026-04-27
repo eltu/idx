@@ -114,50 +114,20 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 		Use:   "search [query terms]",
 		Short: "Search indexed content",
 		RunE: func(_ *cobra.Command, args []string) error {
-			if contextLines < 0 {
-				return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
+			if err := validateSearchFlagValues(contextLines, from, size, searchCommand.Flags().Changed("size")); err != nil {
+				return err
 			}
 
-			if from < 0 {
-				return fmt.Errorf("invalid --from value %d: expected a non-negative integer", from)
-			}
-
-			if size < 0 {
-				return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
-			}
-
-			if size == 0 && searchCommand.Flags().Changed("size") {
-				return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
-			}
-
-			if format != ports.SearchOutputText && format != ports.SearchOutputJSON {
-				return fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", format, ports.SearchOutputText, ports.SearchOutputJSON)
-			}
-
-			if prettyJSON && format != ports.SearchOutputJSON {
-				return fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, format)
+			if err := validateSearchFormat(format, prettyJSON); err != nil {
+				return err
 			}
 
 			query := strings.Join(args, " ")
-			if query == "" && len(pathQueries) == 0 {
-				return fmt.Errorf("missing search query: got %v, expected idx search <terms>", runner.arguments)
+			if err := validateSearchInput(query, pathQueries, runner.arguments); err != nil {
+				return err
 			}
 
-			options := ports.SearchOptions{
-				Format:      format,
-				Context:     contextLines,
-				PrettyJSON:  prettyJSON,
-				MatchesOnly: matchesOnly || legacyMatchesOnly,
-				FilesOnly:   filesOnly,
-				PathQueries: pathQueries,
-				From:        from,
-				Size:        size,
-			}
-
-			if len(pathQueries) > 0 {
-				options.PathQuery = pathQueries[0]
-			}
-
+			options := buildSearchOptions(format, contextLines, prettyJSON, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size)
 			return runner.searchCommand.RunWithOptions(query, options)
 		},
 	}
@@ -174,4 +144,73 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	searchCommand.Flags().IntVar(&size, "size", 0, "Limit results to top N files")
 
 	return searchCommand
+}
+
+func validateSearchFlagValues(contextLines int, from int, size int, sizeChanged bool) error {
+	if contextLines < 0 {
+		return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
+	}
+
+	if from < 0 {
+		return fmt.Errorf("invalid --from value %d: expected a non-negative integer", from)
+	}
+
+	if size < 0 {
+		return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
+	}
+
+	if size == 0 && sizeChanged {
+		return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
+	}
+
+	return nil
+}
+
+func validateSearchFormat(format string, prettyJSON bool) error {
+	if format != ports.SearchOutputText && format != ports.SearchOutputJSON {
+		return fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", format, ports.SearchOutputText, ports.SearchOutputJSON)
+	}
+
+	if prettyJSON && format != ports.SearchOutputJSON {
+		return fmt.Errorf("--json-pretty requires --format %s: got format %q", ports.SearchOutputJSON, format)
+	}
+
+	return nil
+}
+
+func validateSearchInput(query string, pathQueries []string, arguments []string) error {
+	if query == "" && len(pathQueries) == 0 {
+		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", arguments)
+	}
+
+	return nil
+}
+
+func buildSearchOptions(
+	format string,
+	contextLines int,
+	prettyJSON bool,
+	matchesOnly bool,
+	legacyMatchesOnly bool,
+	filesOnly bool,
+	pathQueries []string,
+	from int,
+	size int,
+) ports.SearchOptions {
+	options := ports.SearchOptions{
+		Format:      format,
+		Context:     contextLines,
+		PrettyJSON:  prettyJSON,
+		MatchesOnly: matchesOnly || legacyMatchesOnly,
+		FilesOnly:   filesOnly,
+		PathQueries: pathQueries,
+		From:        from,
+		Size:        size,
+	}
+
+	if len(pathQueries) > 0 {
+		options.PathQuery = pathQueries[0]
+	}
+
+	return options
 }
