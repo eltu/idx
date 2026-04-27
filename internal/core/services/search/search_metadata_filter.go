@@ -1,15 +1,16 @@
 package search
 
 import (
+	"strings"
+
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
-	"strings"
 )
 
 func metadataMatchedDocuments(index *domain.InvertedIndex, options ports.SearchOptions) map[string]struct{} {
 	matched := allIndexedDocuments(index)
-	matched = applyMetadataFilter(matched, index.PathTerms, index.Documents, effectiveMetadataPatterns(options.PathQueries, options.PathQuery))
-	return matched
+	patterns := effectiveMetadataPatterns(options.PathQueries, options.PathQuery)
+	return applyMetadataFilter(matched, index.PathTerms, index.Documents, patterns)
 }
 
 func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string) map[string]struct{} {
@@ -30,6 +31,7 @@ func cloneDocSet(current map[string]struct{}) map[string]struct{} {
 	for docName := range current {
 		clone[docName] = struct{}{}
 	}
+
 	return clone
 }
 
@@ -103,6 +105,7 @@ func allIndexedDocuments(index *domain.InvertedIndex) map[string]struct{} {
 	for docName := range index.Documents {
 		documents[docName] = struct{}{}
 	}
+
 	return documents
 }
 
@@ -191,21 +194,43 @@ func wildcardMatch(pattern string, value string) bool {
 		return true
 	}
 
-	if strings.Count(pattern, "*") == 1 {
-		if strings.HasSuffix(pattern, "*") {
-			return strings.HasPrefix(value, strings.TrimSuffix(pattern, "*"))
-		}
-
-		if strings.HasPrefix(pattern, "*") {
-			return strings.HasSuffix(value, strings.TrimPrefix(pattern, "*"))
-		}
+	if singleWildcardMatch(pattern, value) {
+		return true
 	}
 
+	return wildcardPartsMatch(pattern, value)
+}
+
+func singleWildcardMatch(pattern string, value string) bool {
+	if strings.Count(pattern, "*") != 1 {
+		return false
+	}
+
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(value, strings.TrimSuffix(pattern, "*"))
+	}
+
+	if strings.HasPrefix(pattern, "*") {
+		return strings.HasSuffix(value, strings.TrimPrefix(pattern, "*"))
+	}
+
+	return false
+}
+
+func wildcardPartsMatch(pattern string, value string) bool {
 	parts := strings.Split(pattern, "*")
 	if len(parts) == 1 {
 		return value == pattern
 	}
 
+	if !matchesWildcardParts(pattern, value, parts) {
+		return false
+	}
+
+	return matchesWildcardSuffix(pattern, value, parts)
+}
+
+func matchesWildcardParts(pattern string, value string, parts []string) bool {
 	position := 0
 	for index, part := range parts {
 		if part == "" {
@@ -225,6 +250,10 @@ func wildcardMatch(pattern string, value string) bool {
 		position = start + len(part)
 	}
 
+	return true
+}
+
+func matchesWildcardSuffix(pattern string, value string, parts []string) bool {
 	if strings.HasSuffix(pattern, "*") {
 		return true
 	}

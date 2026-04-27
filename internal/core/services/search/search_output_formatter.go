@@ -39,11 +39,23 @@ func highlightTermsInLine(line string, terms []string, useANSI bool) string {
 		return line
 	}
 
+	spans := findHighlightSpans(line, terms)
+	if len(spans) == 0 {
+		return line
+	}
+
+	merged := mergeHighlightSpans(spans)
+	return renderHighlightedLine(line, merged)
+}
+
+type highlightSpan struct {
+	start int
+	end   int
+}
+
+func findHighlightSpans(line string, terms []string) []highlightSpan {
 	lower := strings.ToLower(line)
-
-	type span struct{ start, end int }
-	var spans []span
-
+	spans := make([]highlightSpan, 0)
 	for _, term := range terms {
 		start := 0
 		for start < len(lower) {
@@ -51,43 +63,59 @@ func highlightTermsInLine(line string, terms []string, useANSI bool) string {
 			if idx < 0 {
 				break
 			}
+
 			abs := start + idx
-			before := abs == 0 || !isWordChar(lower[abs-1])
-			after := abs+len(term) >= len(lower) || !isWordChar(lower[abs+len(term)])
-			if before && after {
-				spans = append(spans, span{abs, abs + len(term)})
+			if !isWholeWordMatch(lower, abs, len(term)) {
+				start = abs + 1
+				continue
 			}
+
+			spans = append(spans, highlightSpan{start: abs, end: abs + len(term)})
 			start = abs + 1
 		}
 	}
 
-	if len(spans) == 0 {
-		return line
-	}
+	return spans
+}
 
-	sort.Slice(spans, func(i, j int) bool { return spans[i].start < spans[j].start })
+func isWholeWordMatch(line string, start int, length int) bool {
+	before := start == 0 || !isWordChar(line[start-1])
+	after := start+length >= len(line) || !isWordChar(line[start+length])
+	return before && after
+}
 
-	merged := []span{spans[0]}
-	for _, s := range spans[1:] {
+func mergeHighlightSpans(spans []highlightSpan) []highlightSpan {
+	sort.Slice(spans, func(i int, j int) bool {
+		return spans[i].start < spans[j].start
+	})
+
+	merged := []highlightSpan{spans[0]}
+	for _, current := range spans[1:] {
 		last := &merged[len(merged)-1]
-		if s.start <= last.end {
-			if s.end > last.end {
-				last.end = s.end
-			}
-		} else {
-			merged = append(merged, s)
+		if current.start > last.end {
+			merged = append(merged, current)
+			continue
+		}
+
+		if current.end > last.end {
+			last.end = current.end
 		}
 	}
 
-	var sb strings.Builder
-	pos := 0
-	for _, s := range merged {
-		sb.WriteString(line[pos:s.start])
-		sb.WriteString(ansiBoldYellow)
-		sb.WriteString(line[s.start:s.end])
-		sb.WriteString(ansiReset)
-		pos = s.end
+	return merged
+}
+
+func renderHighlightedLine(line string, spans []highlightSpan) string {
+	var builder strings.Builder
+	position := 0
+	for _, span := range spans {
+		builder.WriteString(line[position:span.start])
+		builder.WriteString(ansiBoldYellow)
+		builder.WriteString(line[span.start:span.end])
+		builder.WriteString(ansiReset)
+		position = span.end
 	}
-	sb.WriteString(line[pos:])
-	return sb.String()
+
+	builder.WriteString(line[position:])
+	return builder.String()
 }
