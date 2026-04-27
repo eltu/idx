@@ -1,6 +1,7 @@
 package search
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -21,11 +23,27 @@ const (
 	maxSearchWorkers = 4
 )
 
+const (
+	searchCacheTTL = 1 * time.Minute
+)
+
+type cacheEntry struct {
+	results   []searchResult
+	expiresAt time.Time
+}
+
+type searchCache struct {
+	mu      sync.Mutex
+	entries map[string]cacheEntry
+}
+
 type SearchCommandService struct {
-	projectTree ports.ProjectTree
-	output      ports.TextOutput
-	fileReader  ports.FileReader
-	indexRepo   searchableIndexRepository
+	projectTree  ports.ProjectTree
+	output       ports.TextOutput
+	fileReader   ports.FileReader
+	indexRepo    searchableIndexRepository
+	cache        *searchCache
+	cacheEnabled bool
 }
 
 type searchableIndexRepository interface {
@@ -49,11 +67,22 @@ type matchedLine struct {
 // Example: service := NewSearchCommandService(projectTree, output, indexRepo).
 func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOutput, fileReader ports.FileReader, indexRepo searchableIndexRepository) SearchCommandService {
 	return SearchCommandService{
-		projectTree: projectTree,
-		output:      output,
-		fileReader:  fileReader,
-		indexRepo:   indexRepo,
+		projectTree:  projectTree,
+		output:       output,
+		fileReader:   fileReader,
+		indexRepo:    indexRepo,
+		cache:        &searchCache{entries: make(map[string]cacheEntry)},
+		cacheEnabled: true,
 	}
+}
+
+// SetCacheEnabled toggles the search cache. Useful for deterministic unit tests.
+func (service *SearchCommandService) SetCacheEnabled(enabled bool) {
+	if service == nil {
+		return
+	}
+
+	service.cacheEnabled = enabled
 }
 
 // Run executes search with default options.
@@ -65,6 +94,10 @@ func (service SearchCommandService) Run(query string) error {
 // RunWithOptions executes search with explicit output and context options.
 // Example: err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON}).
 func (service SearchCommandService) RunWithOptions(query string, options ports.SearchOptions) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	normalizedOptions := normalizedSearchOptions(options)
 
 	currentDir, err := service.projectTree.CurrentDir()
@@ -77,15 +110,41 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 		return err
 	}
 
-	dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
-	if err != nil {
-		return err
-	}
-
 	terms := uniqueQueryTerms(query)
-	results, err := service.rankedResults(dirs, terms, normalizedOptions)
-	if err != nil {
-		return err
+
+	var (
+		results []searchResult
+		exists  bool
+	)
+
+	if service.cacheEnabled && service.cache != nil {
+		cacheKey := cacheKeyFor(query, normalizedOptions)
+		results, exists = service.cache.getFromCache(cacheKey)
+		if !exists {
+			dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
+			if err != nil {
+				return err
+			}
+
+			results, err = service.rankedResults(dirs, terms, normalizedOptions)
+			if err != nil {
+				return err
+			}
+
+			service.cache.setInCache(cacheKey, results)
+		} else {
+			service.cache.renewCacheTTL(cacheKey)
+		}
+	} else {
+		dirs, err := indexing.IndexedDirectories(service.projectTree, projectRoot)
+		if err != nil {
+			return err
+		}
+
+		results, err = service.rankedResults(dirs, terms, normalizedOptions)
+		if err != nil {
+			return err
+		}
 	}
 
 	totalMatches := len(results)
@@ -98,7 +157,45 @@ func (service SearchCommandService) RunWithOptions(query string, options ports.S
 	return service.writeSearchResults(results, projectRoot, terms, normalizedOptions, totalMatches)
 }
 
+func (service SearchCommandService) validateDependencies() error {
+	if service.projectTree == nil {
+		return fmt.Errorf("failed to run search: got nil projectTree dependency, expected non-nil ports.ProjectTree")
+	}
+
+	if service.output == nil {
+		return fmt.Errorf("failed to run search: got nil output dependency, expected non-nil ports.TextOutput")
+	}
+
+	if service.fileReader == nil {
+		return fmt.Errorf("failed to run search: got nil fileReader dependency, expected non-nil ports.FileReader")
+	}
+
+	if service.indexRepo == nil {
+		return fmt.Errorf("failed to run search: got nil index repository dependency, expected non-nil searchableIndexRepository")
+	}
+
+	return nil
+}
+
+func cacheKeyFor(query string, options ports.SearchOptions) string {
+	keyParts := []string{
+		fmt.Sprintf("q:%s", query),
+		fmt.Sprintf("fmt:%s", options.Format),
+		fmt.Sprintf("ctx:%d", options.Context),
+		fmt.Sprintf("mo:%v", options.MatchesOnly),
+		fmt.Sprintf("fo:%v", options.FilesOnly),
+		fmt.Sprintf("pq:%s", strings.Join(options.PathQueries, ":")),
+	}
+	keyStr := strings.Join(keyParts, "|")
+	hash := md5.Sum([]byte(keyStr))
+	return fmt.Sprintf("%x", hash)
+}
+
 func (service SearchCommandService) writeEmptySearchResults(options ports.SearchOptions) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	if options.Format == ports.SearchOutputJSON {
 		emptyResponse := map[string]any{"count": 0, "results": []any{}}
 		var encoded []byte
@@ -120,6 +217,10 @@ func (service SearchCommandService) writeEmptySearchResults(options ports.Search
 }
 
 func (service SearchCommandService) writeSearchResults(results []searchResult, projectRoot string, terms []string, options ports.SearchOptions, totalMatches int) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	if options.Format == ports.SearchOutputJSON {
 		return service.writeResultsJSON(results, projectRoot, options, totalMatches)
 	}
@@ -278,6 +379,10 @@ func limitedResults(results []searchResult, limit int) []searchResult {
 }
 
 func (service SearchCommandService) writeResultsHeader(displayedCount int, totalCount int, options ports.SearchOptions) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	var msg string
 	if displayedCount == totalCount {
 		msg = fmt.Sprintf("📁 Found %d file(s) matching your search", totalCount)
@@ -288,6 +393,10 @@ func (service SearchCommandService) writeResultsHeader(displayedCount int, total
 }
 
 func (service SearchCommandService) writeResults(results []searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	if options.FilesOnly {
 		// For --files-only, just output the paths, one per line.
 		for _, result := range results {
@@ -342,6 +451,10 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 }
 
 func (service SearchCommandService) rankedResults(directories []string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	if err := service.validateDependencies(); err != nil {
+		return nil, err
+	}
+
 	results, err := service.parallelDirectoryResults(directories, terms, options)
 	if err != nil {
 		return nil, err
@@ -432,6 +545,10 @@ func boundedSearchWorkerCount(directoryCount int) int {
 }
 
 func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options ports.SearchOptions) ([]searchResult, error) {
+	if err := service.validateDependencies(); err != nil {
+		return nil, err
+	}
+
 	index, err := service.indexRepo.LoadIndex(directoryPath)
 	if err != nil {
 		return nil, err
@@ -459,6 +576,10 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 }
 
 func (service SearchCommandService) allMatchingLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
+	if err := service.validateDependencies(); err != nil {
+		return nil, err
+	}
+
 	content, err := service.fileReader.ReadFile(filepath.Join(directoryPath, fileName))
 	if err != nil {
 		return nil, err

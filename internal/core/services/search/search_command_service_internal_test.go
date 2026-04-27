@@ -2,8 +2,10 @@ package search
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
+	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 )
 
@@ -91,9 +93,35 @@ func (spy *outputSpy) WriteLine(text string) error {
 	return nil
 }
 
+type projectTreeStub struct{}
+
+func (projectTreeStub) CurrentDir() (string, error)        { return "/repo", nil }
+func (projectTreeStub) FindGitRoot(string) (string, error) { return "/repo", nil }
+func (projectTreeStub) ReadDir(string) ([]domain.DirectoryEntry, error) {
+	return []domain.DirectoryEntry{}, nil
+}
+func (projectTreeStub) Exists(string) (bool, error)    { return false, nil }
+func (projectTreeStub) RemoveAll(string) error         { return nil }
+func (projectTreeStub) WriteFile(string, []byte) error { return nil }
+
+type fileReaderStub struct{}
+
+func (fileReaderStub) ReadFile(string) (string, error) { return "", errors.New("not implemented") }
+
+type searchIndexRepositoryStub struct{}
+
+func (searchIndexRepositoryStub) LoadIndex(string) (*domain.InvertedIndex, error) {
+	return domain.NewInvertedIndex(), nil
+}
+
 func TestWriteEmptySearchResultsFormats(t *testing.T) {
 	output := &outputSpy{}
-	service := SearchCommandService{output: output}
+	service := SearchCommandService{
+		projectTree: projectTreeStub{},
+		output:      output,
+		fileReader:  fileReaderStub{},
+		indexRepo:   searchIndexRepositoryStub{},
+	}
 
 	if err := service.writeEmptySearchResults(ports.SearchOptions{Format: ports.SearchOutputText}); err != nil {
 		t.Fatalf("expected text empty result write success, got %v", err)

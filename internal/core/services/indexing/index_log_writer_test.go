@@ -99,3 +99,56 @@ func TestCleanupRotatedLogsKeepsLatestFive(t *testing.T) {
 		}
 	}
 }
+
+func TestAppendIndexedFilesLogNoEntriesIsNoop(t *testing.T) {
+	directory := t.TempDir()
+	if err := appendIndexedFilesLog(directory, []indexedFileLogEntry{}); err != nil {
+		t.Fatalf("expected no-op append to succeed, got %v", err)
+	}
+
+	activePath := filepath.Join(directory, ".idx", "logs", "tlog.idx")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("expected no log file creation for empty entries, got err=%v", err)
+	}
+}
+
+func TestAppendIndexedFilesLogSkipsWhenDirectoryDoesNotExist(t *testing.T) {
+	missingDir := filepath.Join(t.TempDir(), "does-not-exist")
+	entry := indexedFileLogEntry{Path: "a.txt", Checksum: "abc", IndexedAt: time.Now().UTC()}
+
+	if err := appendIndexedFilesLog(missingDir, []indexedFileLogEntry{entry}); err != nil {
+		t.Fatalf("expected missing directory append to be skipped without error, got %v", err)
+	}
+
+	activePath := filepath.Join(missingDir, ".idx", "logs", "tlog.idx")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("expected no log file creation for missing directory, got err=%v", err)
+	}
+}
+
+func TestRotateActiveLogFileReturnsRenameErrorWhenActiveMissing(t *testing.T) {
+	logsDir := t.TempDir()
+	missingActive := filepath.Join(logsDir, "tlog.idx")
+
+	err := rotateActiveLogFile(logsDir, missingActive)
+	if err == nil {
+		t.Fatal("expected rotate to fail when active log is missing")
+	}
+}
+
+func TestAppendPayloadReturnsOpenErrorForDirectoryPath(t *testing.T) {
+	dirPath := t.TempDir()
+
+	err := appendPayload(dirPath, []byte("x"))
+	if err == nil {
+		t.Fatal("expected appendPayload to fail when path points to a directory")
+	}
+}
+
+func TestShouldRotateActiveLogReturnsFalseWhenFileMissing(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing.idx")
+
+	if shouldRotateActiveLog(missingPath, 10) {
+		t.Fatal("expected no rotation when active log does not exist")
+	}
+}

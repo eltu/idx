@@ -119,7 +119,7 @@ func benchmarkSyncScenario(b *testing.B, stripMetadata bool) {
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
 	fileReader := &benchmarkCountingFileReader{base: repository.NewOSFileReader()}
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	output := &capturingTextOutput{}
 	service := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)

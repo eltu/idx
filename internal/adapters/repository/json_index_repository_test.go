@@ -79,3 +79,41 @@ func TestJSONIndexRepositorySaveIndexReturnsErrorWhenWriteFails(t *testing.T) {
 		t.Fatal("expected save error when projectTree write fails")
 	}
 }
+
+func TestJSONIndexRepositorySaveIndexReturnsErrorForNilIndex(t *testing.T) {
+	repo := NewJSONIndexRepository(NewOSProjectTree())
+
+	err := repo.SaveIndex(t.TempDir(), nil)
+	if err == nil {
+		t.Fatal("expected save error for nil index")
+	}
+}
+
+func TestJSONIndexRepositorySaveIndexReturnsErrorWhenProjectTreeIsNil(t *testing.T) {
+	repo := NewJSONIndexRepository(nil)
+	index := domain.NewInvertedIndex()
+
+	err := repo.SaveIndex(t.TempDir(), index)
+	if err == nil {
+		t.Fatal("expected save error for nil projectTree")
+	}
+}
+
+func TestJSONIndexRepositorySaveIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	var repo *JSONIndexRepository
+	index := domain.NewInvertedIndex()
+
+	err := repo.SaveIndex(t.TempDir(), index)
+	if err == nil {
+		t.Fatal("expected save error for nil repository receiver")
+	}
+}
+
+func TestJSONIndexRepositoryLoadIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	var repo *JSONIndexRepository
+
+	_, err := repo.LoadIndex(t.TempDir())
+	if err == nil {
+		t.Fatal("expected load error for nil repository receiver")
+	}
+}

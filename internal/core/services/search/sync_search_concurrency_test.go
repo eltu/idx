@@ -118,7 +118,7 @@ func TestSyncAndSearchRunConcurrentlyWithoutInterference(t *testing.T) {
 	filePaths := createConcurrencyCorpus(t, rootDir, settings.files)
 	projectTree := concurrentProjectTree{root: rootDir}
 	fileReader := repository.NewOSFileReader()
-	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	indexService := indexing.NewInitCommandService(
 		projectTree,
@@ -157,7 +157,7 @@ func TestSyncAndSearchRunConcurrentlyAcrossDirectories(t *testing.T) {
 	filePaths := createConcurrencyCorpusAcrossDirs(t, rootDir, settings.subdirs, settings.filesPerDir)
 	projectTree := concurrentProjectTree{root: rootDir}
 	fileReader := repository.NewOSFileReader()
-	indexRepo := repository.NewBinaryIndexRepository(projectTree)
+	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	indexService := indexing.NewInitCommandService(
 		projectTree,

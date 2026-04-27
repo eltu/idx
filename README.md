@@ -180,6 +180,9 @@ Current behavior:
 - Optional `--size <N>` limits output to the top `N` files.
 - Optional `--path <pattern>` filters by indexed metadata path (repeatable).
 - Metadata-only search is supported with `--path` even when query terms are empty.
+- Search results are cached for 1 minute to speed up pagination (`--from` / `--size`).
+- Cache key uses the search query and all filters/options except `--from` and `--size`.
+- Changing only `--from`/`--size` reuses cached ranked results and renews TTL by 1 minute.
 - Without options, output stays in the current human-friendly tree format.
 
 Supported `search` flags:

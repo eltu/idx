@@ -101,6 +101,15 @@ func TestDestroyCommandServiceRunFailsWhenGitRootLookupFails(t *testing.T) {
 	}
 }
 
+func TestDestroyCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	service := lifecycle.NewDestroyCommandService(nil, nil)
+
+	err := service.Run()
+	if err == nil {
+		t.Fatal("expected dependency validation error, got nil")
+	}
+}
+
 func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	apiDir := filepath.Join(rootDir, "cmd", "api")

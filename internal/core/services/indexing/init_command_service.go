@@ -39,10 +39,18 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 }
 
 func (service InitCommandService) Run() error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	return service.runIndex()
 }
 
 func (service InitCommandService) Sync() error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
@@ -99,6 +107,10 @@ func (service InitCommandService) Sync() error {
 }
 
 func (service InitCommandService) removeDirectoryIndex(directoryPath string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	indexDirectoryPath := filepath.Join(directoryPath, ".idx")
 	if err := service.projectTree.RemoveAll(indexDirectoryPath); err != nil {
 		return err
@@ -127,6 +139,10 @@ func staleIndexedDirectories(indexed []string, eligible []string) []string {
 }
 
 func (service InitCommandService) Inspect(indexPath string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
@@ -144,6 +160,38 @@ func (service InitCommandService) Inspect(indexPath string) error {
 	}
 
 	return service.writeInspectIndex(targetDirectory)
+}
+
+func (service InitCommandService) validateDependencies() error {
+	if service.projectTree == nil {
+		return fmt.Errorf("failed to run init command: got nil projectTree dependency, expected non-nil ports.ProjectTree")
+	}
+
+	if service.matcherFactory == nil {
+		return fmt.Errorf("failed to run init command: got nil matcherFactory dependency, expected non-nil ports.IgnoreMatcherFactory")
+	}
+
+	if service.output == nil {
+		return fmt.Errorf("failed to run init command: got nil output dependency, expected non-nil ports.TextOutput")
+	}
+
+	if service.fileReader == nil {
+		return fmt.Errorf("failed to run init command: got nil fileReader dependency, expected non-nil ports.FileReader")
+	}
+
+	if service.indexer == nil {
+		return fmt.Errorf("failed to run init command: got nil indexer dependency, expected non-nil ports.BM25Indexer")
+	}
+
+	if service.indexRepo == nil {
+		return fmt.Errorf("failed to run init command: got nil index repository dependency, expected non-nil ports.IndexRepository")
+	}
+
+	if service.checksumRepo == nil {
+		return fmt.Errorf("failed to run init command: got nil checksum repository dependency, expected non-nil ports.DirectoryChecksumRepository")
+	}
+
+	return nil
 }
 
 func (service InitCommandService) runIndex() error {
@@ -180,6 +228,10 @@ func (service InitCommandService) runIndex() error {
 }
 
 func (service InitCommandService) writeInspectIndex(directoryPath string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	index, err := service.indexRepo.LoadIndex(directoryPath)
 	if err != nil {
 		return err
@@ -194,6 +246,10 @@ func (service InitCommandService) writeInspectIndex(directoryPath string) error 
 }
 
 func (service InitCommandService) indexDirectory(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
 		return err
 	}
@@ -220,6 +276,10 @@ func (service InitCommandService) indexDirectory(directoryPath string, projectRo
 }
 
 func (service InitCommandService) syncDirectoryIndex(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	entries, err := service.projectTree.ReadDir(directoryPath)
 	if err != nil {
 		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
@@ -272,6 +332,10 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 }
 
 func (service InitCommandService) hasDirectoryIndex(directoryPath string) (bool, error) {
+	if err := service.validateDependencies(); err != nil {
+		return false, err
+	}
+
 	currentIndexPath := indexFilePath(directoryPath)
 	hasIndex, err := service.projectTree.Exists(currentIndexPath)
 	if err != nil {
@@ -282,6 +346,10 @@ func (service InitCommandService) hasDirectoryIndex(directoryPath string) (bool,
 }
 
 func (service InitCommandService) loadChecksumSnapshot(directoryPath string) (ports.DirectoryChecksumSnapshot, bool, error) {
+	if err := service.validateDependencies(); err != nil {
+		return ports.DirectoryChecksumSnapshot{}, false, err
+	}
+
 	if repositoryWithSnapshot, ok := service.checksumRepo.(ports.DirectoryChecksumSnapshotRepository); ok {
 		return repositoryWithSnapshot.LoadSnapshot(directoryPath)
 	}
@@ -300,6 +368,10 @@ func (service InitCommandService) loadChecksumSnapshot(directoryPath string) (po
 }
 
 func (service InitCommandService) saveChecksumSnapshot(directoryPath string, snapshot ports.DirectoryChecksumSnapshot) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	if repositoryWithSnapshot, ok := service.checksumRepo.(ports.DirectoryChecksumSnapshotRepository); ok {
 		return repositoryWithSnapshot.SaveSnapshot(directoryPath, snapshot)
 	}
@@ -362,6 +434,10 @@ func metadataUnchanged(entry domain.DirectoryEntry, stored ports.FileChecksumSta
 }
 
 func (service InitCommandService) fileChecksum(entry domain.DirectoryEntry) (string, error) {
+	if err := service.validateDependencies(); err != nil {
+		return "", err
+	}
+
 	content, err := service.fileReader.ReadFile(entry.Path)
 	if err != nil {
 		return "", err
@@ -391,6 +467,10 @@ func sameSnapshotChecksums(stored map[string]ports.FileChecksumState, current ma
 }
 
 func (service InitCommandService) shouldReindexDirectory(directoryPath string, currentChecksums map[string]string) (bool, error) {
+	if err := service.validateDependencies(); err != nil {
+		return false, err
+	}
+
 	hasIndex, err := service.hasDirectoryIndex(directoryPath)
 	if err != nil {
 		return false, err
@@ -413,6 +493,10 @@ func (service InitCommandService) shouldReindexDirectory(directoryPath string, c
 }
 
 func (service InitCommandService) directoryChecksums(fileEntries []domain.DirectoryEntry) (map[string]string, error) {
+	if err := service.validateDependencies(); err != nil {
+		return nil, err
+	}
+
 	checksums := make(map[string]string, len(fileEntries))
 	for _, entry := range fileEntries {
 		content, err := service.fileReader.ReadFile(entry.Path)
@@ -447,6 +531,10 @@ func sameChecksums(stored map[string]string, current map[string]string) bool {
 }
 
 func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEntries []domain.DirectoryEntry, snapshot ports.DirectoryChecksumSnapshot, changedFileNames map[string]struct{}) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	// Read all files and build index documents.
 	documents := make([]domain.IndexDocument, 0, len(fileEntries))
 	for _, entry := range fileEntries {
@@ -509,6 +597,10 @@ func buildChangedLogEntries(fileEntries []domain.DirectoryEntry, snapshot ports.
 }
 
 func (service InitCommandService) indexChildren(entries []domain.DirectoryEntry, projectRoot string, matcher ports.IgnoreMatcher) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
 	for _, entry := range entries {
 		if !entry.IsDir {
 			continue

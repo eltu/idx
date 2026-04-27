@@ -11,8 +11,7 @@ import (
 )
 
 func TestBinaryIndexRepositorySaveAndLoadIndex(t *testing.T) {
-	tree := NewOSProjectTree()
-	repo := NewBinaryIndexRepository(tree)
+	repo := NewBinaryIndexRepository()
 	dir := t.TempDir()
 
 	index := domain.NewInvertedIndex()
@@ -39,8 +38,7 @@ func TestBinaryIndexRepositorySaveAndLoadIndex(t *testing.T) {
 }
 
 func TestBinaryIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) {
-	tree := NewOSProjectTree()
-	repo := NewBinaryIndexRepository(tree)
+	repo := NewBinaryIndexRepository()
 	_, err := repo.LoadIndex(t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for missing index file, got nil")
@@ -57,7 +55,7 @@ func TestBinaryIndexRepositoryLoadIndexReturnsErrorForInvalidBinaryPayload(t *te
 		t.Fatalf("expected invalid payload write to succeed, got %v", err)
 	}
 
-	repo := NewBinaryIndexRepository(NewOSProjectTree())
+	repo := NewBinaryIndexRepository()
 	_, err := repo.LoadIndex(dir)
 	if err == nil {
 		t.Fatal("expected parse error for invalid binary payload")
@@ -65,7 +63,7 @@ func TestBinaryIndexRepositoryLoadIndexReturnsErrorForInvalidBinaryPayload(t *te
 }
 
 func TestBinaryIndexRepositorySaveIndexReturnsErrorForInvalidDirectory(t *testing.T) {
-	repo := NewBinaryIndexRepository(NewOSProjectTree())
+	repo := NewBinaryIndexRepository()
 	index := domain.NewInvertedIndex()
 
 	err := repo.SaveIndex("\x00invalid", index)
@@ -74,9 +72,73 @@ func TestBinaryIndexRepositorySaveIndexReturnsErrorForInvalidDirectory(t *testin
 	}
 }
 
+func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenEncodingNilIndex(t *testing.T) {
+	repo := NewBinaryIndexRepository()
+	dir := t.TempDir()
+
+	err := repo.SaveIndex(dir, nil)
+	if err == nil {
+		t.Fatal("expected serialize error for nil index")
+	}
+}
+
+func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	var repo *BinaryIndexRepository
+	index := domain.NewInvertedIndex()
+
+	err := repo.SaveIndex(t.TempDir(), index)
+	if err == nil {
+		t.Fatal("expected save error for nil repository receiver")
+	}
+}
+
+func TestBinaryIndexRepositoryLoadIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	var repo *BinaryIndexRepository
+
+	_, err := repo.LoadIndex(t.TempDir())
+	if err == nil {
+		t.Fatal("expected load error for nil repository receiver")
+	}
+}
+
+func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenTargetIsDirectory(t *testing.T) {
+	repo := NewBinaryIndexRepository()
+	dir := t.TempDir()
+
+	indexPath := filepath.Join(dir, ".idx", "index.idx")
+	if err := os.MkdirAll(indexPath, 0750); err != nil {
+		t.Fatalf("expected directory creation at target path, got %v", err)
+	}
+
+	index := domain.NewInvertedIndex()
+	err := repo.SaveIndex(dir, index)
+	if err == nil {
+		t.Fatal("expected rename error when target index path is directory")
+	}
+}
+
+func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenTempFileCannotBeCreated(t *testing.T) {
+	repo := NewBinaryIndexRepository()
+	root := t.TempDir()
+	indexDir := filepath.Join(root, ".idx")
+	if err := os.MkdirAll(indexDir, 0750); err != nil {
+		t.Fatalf("expected index dir creation, got %v", err)
+	}
+
+	if err := os.Chmod(indexDir, 0500); err != nil {
+		t.Fatalf("expected chmod to read/execute only, got %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(indexDir, 0750) })
+
+	index := domain.NewInvertedIndex()
+	err := repo.SaveIndex(root, index)
+	if err == nil {
+		t.Fatal("expected temp file creation error when directory is not writable")
+	}
+}
+
 func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
-	tree := NewOSProjectTree()
-	repo := NewBinaryIndexRepository(tree)
+	repo := NewBinaryIndexRepository()
 	dir := t.TempDir()
 
 	seed := domain.NewInvertedIndex()

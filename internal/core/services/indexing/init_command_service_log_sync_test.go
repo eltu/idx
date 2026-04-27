@@ -28,7 +28,7 @@ func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
 		&capturingTextOutput{},
 		repository.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(projectTree),
+		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
 	)
 
@@ -92,7 +92,7 @@ func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
 		&capturingTextOutput{},
 		repository.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(projectTree),
+		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
 	)
 
@@ -153,7 +153,7 @@ func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
 		&capturingTextOutput{},
 		repository.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(projectTree),
+		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
 	)
 
@@ -229,7 +229,7 @@ func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
 		&capturingTextOutput{},
 		repository.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(projectTree),
+		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
 	)
 
