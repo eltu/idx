@@ -2,6 +2,8 @@
 
 Fast code and text search CLI for Git repositories, powered by BM25 and per-directory indexes.
 
+⚠️ This project is under active development and may contain bugs or breaking changes.
+
 ## Requirements
 
 - Go `1.26+`
