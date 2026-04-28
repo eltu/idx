@@ -32,8 +32,9 @@
 
 - Tests run with a single command: `make test`.
 - Every new function gets a test. Bug fixes get a regression test.
-- Mock external I/O (API, DB, filesystem) with named fake classes,
-  not inline stubs.
+- Use `go.uber.org/mock` for interface-based mocks in tests.
+- Generate mocks with `mockgen` when needed; avoid handwritten fake/mock
+  implementations for collaborators that are already expressed as ports.
 - Tests must be F.I.R.S.T: fast, independent, repeatable,
   self-validating, timely.
 
