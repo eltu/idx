@@ -32,6 +32,7 @@ func run(arguments []string, output io.Writer) error {
 	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	daemonStateRepo := repository.NewDaemonStateRepository()
+	processSpawner := &repository.OSProcessSpawner{}
 
 	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo)
 
@@ -41,7 +42,7 @@ func run(arguments []string, output io.Writer) error {
 		projectTree: projectTree,
 	}
 
-	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initCommandAdapter)
+	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initCommandAdapter, processSpawner)
 	daemonService := &daemonServiceAdapter{
 		daemon: daemonServiceImpl,
 	}

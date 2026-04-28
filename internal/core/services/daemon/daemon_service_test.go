@@ -111,6 +111,25 @@ func (f *fakeInitCommand) RunFromPath(projectPath string) error {
 	return f.returnError
 }
 
+type fakeProcessSpawner struct {
+	spawnedPaths []string
+	nextPID      int
+	returnError  error
+}
+
+func (f *fakeProcessSpawner) SpawnWatchProcess(projectPath string) (int, error) {
+	if f.returnError != nil {
+		return 0, f.returnError
+	}
+	f.spawnedPaths = append(f.spawnedPaths, projectPath)
+	pid := f.nextPID
+	if f.nextPID == 0 {
+		pid = 12345
+	}
+	f.nextPID = pid + 1
+	return pid, nil
+}
+
 // Tests
 func TestDaemonServiceEnableCreatesNewProject(t *testing.T) {
 	projectDir := t.TempDir()
@@ -127,7 +146,7 @@ func TestDaemonServiceEnableCreatesNewProject(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Enable(projectDir)
 	if err != nil {
@@ -161,7 +180,7 @@ func TestDaemonServiceEnableAutoInitsWhenIndexMissing(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Enable(projectDir)
 	if err != nil {
@@ -185,7 +204,7 @@ func TestDaemonServiceEnableReturnsErrorWhenPathDoesNotExist(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Usar caminho que não existe no filesystem
 	err := service.Enable("/nonexistent/path")
@@ -219,7 +238,7 @@ func TestDaemonServiceEnableReturnsErrorWhenProjectAlreadyMonitored(t *testing.T
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Enable("/home/user/project")
 	if err == nil {
@@ -239,7 +258,7 @@ func TestDaemonServiceEnableReturnsErrorWhenInitFails(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{returnError: fmt.Errorf("init failed")}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Enable("/home/user/project")
 	if err == nil {
@@ -266,7 +285,7 @@ func TestDaemonServiceDisableRemovesProject(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Disable("/home/user/project")
 	if err != nil {
@@ -285,7 +304,7 @@ func TestDaemonServiceDisableReturnsErrorWhenProjectNotMonitored(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Disable("/nonexistent/project")
 	if err == nil {
@@ -299,7 +318,7 @@ func TestDaemonServiceStatusReturnsEmptyWhenNoProjectsMonitored(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Status()
 	if err != nil {
@@ -340,7 +359,7 @@ func TestDaemonServiceStatusListsMonitoredProjects(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Status()
 	if err != nil {
@@ -372,7 +391,7 @@ func TestDaemonServiceEnableMultipleProjects(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	err := service.Enable(projectDir1)
 	if err != nil {
