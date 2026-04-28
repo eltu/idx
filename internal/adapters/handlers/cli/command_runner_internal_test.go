@@ -24,8 +24,14 @@ type noOpSearchCommand struct{}
 
 func (noOpSearchCommand) RunWithOptions(string, ports.SearchOptions) error { return nil }
 
+type noOpDaemonCommand struct{}
+
+func (noOpDaemonCommand) Enable(string) error  { return nil }
+func (noOpDaemonCommand) Disable(string) error { return nil }
+func (noOpDaemonCommand) Status() error        { return nil }
+
 func TestCommandRunnerRunRejectsMissingCommand(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, noOpIndexCommand{}, noOpDestroyCommand{}, noOpSearchCommand{})
+	runner := NewCommandRunner([]string{"idx"}, noOpIndexCommand{}, noOpDestroyCommand{}, noOpSearchCommand{}, noOpDaemonCommand{})
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected missing command error")
 	}

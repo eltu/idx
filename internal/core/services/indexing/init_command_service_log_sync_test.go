@@ -30,7 +30,7 @@ func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
-	)
+		nil,	)
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -94,7 +94,7 @@ func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
-	)
+		nil,	)
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -155,7 +155,7 @@ func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
-	)
+		nil,	)
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -231,7 +231,7 @@ func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		repository.NewBinaryIndexRepository(),
 		repository.NewDirectoryChecksumRepository(),
-	)
+		nil,	)
 
 	originalDir, err := os.Getwd()
 	if err != nil {

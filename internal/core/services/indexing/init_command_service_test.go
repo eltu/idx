@@ -37,7 +37,7 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 		filepath.Join(childDir, "nested.txt"): "nested content here",
 	}}
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, matcherFactory, &capturingTextOutput{}, fileReader, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, matcherFactory, &capturingTextOutput{}, fileReader, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err != nil {
@@ -62,7 +62,7 @@ func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, "")
 	tree.gitRootErr = errors.New("directory \"/repo\" is not inside a git project: expected a path with a .git entry in the current directory or one of its parents")
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err == nil {
@@ -74,7 +74,7 @@ func TestInitCommandServiceRunReturnsCurrentDirError(t *testing.T) {
 	tree := newFakeProjectTree("", "")
 	tree.currentErr = errors.New("cwd unavailable")
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err == nil {
@@ -86,7 +86,7 @@ func TestInitCommandServiceInspectReturnsCurrentDirError(t *testing.T) {
 	tree := newFakeProjectTree("", "")
 	tree.currentErr = errors.New("cwd unavailable")
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository(), nil)
 
 	err := service.Inspect(".")
 	if err == nil {
@@ -95,7 +95,7 @@ func TestInitCommandServiceInspectReturnsCurrentDirError(t *testing.T) {
 }
 
 func TestInitCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
-	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil)
+	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil, nil)
 
 	err := service.Run()
 	if err == nil {
@@ -104,7 +104,7 @@ func TestInitCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
 }
 
 func TestInitCommandServiceInspectReturnsErrorWhenDependenciesAreNil(t *testing.T) {
-	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil)
+	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil, nil)
 
 	err := service.Inspect(".")
 	if err == nil {
@@ -115,7 +115,7 @@ func TestInitCommandServiceInspectReturnsErrorWhenDependenciesAreNil(t *testing.
 func TestInitCommandServiceRunReturnsMatcherFactoryError(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err == nil {
@@ -130,7 +130,7 @@ func TestInitCommandServiceRunPropagatesChildDirectoryReadError(t *testing.T) {
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{{Name: "child", Path: childDir, IsDir: true}}
 	tree.readDirErr[childDir] = errors.New("cannot read child")
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err == nil {
@@ -143,7 +143,7 @@ func TestInitCommandServiceRunPropagatesFileReadErrorOnIndexBuild(t *testing.T) 
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []domain.DirectoryEntry{{Name: "missing.txt", Path: filepath.Join(rootDir, "missing.txt"), IsDir: false}}
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}}, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err == nil {
@@ -157,7 +157,7 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 	output := &capturingTextOutput{}
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*domain.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, output, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository())
+	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, output, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
 
 	err := service.Run()
 	if err != nil {

@@ -23,6 +23,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	root.AddCommand(runner.newWatchCommand())
 	root.AddCommand(runner.newDestroyCommand())
 	root.AddCommand(runner.newSearchCommand())
+	root.AddCommand(runner.newDaemonCommand())
 
 	return root
 }

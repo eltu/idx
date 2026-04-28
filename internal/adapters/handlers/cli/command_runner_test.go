@@ -63,11 +63,33 @@ func (command *fakeSearchCommand) RunWithOptions(query string, options ports.Sea
 	return nil
 }
 
+type fakeDaemonCommand struct {
+	enableCalls  int
+	disableCalls int
+	statusCalls  int
+}
+
+func (command *fakeDaemonCommand) Enable(string) error {
+	command.enableCalls++
+	return nil
+}
+
+func (command *fakeDaemonCommand) Disable(string) error {
+	command.disableCalls++
+	return nil
+}
+
+func (command *fakeDaemonCommand) Status() error {
+	command.statusCalls++
+	return nil
+}
+
 func TestCommandRunnerRunExecutesInitCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "init"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "init"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -82,7 +104,8 @@ func TestCommandRunnerRunExecutesSyncCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "sync"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "sync"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -97,7 +120,8 @@ func TestCommandRunnerRunExecutesInspectCommandWithPath(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "inspect", "internal/"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "inspect", "internal/"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -112,7 +136,8 @@ func TestCommandRunnerRunRejectsInspectWithoutPath(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "inspect"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "inspect"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -127,7 +152,8 @@ func TestCommandRunnerRunExecutesDestroyCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "destroy"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "destroy"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -142,7 +168,8 @@ func TestCommandRunnerRunExecutesWatchCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "watch"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -165,7 +192,8 @@ func TestCommandRunnerRunExecutesWatchCommandWithShowUpdatedFilesFlag(t *testing
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "watch", "--show-updated-files"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--show-updated-files"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -180,7 +208,8 @@ func TestCommandRunnerRunExecutesWatchCommandWithDebounceFlag(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "250ms"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "250ms"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -195,7 +224,8 @@ func TestCommandRunnerRunRejectsWatchWithInvalidDebounce(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "0s"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "watch", "--debounce", "0s"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected error for non-positive debounce")
@@ -206,7 +236,8 @@ func TestCommandRunnerRunExecutesSearchCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "term"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "term"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -229,6 +260,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
 	runner := cli.NewCommandRunner([]string{
 		"idx", "search", "needle", "term",
 		"--format", "json",
@@ -240,7 +272,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--path", "cmd/idx",
 		"--from", "1",
 		"--size", "5",
-	}, initCommand, destroyCommand, searchCommand)
+	}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -279,7 +311,8 @@ func TestCommandRunnerRunAcceptsMetadataOnlySearch(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--path", "internal/core"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -298,7 +331,8 @@ func TestCommandRunnerRunAcceptsLegacyTypoMatchesOnlyOption(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--macthes-only", "needle"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--macthes-only", "needle"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -313,7 +347,8 @@ func TestCommandRunnerRunRejectsSearchWithoutInput(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -328,7 +363,8 @@ func TestCommandRunnerRunRejectsJsonPrettyWithoutJsonFormat(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "--json-pretty", "needle"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--json-pretty", "needle"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -339,7 +375,8 @@ func TestCommandRunnerRunRejectsUnsupportedFormat(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--format", "xml"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--format", "xml"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -350,7 +387,8 @@ func TestCommandRunnerRunRejectsInvalidContext(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--context", "-1"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--context", "-1"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -361,13 +399,14 @@ func TestCommandRunnerRunRejectsInvalidSize(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
 
-	runnerZero := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "0"}, initCommand, destroyCommand, searchCommand)
+	runnerZero := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "0"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 	if err := runnerZero.Run(); err == nil {
 		t.Fatal("expected error for --size 0, got nil")
 	}
 
-	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "-2"}, initCommand, destroyCommand, searchCommand)
+	runnerNegative := cli.NewCommandRunner([]string{"idx", "search", "needle", "--size", "-2"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 	if err := runnerNegative.Run(); err == nil {
 		t.Fatal("expected error for negative --size, got nil")
 	}
@@ -377,8 +416,9 @@ func TestCommandRunnerRunRejectsInvalidFrom(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
 
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--from", "-1"}, initCommand, destroyCommand, searchCommand)
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--from", "-1"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected error for negative --from, got nil")
 	}
@@ -388,7 +428,8 @@ func TestCommandRunnerRunRejectsUnknownSearchFlag(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--unknown"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "needle", "--unknown"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -399,7 +440,8 @@ func TestCommandRunnerRunRejectsUnsupportedCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "other"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "other"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err == nil {
 		t.Fatal("expected an error, got nil")
@@ -410,7 +452,8 @@ func TestCommandRunnerRunAllowsHelpCommand(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "help"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "help"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -425,7 +468,8 @@ func TestCommandRunnerRunAllowsHelpFlag(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
-	runner := cli.NewCommandRunner([]string{"idx", "--help"}, initCommand, destroyCommand, searchCommand)
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "--help"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
 		t.Fatalf("expected no error, got %v", err)
