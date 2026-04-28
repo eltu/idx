@@ -83,7 +83,7 @@ func benchmarkRepoRoot(b testing.TB) string {
 		b.Fatal("expected caller information for benchmark file")
 	}
 
-	return filepath.Clean(filepath.Join(filepath.Dir(filePath), "..", "..", ".."))
+	return filepath.Clean(filepath.Join(filepath.Dir(filePath), "..", "..", "..", ".."))
 }
 
 func buildBenchmarkBinary(b testing.TB, repoRoot string) string {
