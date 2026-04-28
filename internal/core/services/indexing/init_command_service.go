@@ -20,11 +20,12 @@ type InitCommandService struct {
 	indexer        ports.BM25Indexer
 	indexRepo      ports.IndexRepository
 	checksumRepo   ports.DirectoryChecksumRepository
+	daemonRepo     ports.DaemonRepository
 }
 
 // NewInitCommandService builds the init use case.
-// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo).
-func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository) InitCommandService {
+// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo).
+func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
@@ -33,6 +34,7 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 		indexer:        indexer,
 		indexRepo:      indexRepo,
 		checksumRepo:   checksumRepo,
+		daemonRepo:     daemonRepo,
 	}
 }
 
@@ -201,6 +203,14 @@ func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Dur
 
 	if debounce <= 0 {
 		return fmt.Errorf("failed to run watch command: got invalid debounce %s, expected duration greater than 0", debounce)
+	}
+
+	// Check if daemon is running for this project
+	if service.daemonRepo != nil {
+		state, _ := service.daemonRepo.ReadState()
+		if state != nil && len(state.Projects) > 0 {
+			return fmt.Errorf("cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first")
+		}
 	}
 
 	return service.watchLoop(showUpdatedFiles, debounce)

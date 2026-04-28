@@ -128,6 +128,7 @@ func TestSyncAndSearchRunConcurrentlyWithoutInterference(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		indexRepo,
 		checksumRepo,
+		nil,
 	)
 	searchService := search.NewSearchCommandService(projectTree, concurrentDiscardOutput{}, fileReader, indexRepo)
 
@@ -167,6 +168,7 @@ func TestSyncAndSearchRunConcurrentlyAcrossDirectories(t *testing.T) {
 		indexing.NewBM25IndexService(),
 		indexRepo,
 		checksumRepo,
+		nil,
 	)
 	searchService := search.NewSearchCommandService(projectTree, concurrentDiscardOutput{}, fileReader, indexRepo)
 

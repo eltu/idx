@@ -122,7 +122,7 @@ func benchmarkSyncScenario(b *testing.B, stripMetadata bool) {
 	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	output := &capturingTextOutput{}
-	service := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
+	service := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
 
 	if err := service.Run(); err != nil {
 		b.Fatalf("failed to initialize index before benchmark: %v", err)

@@ -156,7 +156,7 @@ func buildBenchmarkSearchService(b testing.TB, repositoryPath string) search.Sea
 	indexer := indexing.NewBM25IndexService()
 	indexRepo := repository.NewBinaryIndexRepository()
 	checksumRepo := repository.NewDirectoryChecksumRepository()
-	initService := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo)
+	initService := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
 	if err := initService.Run(); err != nil {
 		b.Fatalf("expected benchmark indexing to succeed, got %v", err)
 	}

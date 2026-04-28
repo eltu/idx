@@ -27,16 +27,25 @@ type CommandRunner struct {
 	indexCommand   indexableCommand
 	destroyCommand runnableCommand
 	searchCommand  searchableCommand
+	daemonService  daemonableCommand
+}
+
+// daemonableCommand define métodos para controle do daemon.
+type daemonableCommand interface {
+	Enable(projectPath string) error
+	Disable(projectPath string) error
+	Status() error
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
-// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand).
-func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand runnableCommand, searchCommand searchableCommand) CommandRunner {
+// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand, daemonService).
+func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand runnableCommand, searchCommand searchableCommand, daemonService daemonableCommand) CommandRunner {
 	return CommandRunner{
 		arguments:      arguments,
 		indexCommand:   indexCommand,
 		destroyCommand: destroyCommand,
 		searchCommand:  searchCommand,
+		daemonService:  daemonService,
 	}
 }
 
@@ -58,7 +67,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "inspect", "watch", "destroy", "search", "help", "--help", "-h":
+	case "sync", "init", "inspect", "watch", "destroy", "search", "daemon", "help", "--help", "-h":
 		return true
 	default:
 		return false
