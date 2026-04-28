@@ -92,4 +92,4 @@
 
 ## Logging
 
-- Plain text only for user-facing CLI output.
+- Plain text only for user-facing CLI output. 
