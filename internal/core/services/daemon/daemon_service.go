@@ -40,38 +40,20 @@ func NewDaemonService(
 // Retorna erro apenas se não conseguir inicializar o projeto ou iniciar o watch.
 func (s *DaemonService) Enable(projectPath string) error {
 	// 1. Valida e resolve path absoluto
-	absPath, err := filepath.Abs(projectPath)
+	absPath, err := s.validateProjectPath(projectPath)
 	if err != nil {
-		return fmt.Errorf("invalid project path %q: got error %v, expected valid filesystem path", projectPath, err)
-	}
-
-	if _, err := os.Stat(absPath); err != nil {
-		return fmt.Errorf("project path %q not found: got error %v, expected existing directory", absPath, err)
+		return err
 	}
 
 	// 2. Verifica se já está ativado
 	state, _ := s.daemonRepo.ReadState()
-	if state != nil {
-		for _, proj := range state.Projects {
-			if proj.Path == absPath && proj.Enabled {
-				// Verifica se PID ainda está vivo
-				if _, err := os.FindProcess(proj.PID); err == nil {
-					return fmt.Errorf("project %q is already being monitored (PID: %d)", absPath, proj.PID)
-				}
-			}
-		}
+	if err := s.checkAlreadyMonitored(absPath, state); err != nil {
+		return err
 	}
 
 	// 3. Valida se tem index, se não tem = auto-init
-	indexPath := filepath.Join(absPath, ".idx", "index.gob")
-	if _, err := os.Stat(indexPath); err != nil {
-		if err := s.output.WriteLine("ℹ️  Index not found. Creating initial index..."); err != nil {
-			return err
-		}
-		// Executa init no projeto
-		if err := s.initCommand.RunFromPath(absPath); err != nil {
-			return err
-		}
+	if err := s.ensureIndexExists(absPath); err != nil {
+		return err
 	}
 
 	// 4. Inicia processo watch em background
@@ -95,6 +77,54 @@ func (s *DaemonService) Enable(projectPath string) error {
 	}
 	if err := s.output.WriteLine(fmt.Sprintf("👀 Monitoring in realtime (PID: %d)", pid)); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateProjectPath resolve e valida o caminho absoluto do projeto.
+func (s *DaemonService) validateProjectPath(projectPath string) (string, error) {
+	absPath, err := filepath.Abs(projectPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid project path %q: got error %v, expected valid filesystem path", projectPath, err)
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		return "", fmt.Errorf("project path %q not found: got error %v, expected existing directory", absPath, err)
+	}
+
+	return absPath, nil
+}
+
+// checkAlreadyMonitored verifica se o projeto já está sendo monitorado.
+func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.DaemonState) error {
+	if state == nil {
+		return nil
+	}
+
+	for _, proj := range state.Projects {
+		if proj.Path == absPath && proj.Enabled {
+			// Verifica se PID ainda está vivo
+			if _, err := os.FindProcess(proj.PID); err == nil {
+				return fmt.Errorf("project %q is already being monitored (PID: %d)", absPath, proj.PID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// ensureIndexExists verifica se o index existe, caso contrário executa auto-init.
+func (s *DaemonService) ensureIndexExists(absPath string) error {
+	indexPath := filepath.Join(absPath, ".idx", "index.gob")
+	if _, err := os.Stat(indexPath); err != nil {
+		if err := s.output.WriteLine("ℹ️  Index not found. Creating initial index..."); err != nil {
+			return err
+		}
+		// Executa init no projeto
+		if err := s.initCommand.RunFromPath(absPath); err != nil {
+			return err
+		}
 	}
 
 	return nil
