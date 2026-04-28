@@ -9,14 +9,14 @@ import (
 	"idx/internal/core/domain"
 )
 
-// TestDaemonStateRepositorySaveLoadRealFilesystem testa salvar e carregar estado do filesystem
+// TestDaemonStateRepositorySaveLoadRealFilesystem tests saving and loading state from the filesystem
 func TestDaemonStateRepositorySaveLoadRealFilesystem(t *testing.T) {
 	tmpHome := t.TempDir()
 	stateDir := filepath.Join(tmpHome, ".idx")
 	os.MkdirAll(stateDir, 0750)
 	statePath := filepath.Join(stateDir, "daemon.state")
 
-	// Escrever JSON manualmente
+	// Write JSON manually
 	jsonContent := `{
   "projects": [
     {
@@ -34,7 +34,7 @@ func TestDaemonStateRepositorySaveLoadRealFilesystem(t *testing.T) {
 		t.Fatalf("failed to write test state file: %v", err)
 	}
 
-	// Simular leitura (sem mockar UserHomeDir)
+	// Simulate reading (without mocking UserHomeDir)
 	data, err := os.ReadFile(statePath)
 	if err != nil {
 		t.Fatalf("failed to read state file: %v", err)
@@ -45,17 +45,17 @@ func TestDaemonStateRepositorySaveLoadRealFilesystem(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositorySaveStateCreatesDirectory testa criação de diretório
+// TestDaemonStateRepositorySaveStateCreatesDirectory tests directory creation
 func TestDaemonStateRepositorySaveStateCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
 
-	// Verificar que diretório foi criado
+	// Verify that the directory was created
 	if _, err := os.Stat(stateDir); err == nil {
 		t.Fatal("expected directory to not exist initially")
 	}
 
-	// Criar diretório
+	// Create directory
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatalf("expected mkdir to succeed, got %v", err)
 	}
@@ -65,14 +65,14 @@ func TestDaemonStateRepositorySaveStateCreatesDirectory(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryStateFileFormat testa formato correto do arquivo
+// TestDaemonStateRepositoryStateFileFormat tests the correct file format
 func TestDaemonStateRepositoryStateFileFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
 	os.MkdirAll(stateDir, 0750)
 	statePath := filepath.Join(stateDir, "daemon.state")
 
-	// Escrever estado
+	// Write state
 	state := &domain.DaemonState{
 		Projects: []domain.MonitoredProject{
 			{
@@ -86,13 +86,13 @@ func TestDaemonStateRepositoryStateFileFormat(t *testing.T) {
 		UpdatedAt: time.Date(2026, 4, 27, 15, 35, 0, 0, time.UTC),
 	}
 
-	// Escrever JSON manualmente para simular salvar
+	// Write JSON manually to simulate saving
 	content, err := os.ReadFile(statePath)
 	if err == nil && len(content) > 0 {
 		t.Fatal("expected file to not exist yet")
 	}
 
-	// Arquivo não deve existir antes de ser criado
+	// File must not exist before creation
 	if _, err := os.Stat(statePath); err == nil {
 		t.Fatal("expected file to not exist initially")
 	}
@@ -100,7 +100,7 @@ func TestDaemonStateRepositoryStateFileFormat(t *testing.T) {
 	_ = state // Usar state para satisfazer lint
 }
 
-// TestDaemonStateRepositoryMultipleProjectsFormat testa múltiplos projetos
+// TestDaemonStateRepositoryMultipleProjectsFormat tests multiple projects format
 func TestDaemonStateRepositoryMultipleProjectsFormat(t *testing.T) {
 	jsonWithMultipleProjects := `{
   "projects": [
@@ -141,19 +141,19 @@ func TestDaemonStateRepositoryMultipleProjectsFormat(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryPermissions testa permissões do arquivo
+// TestDaemonStateRepositoryPermissions tests file permissions
 func TestDaemonStateRepositoryPermissions(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
 	os.MkdirAll(stateDir, 0750)
 	statePath := filepath.Join(stateDir, "daemon.state")
 
-	// Criar arquivo com permissões 0600
+	// Create file with permissions 0600
 	if err := os.WriteFile(statePath, []byte("{}"), 0600); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	// Verificar permissões
+	// Verify permissions
 	info, err := os.Stat(statePath)
 	if err != nil {
 		t.Fatalf("failed to stat file: %v", err)
@@ -195,7 +195,7 @@ func TestDaemonStateRepositoryEmptyState(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryInvalidJSONHandling testa arquivo JSON inválido
+// TestDaemonStateRepositoryInvalidJSONHandling tests invalid JSON file handling
 func TestDaemonStateRepositoryInvalidJSONHandling(t *testing.T) {
 	invalidJSON := `{this is not valid json}`
 
@@ -218,22 +218,22 @@ func TestDaemonStateRepositoryInvalidJSONHandling(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryDirectoryCreation testa criação de diretório .idx
+// TestDaemonStateRepositoryDirectoryCreation tests .idx directory creation
 func TestDaemonStateRepositoryDirectoryCreation(t *testing.T) {
 	tmpDir := t.TempDir()
 	idxDir := filepath.Join(tmpDir, ".idx")
 
-	// Diretório não deve existir
+	// Directory must not exist initially
 	if _, err := os.Stat(idxDir); err == nil {
 		t.Fatal("expected .idx directory to not exist initially")
 	}
 
-	// Criar com MkdirAll
+	// Create with MkdirAll
 	if err := os.MkdirAll(idxDir, 0750); err != nil {
 		t.Fatalf("failed to create .idx directory: %v", err)
 	}
 
-	// Agora deve existir
+	// Should now exist
 	info, err := os.Stat(idxDir)
 	if err != nil {
 		t.Fatalf("failed to stat created directory: %v", err)

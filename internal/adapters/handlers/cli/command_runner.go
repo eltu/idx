@@ -30,7 +30,7 @@ type CommandRunner struct {
 	daemonService  daemonableCommand
 }
 
-// daemonableCommand define métodos para controle do daemon.
+// daemonableCommand defines methods for daemon control.
 type daemonableCommand interface {
 	Enable(projectPath string) error
 	Disable(projectPath string) error

@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// MonitoredProject representa um projeto sendo monitorado em realtime.
+// MonitoredProject represents a project being monitored in realtime.
 type MonitoredProject struct {
 	Path      string    `json:"path"`
 	PID       int       `json:"pid"`
@@ -11,7 +11,7 @@ type MonitoredProject struct {
 	LastSync  time.Time `json:"last_sync"`
 }
 
-// DaemonState é o arquivo global ~/.idx/daemon.state que persiste todos os projetos monitorados.
+// DaemonState is the global state file ~/.idx/daemon.state that persists all monitored projects.
 type DaemonState struct {
 	Projects  []MonitoredProject `json:"projects"`
 	UpdatedAt time.Time          `json:"updated_at"`

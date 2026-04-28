@@ -1,7 +1,7 @@
 package ports
 
-// InitCommandInterface define o contrato para inicializar um projeto.
+// InitCommandInterface defines the contract for initializing a project.
 type InitCommandInterface interface {
-	// RunFromPath executa a inicialização de índice a partir de um diretório específico.
+	// RunFromPath runs the index initialization from a specific directory.
 	RunFromPath(projectPath string) error
 }

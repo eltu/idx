@@ -10,23 +10,23 @@ import (
 	"idx/internal/core/domain"
 )
 
-// DaemonStateRepository persiste o estado do daemon em ~/.idx/daemon.state.
+// DaemonStateRepository persists the daemon state to ~/.idx/daemon.state.
 type DaemonStateRepository struct{}
 
-// NewDaemonStateRepository cria uma nova instância.
+// NewDaemonStateRepository creates a new instance.
 func NewDaemonStateRepository() *DaemonStateRepository {
 	return &DaemonStateRepository{}
 }
 
-// ReadState lê o arquivo de estado do daemon.
-// Retorna nil se o arquivo não existe (primeira vez que o daemon é usado).
+// ReadState reads the daemon state file.
+// Returns nil if the file does not exist (first time the daemon is used).
 func (r *DaemonStateRepository) ReadState() (*domain.DaemonState, error) {
 	statePath := r.stateFilePath()
 
 	data, err := os.ReadFile(statePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil // First run - arquivo não existe ainda
+			return nil, nil // First run – file does not exist yet
 		}
 		return nil, fmt.Errorf("failed to read daemon state from %q: got error %v, expected readable file", statePath, err)
 	}
@@ -39,12 +39,12 @@ func (r *DaemonStateRepository) ReadState() (*domain.DaemonState, error) {
 	return &state, nil
 }
 
-// SaveState persiste o estado do daemon para disco.
-// Cria ~/.idx/ se não existir.
+// SaveState persists the daemon state to disk.
+// Creates ~/.idx/ if it does not exist.
 func (r *DaemonStateRepository) SaveState(state *domain.DaemonState) error {
 	statePath := r.stateFilePath()
 
-	// Cria ~/.idx se não existir
+	// Create ~/.idx if it does not exist
 	dir := filepath.Dir(statePath)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create daemon config directory %q: got error %v, expected writable path", dir, err)
@@ -62,7 +62,7 @@ func (r *DaemonStateRepository) SaveState(state *domain.DaemonState) error {
 	return nil
 }
 
-// UpdateProjectPID atualiza o PID de um projeto no state file.
+// UpdateProjectPID updates the PID of a project in the state file.
 func (r *DaemonStateRepository) UpdateProjectPID(projectPath string, pid int) error {
 	state, _ := r.ReadState()
 	if state == nil {
@@ -81,7 +81,7 @@ func (r *DaemonStateRepository) UpdateProjectPID(projectPath string, pid int) er
 	return r.SaveState(state)
 }
 
-// stateFilePath retorna o caminho absoluto para o arquivo de estado do daemon.
+// stateFilePath returns the absolute path to the daemon state file.
 func (r *DaemonStateRepository) stateFilePath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".idx", "daemon.state")
