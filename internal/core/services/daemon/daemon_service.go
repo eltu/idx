@@ -10,7 +10,7 @@ import (
 	"idx/internal/core/ports"
 )
 
-// DaemonService orquestra a ativação e gerenciamento de watch processes para múltiplos projetos.
+// DaemonService orchestrates the activation and management of watch processes for multiple projects.
 type DaemonService struct {
 	daemonRepo     ports.DaemonRepository
 	projectTree    ports.ProjectTree
@@ -19,7 +19,7 @@ type DaemonService struct {
 	processSpawner ports.ProcessSpawner
 }
 
-// NewDaemonService cria uma nova instância do serviço daemon.
+// NewDaemonService creates a new instance of the daemon service.
 func NewDaemonService(
 	daemonRepo ports.DaemonRepository,
 	projectTree ports.ProjectTree,
@@ -36,35 +36,35 @@ func NewDaemonService(
 	}
 }
 
-// Enable ativa o watch para um projeto. Se o index não existir, auto-init é executado.
-// Retorna erro apenas se não conseguir inicializar o projeto ou iniciar o watch.
+// Enable activates the watch for a project. If the index does not exist, auto-init is executed.
+// Returns an error only if it fails to initialize the project or start the watch.
 func (s *DaemonService) Enable(projectPath string) error {
-	// 1. Valida e resolve path absoluto
+	// 1. Validate and resolve absolute path
 	absPath, err := s.validateProjectPath(projectPath)
 	if err != nil {
 		return err
 	}
 
-	// 2. Verifica se já está ativado
+	// 2. Check if already enabled
 	state, _ := s.daemonRepo.ReadState()
 	if err := s.checkAlreadyMonitored(absPath, state); err != nil {
 		return err
 	}
 
-	// 3. Valida se tem index, se não tem = auto-init
+	// 3. Validate index existence; if missing, run auto-init
 	if err := s.ensureIndexExists(absPath); err != nil {
 		return err
 	}
 
-	// 4. Inicia processo watch em background
+	// 4. Start watch process in background
 	pid, err := s.processSpawner.SpawnWatchProcess(absPath)
 	if err != nil {
 		return fmt.Errorf("failed to start watch for %q: got error %v, expected process to start", absPath, err)
 	}
 
-	// 5. Registra no state file
+	// 5. Register in state file
 	if err := s.registerProject(absPath, pid); err != nil {
-		// Mata o processo se não conseguir registrar
+		// Kill the process if registration fails
 		if proc, err := os.FindProcess(pid); err == nil {
 			_ = proc.Kill()
 		}
@@ -82,7 +82,7 @@ func (s *DaemonService) Enable(projectPath string) error {
 	return nil
 }
 
-// validateProjectPath resolve e valida o caminho absoluto do projeto.
+// validateProjectPath resolves and validates the absolute path of the project.
 func (s *DaemonService) validateProjectPath(projectPath string) (string, error) {
 	absPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -96,7 +96,7 @@ func (s *DaemonService) validateProjectPath(projectPath string) (string, error) 
 	return absPath, nil
 }
 
-// checkAlreadyMonitored verifica se o projeto já está sendo monitorado.
+// checkAlreadyMonitored checks whether the project is already being monitored.
 func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.DaemonState) error {
 	if state == nil {
 		return nil
@@ -104,7 +104,7 @@ func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.Daem
 
 	for _, proj := range state.Projects {
 		if proj.Path == absPath && proj.Enabled {
-			// Verifica se PID ainda está vivo
+			// Check if PID is still alive
 			if _, err := os.FindProcess(proj.PID); err == nil {
 				return fmt.Errorf("project %q is already being monitored (PID: %d)", absPath, proj.PID)
 			}
@@ -114,14 +114,14 @@ func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.Daem
 	return nil
 }
 
-// ensureIndexExists verifica se o index existe, caso contrário executa auto-init.
+// ensureIndexExists checks whether the index exists; if not, runs auto-init.
 func (s *DaemonService) ensureIndexExists(absPath string) error {
 	indexPath := filepath.Join(absPath, ".idx", "index.gob")
 	if _, err := os.Stat(indexPath); err != nil {
 		if err := s.output.WriteLine("ℹ️  Index not found. Creating initial index..."); err != nil {
 			return err
 		}
-		// Executa init no projeto
+		// Run init on the project
 		if err := s.initCommand.RunFromPath(absPath); err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (s *DaemonService) ensureIndexExists(absPath string) error {
 	return nil
 }
 
-// Disable para o watch de um projeto e o remove do daemon state.
+// Disable stops the watch for a project and removes it from the daemon state.
 func (s *DaemonService) Disable(projectPath string) error {
 	absPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *DaemonService) Disable(projectPath string) error {
 
 	for i, proj := range state.Projects {
 		if proj.Path == absPath {
-			// Kill do PID
+			// Kill the process by PID
 			if proj.Enabled && proj.PID > 0 {
 				proc, err := os.FindProcess(proj.PID)
 				if err == nil {
@@ -156,7 +156,7 @@ func (s *DaemonService) Disable(projectPath string) error {
 				}
 			}
 
-			// Remove do state
+			// Remove from state
 			state.Projects = append(state.Projects[:i], state.Projects[i+1:]...)
 			if err := s.daemonRepo.SaveState(state); err != nil {
 				return fmt.Errorf("failed to remove project from daemon state: got error %v, expected writable state file", err)
@@ -169,7 +169,7 @@ func (s *DaemonService) Disable(projectPath string) error {
 	return fmt.Errorf("project %q not being monitored", absPath)
 }
 
-// Status mostra todos os projetos sendo monitorados e seus status.
+// Status shows all monitored projects and their status.
 func (s *DaemonService) Status() error {
 	state, _ := s.daemonRepo.ReadState()
 
@@ -184,7 +184,7 @@ func (s *DaemonService) Status() error {
 	for _, proj := range state.Projects {
 		status := "❌ stopped"
 		if proj.Enabled {
-			// Verifica se PID ainda existe
+			// Check if PID still exists
 			if _, err := os.FindProcess(proj.PID); err == nil {
 				status = "✅ running"
 			}
@@ -200,7 +200,7 @@ func (s *DaemonService) Status() error {
 	return nil
 }
 
-// registerProject adiciona um novo projeto monitorado ao daemon state.
+// registerProject adds a new monitored project to the daemon state.
 func (s *DaemonService) registerProject(projectPath string, pid int) error {
 	state, _ := s.daemonRepo.ReadState()
 	if state == nil {

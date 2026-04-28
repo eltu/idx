@@ -36,7 +36,7 @@ func run(arguments []string, output io.Writer) error {
 
 	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo)
 
-	// Adapter que permite chamar init de um caminho específico
+	// Adapter that allows calling init from a specific path
 	initCommandAdapter := &initCommandAdapter{
 		initService: initCommand,
 		projectTree: projectTree,
@@ -54,7 +54,7 @@ func run(arguments []string, output io.Writer) error {
 	return runner.Run()
 }
 
-// initCommandAdapter adapta o InitCommandService para permitir chamada de um caminho específico.
+// initCommandAdapter adapts InitCommandService to allow calling init from a specific path.
 type initCommandAdapter struct {
 	initService indexing.InitCommandService
 	projectTree ports.ProjectTree
@@ -74,7 +74,7 @@ func (a *initCommandAdapter) RunFromPath(projectPath string) error {
 	return a.initService.Run()
 }
 
-// daemonServiceAdapter adapta o DaemonService para a interface daemonableCommand.
+// daemonServiceAdapter adapts DaemonService to the daemonableCommand interface.
 type daemonServiceAdapter struct {
 	daemon *daemon.DaemonService
 }

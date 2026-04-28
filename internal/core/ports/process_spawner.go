@@ -1,10 +1,10 @@
 package ports
 
-// ProcessSpawner encapsula a lógica de iniciar processos em background.
-// Permite mockar em testes.
+// ProcessSpawner encapsulates the logic for starting background processes.
+// Allows mocking in tests.
 type ProcessSpawner interface {
-	// SpawnWatchProcess inicia um processo watch em background para o diretório dado.
-	// Retorna o PID do processo iniciado ou erro se não conseguir iniciar.
-	// Implementações devem garantir que o processo fica desacoplado do pai.
+	// SpawnWatchProcess starts a background watch process for the given directory.
+	// Returns the PID of the started process or an error if it fails to start.
+	// Implementations must ensure the process is detached from the parent.
 	SpawnWatchProcess(projectPath string) (int, error)
 }
