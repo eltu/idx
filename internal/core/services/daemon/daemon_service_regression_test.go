@@ -24,7 +24,7 @@ func TestDaemonRegressionEnableDisableEnableCycle(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable
 	if err := service.Enable(p1); err != nil {
@@ -78,7 +78,7 @@ func TestDaemonRegressionMultipleProjectsSelective(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable 3 projetos
 	if err := service.Enable(p1); err != nil {
@@ -140,7 +140,7 @@ func TestDaemonRegressionInitCalledOnlyWhenNeeded(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable p2 (com index real, não deve chamar init)
 	if err := service.Enable(p2); err != nil {
@@ -167,7 +167,7 @@ func TestDaemonRegressionStatusConsistency(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable
 	if err := service.Enable(p1); err != nil {
@@ -212,7 +212,7 @@ func TestDaemonRegressionPathNormalization(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable com caminho absoluto
 	if err := service.Enable(p1); err != nil {
@@ -243,7 +243,7 @@ func TestDaemonRegressionProjectPreservation(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable p1
 	if err := service.Enable(p1); err != nil {
@@ -290,14 +290,14 @@ func TestDaemonRegressionRepositoryIntegration(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service1 := daemon.NewDaemonService(repo1, tree, output, initCmd)
+	service1 := daemon.NewDaemonService(repo1, tree, output, initCmd, &fakeProcessSpawner{})
 
 	if err := service1.Enable(p1); err != nil {
 		t.Fatalf("enable failed: %v", err)
 	}
 
 	// Criar novo service com mesmo repository
-	service2 := daemon.NewDaemonService(repo1, tree, output, initCmd)
+	service2 := daemon.NewDaemonService(repo1, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Novo service deve ver o estado salvo
 	state, _ := repo1.ReadState()
@@ -337,7 +337,7 @@ func TestDaemonRegressionInitFailureRecovery(t *testing.T) {
 	// Init command que falha (não deve afetar p2 que tem index)
 	initCmd := &fakeInitCommand{returnError: fmt.Errorf("init failed")}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable p2 (com index real, init não é chamado)
 	if err := service.Enable(p2); err != nil {
@@ -372,7 +372,7 @@ func TestDaemonRegressionConcurrentStateUpdates(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Sequência de operações
 	if err := service.Enable(p1); err != nil {
@@ -405,7 +405,7 @@ func TestDaemonRegressionStatusFormatting(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Status com zero projetos
 	service.Status()
@@ -434,7 +434,7 @@ func TestDaemonRegressionErrorMessages(t *testing.T) {
 	output := &fakeTextOutput{}
 	initCmd := &fakeInitCommand{}
 
-	service := daemon.NewDaemonService(repo, tree, output, initCmd)
+	service := daemon.NewDaemonService(repo, tree, output, initCmd, &fakeProcessSpawner{})
 
 	// Enable primeiro projeto
 	if err := service.Enable(p1); err != nil {

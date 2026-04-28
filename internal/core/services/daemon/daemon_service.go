@@ -3,7 +3,6 @@ package daemon
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -13,10 +12,11 @@ import (
 
 // DaemonService orquestra a ativação e gerenciamento de watch processes para múltiplos projetos.
 type DaemonService struct {
-	daemonRepo  ports.DaemonRepository
-	projectTree ports.ProjectTree
-	output      ports.TextOutput
-	initCommand ports.InitCommandInterface
+	daemonRepo     ports.DaemonRepository
+	projectTree    ports.ProjectTree
+	output         ports.TextOutput
+	initCommand    ports.InitCommandInterface
+	processSpawner ports.ProcessSpawner
 }
 
 // NewDaemonService cria uma nova instância do serviço daemon.
@@ -25,12 +25,14 @@ func NewDaemonService(
 	projectTree ports.ProjectTree,
 	output ports.TextOutput,
 	initCommand ports.InitCommandInterface,
+	processSpawner ports.ProcessSpawner,
 ) *DaemonService {
 	return &DaemonService{
-		daemonRepo:  daemonRepo,
-		projectTree: projectTree,
-		output:      output,
-		initCommand: initCommand,
+		daemonRepo:     daemonRepo,
+		projectTree:    projectTree,
+		output:         output,
+		initCommand:    initCommand,
+		processSpawner: processSpawner,
 	}
 }
 
@@ -73,21 +75,17 @@ func (s *DaemonService) Enable(projectPath string) error {
 	}
 
 	// 4. Inicia processo watch em background
-	cmd := exec.Command("idx", "watch", "--debounce", "750ms")
-	cmd.Dir = absPath
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	// Desacopla do terminal pai para não ser terminado junto
-	if err := cmd.Start(); err != nil {
+	pid, err := s.processSpawner.SpawnWatchProcess(absPath)
+	if err != nil {
 		return fmt.Errorf("failed to start watch for %q: got error %v, expected process to start", absPath, err)
 	}
 
-	pid := cmd.Process.Pid
-
 	// 5. Registra no state file
 	if err := s.registerProject(absPath, pid); err != nil {
-		_ = cmd.Process.Kill()
+		// Mata o processo se não conseguir registrar
+		if proc, err := os.FindProcess(pid); err == nil {
+			_ = proc.Kill()
+		}
 		return err
 	}
 
