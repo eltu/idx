@@ -159,7 +159,7 @@ func (service InitCommandService) consumeWatchEvents(watcher *fsnotify.Watcher, 
 				return err
 			}
 
-			timer, timerChannel = resetDebounceTimer(timer, timerChannel, debounce)
+			timer, timerChannel = resetDebounceTimer(timer, debounce)
 		case <-timerChannel:
 			if err := service.flushWatchedBatch(pendingDirectories, pendingFiles, projectRoot, matcher, showUpdatedFiles); err != nil {
 				return err
@@ -172,7 +172,7 @@ func (service InitCommandService) consumeWatchEvents(watcher *fsnotify.Watcher, 
 	}
 }
 
-func resetDebounceTimer(timer *time.Timer, timerChannel <-chan time.Time, debounce time.Duration) (*time.Timer, <-chan time.Time) {
+func resetDebounceTimer(timer *time.Timer, debounce time.Duration) (*time.Timer, <-chan time.Time) {
 	if timer == nil {
 		timer = time.NewTimer(debounce)
 		return timer, timer.C

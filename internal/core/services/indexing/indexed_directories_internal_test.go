@@ -43,12 +43,12 @@ func TestIndexedDirectoriesAndEligibleDirectories(t *testing.T) {
 	child := filepath.Join(root, "child")
 	tree := indexedTreeStub{
 		entries: map[string][]domain.DirectoryEntry{
-			root: []domain.DirectoryEntry{
+			root: {
 				{Name: ".git", Path: filepath.Join(root, ".git"), IsDir: true},
 				{Name: ".idx", Path: filepath.Join(root, ".idx"), IsDir: true},
 				{Name: "child", Path: child, IsDir: true},
 			},
-			child: []domain.DirectoryEntry{{Name: "file.txt", Path: filepath.Join(child, "file.txt"), IsDir: false}},
+			child: {{Name: "file.txt", Path: filepath.Join(child, "file.txt"), IsDir: false}},
 		},
 		exists: map[string]bool{
 			filepath.Join(root, ".idx", "index.idx"):  true,
@@ -78,7 +78,7 @@ func TestIndexedDirectoriesAndEligibleDirectories(t *testing.T) {
 func TestIndexedDirectoriesErrors(t *testing.T) {
 	root := "/repo"
 	treeWithStatError := indexedTreeStub{
-		entries: map[string][]domain.DirectoryEntry{root: []domain.DirectoryEntry{}},
+		entries: map[string][]domain.DirectoryEntry{root: {}},
 		exists:  map[string]bool{},
 		errDir:  map[string]error{},
 		errStat: map[string]error{filepath.Join(root, ".idx", "index.idx"): errors.New("stat failed")},
