@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -45,4 +46,34 @@ func TestMainCallsExitWithCodeOneWhenRunFails(t *testing.T) {
 	}()
 
 	main()
+}
+
+func TestProjectNameFromDirUsesGitRootBaseName(t *testing.T) {
+	workspace := filepath.Join(t.TempDir(), "my-project")
+	nested := filepath.Join(workspace, "internal", "core")
+	if err := os.MkdirAll(filepath.Join(workspace, ".git"), 0o750); err != nil {
+		t.Fatalf("failed to create fake git root: %v", err)
+	}
+	if err := os.MkdirAll(nested, 0o750); err != nil {
+		t.Fatalf("failed to create nested path: %v", err)
+	}
+
+	name := projectNameFromDir(nested)
+	if name != "my-project" {
+		t.Fatalf("expected project name %q, got %q", "my-project", name)
+	}
+}
+
+func TestSanitizePathSegmentReplacesUnsupportedChars(t *testing.T) {
+	result := sanitizePathSegment("my project@2026")
+	if result != "my_project_2026" {
+		t.Fatalf("expected sanitized name %q, got %q", "my_project_2026", result)
+	}
+}
+
+func TestSanitizePathSegmentFallbackForEmptyName(t *testing.T) {
+	result := sanitizePathSegment("...")
+	if result != "unknown-project" {
+		t.Fatalf("expected fallback name %q, got %q", "unknown-project", result)
+	}
 }

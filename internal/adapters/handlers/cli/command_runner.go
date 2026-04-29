@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"idx/internal/core/ports"
 )
 
@@ -52,17 +54,32 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Run dispatches the CLI command based on the first argument.
 // Example: err := runner.Run().
 func (runner CommandRunner) Run() error {
+	logger := zap.L()
+	logger.Info("starting command execution", zap.Strings("arguments", runner.arguments))
+
 	if len(runner.arguments) < 2 {
-		return fmt.Errorf("missing command: got %v, expected one of [sync init inspect watch destroy search]", runner.arguments)
+		err := fmt.Errorf("missing command: got %v, expected one of [sync init inspect watch destroy search]", runner.arguments)
+		logger.Warn("invalid command invocation", zap.Error(err))
+		return err
 	}
 
 	if !canExecuteWithCobra(runner.arguments[1]) {
-		return fmt.Errorf("unsupported command %q: expected one of [sync init inspect watch destroy search]", runner.arguments[1])
+		err := fmt.Errorf("unsupported command %q: expected one of [sync init inspect watch destroy search]", runner.arguments[1])
+		logger.Warn("unsupported command", zap.String("command", runner.arguments[1]), zap.Error(err))
+		return err
 	}
 
 	root := runner.newRootCommand()
 	root.SetArgs(runner.arguments[1:])
-	return root.Execute()
+
+	err := root.Execute()
+	if err != nil {
+		logger.Error("command execution failed", zap.String("command", runner.arguments[1]), zap.Error(err))
+		return err
+	}
+
+	logger.Info("command execution completed", zap.String("command", runner.arguments[1]))
+	return nil
 }
 
 func canExecuteWithCobra(command string) bool {

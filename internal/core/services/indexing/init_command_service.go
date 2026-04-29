@@ -3,9 +3,11 @@ package indexing
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"idx/internal/core/domain"
@@ -254,6 +256,15 @@ func (service InitCommandService) runIndex() error {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return err
+	}
+
+	if err := service.ensureIdxRuleInGitIgnore(projectRoot); err != nil {
+		return err
+	}
+
 	currentIndexPath := indexFilePath(currentDir)
 	hasIndex, err := service.projectTree.Exists(currentIndexPath)
 	if err != nil {
@@ -262,11 +273,6 @@ func (service InitCommandService) runIndex() error {
 
 	if hasIndex {
 		return service.output.WriteLine("ℹ️ This project is already indexed. You can run idx search.")
-	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
-	if err != nil {
-		return err
 	}
 
 	matcher, err := service.matcherFactory.New(projectRoot)
@@ -279,6 +285,73 @@ func (service InitCommandService) runIndex() error {
 	}
 
 	return service.output.WriteLine("✅ Index created. You can now run idx search.")
+}
+
+func (service InitCommandService) ensureIdxRuleInGitIgnore(projectRoot string) error {
+	gitIgnorePath := filepath.Join(projectRoot, ".gitignore")
+	content, err := service.fileReader.ReadFile(gitIgnorePath)
+	if err != nil {
+		if !isMissingFileError(err) {
+			return fmt.Errorf("failed to read project .gitignore %q: got error %v, expected readable file", gitIgnorePath, err)
+		}
+
+		return service.projectTree.WriteFile(gitIgnorePath, []byte(".idx/\n"))
+	}
+
+	if hasIdxDirectoryIgnoreRule(content) {
+		return nil
+	}
+
+	updated := appendIdxDirectoryIgnoreRule(content)
+	return service.projectTree.WriteFile(gitIgnorePath, []byte(updated))
+}
+
+func hasIdxDirectoryIgnoreRule(content string) bool {
+	lines := strings.Split(content, "\n")
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
+			continue
+		}
+
+		normalized := normalizeIgnorePattern(line)
+		if normalized == ".idx" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeIgnorePattern(pattern string) string {
+	normalized := strings.TrimSpace(pattern)
+	normalized = strings.TrimPrefix(normalized, "/")
+	normalized = strings.TrimSuffix(normalized, "/")
+	normalized = strings.TrimSuffix(normalized, "/**")
+	normalized = strings.TrimPrefix(normalized, "**/")
+	return normalized
+}
+
+func appendIdxDirectoryIgnoreRule(content string) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return ".idx/\n"
+	}
+
+	if strings.HasSuffix(content, "\n") {
+		return content + ".idx/\n"
+	}
+
+	return content + "\n.idx/\n"
+}
+
+func isMissingFileError(err error) bool {
+	if os.IsNotExist(err) {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "file not found") || strings.Contains(message, "no such file or directory")
 }
 
 func (service InitCommandService) writeInspectIndex(directoryPath string) error {
