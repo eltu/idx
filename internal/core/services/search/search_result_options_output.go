@@ -230,7 +230,7 @@ func (service SearchCommandService) writeResults(results []searchResult, project
 		return service.writeFilesOnlyResults(results, projectRoot)
 	}
 
-	return service.writeDetailedResults(results, projectRoot, terms, useANSI)
+	return service.writeDetailedResults(results, projectRoot, terms, useANSI, options)
 }
 
 func (service SearchCommandService) writeFilesOnlyResults(results []searchResult, projectRoot string) error {
@@ -248,9 +248,9 @@ func (service SearchCommandService) writeFilesOnlyResults(results []searchResult
 	return nil
 }
 
-func (service SearchCommandService) writeDetailedResults(results []searchResult, projectRoot string, terms []string, useANSI bool) error {
+func (service SearchCommandService) writeDetailedResults(results []searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {
 	for _, result := range results {
-		if err := service.writeResultBlock(result, projectRoot, terms, useANSI); err != nil {
+		if err := service.writeResultBlock(result, projectRoot, terms, useANSI, options); err != nil {
 			return err
 		}
 	}
@@ -258,13 +258,16 @@ func (service SearchCommandService) writeDetailedResults(results []searchResult,
 	return nil
 }
 
-func (service SearchCommandService) writeResultBlock(result searchResult, projectRoot string, terms []string, useANSI bool) error {
+func (service SearchCommandService) writeResultBlock(result searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {
 	projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 	if err != nil {
 		return err
 	}
 
-	header := fmt.Sprintf("%s (score: %.4f)", coloredFilePath(projectRelativePath, useANSI), result.score)
+	header := coloredFilePath(projectRelativePath, useANSI)
+	if options.Explain {
+		header = fmt.Sprintf("%s (score: %.4f)", header, result.score)
+	}
 	if err := service.output.WriteLine(header); err != nil {
 		return err
 	}

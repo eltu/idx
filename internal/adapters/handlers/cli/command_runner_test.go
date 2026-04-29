@@ -266,6 +266,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--format", "json",
 		"--context", "2",
 		"--json-pretty",
+		"--explain",
 		"--matches-only",
 		"--files-only",
 		"--path", "internal/core",
@@ -288,6 +289,10 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 
 	if !searchCommand.lastOptions.PrettyJSON || !searchCommand.lastOptions.MatchesOnly || !searchCommand.lastOptions.FilesOnly {
 		t.Fatalf("expected pretty/matches-only/files-only true, got %+v", searchCommand.lastOptions)
+	}
+
+	if !searchCommand.lastOptions.Explain {
+		t.Fatal("expected Explain true when --explain is provided")
 	}
 
 	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Size != 5 {

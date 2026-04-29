@@ -272,7 +272,7 @@ func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *tes
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod" {
 		t.Fatalf("expected metadata-only path result, got %q", output.lines[1])
 	}
 }
@@ -293,7 +293,75 @@ func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *t
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod" {
 		t.Fatalf("expected internal/core/go.mod with suffix wildcard, got %q", output.lines[1])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsExplainShowsScoreInTextOutput(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Explain: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected score in text output with explain, got %q", output.lines[1])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsJSONOmitsScoreByDefault(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	results := response["results"].([]any)
+	first := results[0].(map[string]any)
+	if _, exists := first["score"]; exists {
+		t.Fatalf("expected score to be omitted by default, got %v", first["score"])
+	}
+}
+
+func TestSearchCommandServiceRunWithOptionsJSONIncludesScoreWithExplain(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputJSON, Explain: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	results := response["results"].([]any)
+	first := results[0].(map[string]any)
+	if _, exists := first["score"]; !exists {
+		t.Fatal("expected score to be present when explain is enabled")
 	}
 }

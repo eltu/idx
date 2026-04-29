@@ -15,7 +15,7 @@ type jsonSearchResult struct {
 	File    string                `json:"file"`
 	Name    string                `json:"name"`
 	Path    string                `json:"path"`
-	Score   float64               `json:"score"`
+	Score   *float64              `json:"score,omitempty"`
 	Matches []jsonSearchMatchLine `json:"matches"`
 }
 
@@ -40,7 +40,7 @@ func (service SearchCommandService) writeResultsJSON(results []searchResult, pro
 		return service.output.WriteLine(string(encoded))
 	}
 
-	response, err := service.jsonSearchResponse(results, projectRoot, totalMatches)
+	response, err := service.jsonSearchResponse(results, projectRoot, totalMatches, options)
 	if err != nil {
 		return err
 	}
@@ -67,10 +67,10 @@ func (service SearchCommandService) jsonFilePaths(results []searchResult, projec
 	return filePaths, nil
 }
 
-func (service SearchCommandService) jsonSearchResponse(results []searchResult, projectRoot string, totalMatches int) (jsonSearchResponse, error) {
+func (service SearchCommandService) jsonSearchResponse(results []searchResult, projectRoot string, totalMatches int, options ports.SearchOptions) (jsonSearchResponse, error) {
 	payload := make([]jsonSearchResult, 0, len(results))
 	for _, result := range results {
-		jsonResult, err := service.jsonSearchResult(result, projectRoot)
+		jsonResult, err := service.jsonSearchResult(result, projectRoot, options)
 		if err != nil {
 			return jsonSearchResponse{}, err
 		}
@@ -81,17 +81,22 @@ func (service SearchCommandService) jsonSearchResponse(results []searchResult, p
 	return jsonSearchResponse{Count: totalMatches, Results: payload}, nil
 }
 
-func (service SearchCommandService) jsonSearchResult(result searchResult, projectRoot string) (jsonSearchResult, error) {
+func (service SearchCommandService) jsonSearchResult(result searchResult, projectRoot string, options ports.SearchOptions) (jsonSearchResult, error) {
 	projectRelativePath, err := relativeResultPath(projectRoot, result.directoryPath, result.fileName)
 	if err != nil {
 		return jsonSearchResult{}, err
+	}
+
+	var score *float64
+	if options.Explain {
+		score = &result.score
 	}
 
 	return jsonSearchResult{
 		File:    projectRelativePath,
 		Name:    result.fileName,
 		Path:    projectRelativePath,
-		Score:   result.score,
+		Score:   score,
 		Matches: jsonMatchLines(result.matchedLines),
 	}, nil
 }
