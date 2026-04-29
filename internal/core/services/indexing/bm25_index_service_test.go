@@ -29,8 +29,8 @@ func TestBM25IndexServiceBuildIndexBuildsDocumentsTermsAndPathMetadata(t *testin
 	if index.Terms["idx"] == nil || len(index.Terms["idx"].Docs) != 2 {
 		t.Fatal("expected idx term in both docs")
 	}
-	if !index.PathTerms[filepath.Join("repo", "a.txt")]["a.txt"] || !index.PathTerms[filepath.Join("repo", "sub", "b.txt")]["b.txt"] {
-		t.Fatal("expected path metadata tokens to be indexed")
+	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] || !index.PathTerms["sub"]["b.txt"] || !index.PathTerms["b.txt"]["b.txt"] {
+		t.Fatal("expected path metadata segment tokens to be indexed")
 	}
 }
 

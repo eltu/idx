@@ -2,10 +2,42 @@ package domain
 
 import "testing"
 
-func TestTokenizeTextUsesWhitespaceOnly(t *testing.T) {
+func TestTokenizeTextUsesStandardDelimiters(t *testing.T) {
 	text := "fmt.Println(\"Hello\") if x == y { return a+b }"
 	tokens := TokenizeText(text)
-	expected := []string{"fmt.println(\"hello\")", "if", "x", "==", "y", "{", "return", "a+b", "}"}
+	expected := []string{"fmt.println", "hello", "if", "x", "y", "return", "a", "b"}
+
+	if len(tokens) != len(expected) {
+		t.Fatalf("expected %d tokens, got %d", len(expected), len(tokens))
+	}
+
+	for index, token := range tokens {
+		if token.Token != expected[index] {
+			t.Fatalf("expected token %q at index %d, got %q", expected[index], index, token.Token)
+		}
+	}
+}
+
+func TestTokenizeTextHandlesPeriodsByContext(t *testing.T) {
+	text := "version 1.26.1. domain example.com. trailing."
+	tokens := TokenizeText(text)
+	expected := []string{"version", "1.26.1", "domain", "example.com", "trailing"}
+
+	if len(tokens) != len(expected) {
+		t.Fatalf("expected %d tokens, got %d", len(expected), len(tokens))
+	}
+
+	for index, token := range tokens {
+		if token.Token != expected[index] {
+			t.Fatalf("expected token %q at index %d, got %q", expected[index], index, token.Token)
+		}
+	}
+}
+
+func TestTokenizeTextSplitsHyphenWordsUnlessNumeric(t *testing.T) {
+	text := "foo-bar F-150 alpha-beta x-1 2024-10"
+	tokens := TokenizeText(text)
+	expected := []string{"foo", "bar", "f-150", "alpha", "beta", "x-1", "2024-10"}
 
 	if len(tokens) != len(expected) {
 		t.Fatalf("expected %d tokens, got %d", len(expected), len(tokens))

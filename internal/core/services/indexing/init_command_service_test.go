@@ -168,3 +168,82 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 		t.Fatalf("unexpected output message %q", output.lines[0])
 	}
 }
+
+func TestInitCommandServiceRunCreatesGitIgnoreWithIdxRuleWhenMissing(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+		nil,
+	)
+
+	if err := service.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	gitIgnorePath := filepath.Join(rootDir, ".gitignore")
+	if tree.writes[gitIgnorePath] != ".idx/\n" {
+		t.Fatalf("expected .gitignore to be created with .idx rule, got %q", tree.writes[gitIgnorePath])
+	}
+}
+
+func TestInitCommandServiceRunAppendsIdxRuleWhenMissingFromGitIgnore(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+
+	gitIgnorePath := filepath.Join(rootDir, ".gitignore")
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{gitIgnorePath: "vendor/\n*.log\n"}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+		nil,
+	)
+
+	if err := service.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	expected := "vendor/\n*.log\n.idx/\n"
+	if tree.writes[gitIgnorePath] != expected {
+		t.Fatalf("expected .gitignore update %q, got %q", expected, tree.writes[gitIgnorePath])
+	}
+}
+
+func TestInitCommandServiceRunDoesNotRewriteGitIgnoreWhenRuleAlreadyExists(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := newFakeProjectTree(rootDir, rootDir)
+	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
+
+	gitIgnorePath := filepath.Join(rootDir, ".gitignore")
+	service := indexing.NewInitCommandService(
+		tree,
+		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		&capturingTextOutput{},
+		fakeFileReader{files: map[string]string{gitIgnorePath: "vendor/\n.idx/\n*.log\n"}},
+		&fakeBM25Indexer{},
+		&fakeIndexRepository{savedIndices: map[string]*domain.InvertedIndex{}},
+		newFakeChecksumRepository(),
+		nil,
+	)
+
+	if err := service.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if _, wrote := tree.writes[gitIgnorePath]; wrote {
+		t.Fatal("expected no .gitignore rewrite when .idx rule already exists")
+	}
+}

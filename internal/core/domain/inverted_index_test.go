@@ -31,8 +31,8 @@ func TestInvertedIndexDocumentAndTermLifecycle(t *testing.T) {
 	if !index.FileNameTerms["a.txt"]["a.txt"] {
 		t.Fatal("expected filename token to be indexed")
 	}
-	if !index.PathTerms["repo/docs/a.txt"]["a.txt"] {
-		t.Fatal("expected path token to be indexed")
+	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["docs"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] {
+		t.Fatal("expected path segment tokens to be indexed")
 	}
 }
 
