@@ -11,28 +11,86 @@ type TokenWithPosition struct {
 }
 
 // TokenizeText extracts tokens from text with their positions.
-// Returns lowercase tokens split only by whitespace.
+// Returns lowercase tokens split by standard delimiters.
+// Periods are kept only inside terms (e.g. versions/domains) and hyphens
+// are kept only for alphanumeric product-like terms that include digits.
 func TokenizeText(text string) []TokenWithPosition {
-	fields := strings.Fields(text)
-	tokens := make([]TokenWithPosition, 0, len(fields))
-	searchFrom := 0
-
-	for _, field := range fields {
-		position := strings.Index(text[searchFrom:], field)
-		if position < 0 {
+	tokens := make([]TokenWithPosition, 0)
+	for index := 0; index < len(text); {
+		if !isTokenChar(text, index) {
+			index++
 			continue
 		}
 
-		absolutePos := searchFrom + position
-		tokens = append(tokens, TokenWithPosition{
-			Token:    strings.ToLower(field),
-			Position: absolutePos,
-		})
+		start := index
+		for index < len(text) && isTokenChar(text, index) {
+			index++
+		}
 
-		searchFrom = absolutePos + len(field)
+		token := strings.ToLower(text[start:index])
+		if token == "" {
+			continue
+		}
+
+		tokens = append(tokens, TokenWithPosition{Token: token, Position: start})
 	}
 
 	return tokens
+}
+
+func isTokenChar(text string, index int) bool {
+	char := text[index]
+	if isAlphaNumeric(char) || char == '_' {
+		return true
+	}
+
+	if char == '.' {
+		return isInnerPeriod(text, index)
+	}
+
+	if char == '-' {
+		return isNumericHyphen(text, index)
+	}
+
+	return false
+}
+
+func isAlphaNumeric(char byte) bool {
+	if char >= 'a' && char <= 'z' {
+		return true
+	}
+
+	if char >= 'A' && char <= 'Z' {
+		return true
+	}
+
+	return char >= '0' && char <= '9'
+}
+
+func isInnerPeriod(text string, index int) bool {
+	if index == 0 || index == len(text)-1 {
+		return false
+	}
+
+	return isAlphaNumeric(text[index-1]) && isAlphaNumeric(text[index+1])
+}
+
+func isNumericHyphen(text string, index int) bool {
+	if index == 0 || index == len(text)-1 {
+		return false
+	}
+
+	left := text[index-1]
+	right := text[index+1]
+	if !isAlphaNumeric(left) || !isAlphaNumeric(right) {
+		return false
+	}
+
+	return isDigit(left) || isDigit(right)
+}
+
+func isDigit(char byte) bool {
+	return char >= '0' && char <= '9'
 }
 
 // CountTokenFrequencies returns a map of token->count and token->positions.

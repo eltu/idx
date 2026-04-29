@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/adapters/repository"
@@ -17,10 +23,136 @@ import (
 var exitProcess = os.Exit
 
 func main() {
+	logger, err := newLogger()
+	if err != nil {
+		logger = zap.NewNop()
+		zap.ReplaceGlobals(logger)
+	}
+	defer func() { _ = logger.Sync() }()
+
 	if err := run(os.Args, os.Stdout); err != nil {
+		logger.Error("command failed", zap.Error(err), zap.Strings("arguments", os.Args))
 		fmt.Fprintln(os.Stderr, err.Error())
 		exitProcess(1)
 	}
+}
+
+func newLogger() (*zap.Logger, error) {
+	logPath, err := loggerOutputPath()
+	if err != nil {
+		return nil, err
+	}
+
+	logLevel := zapcore.ErrorLevel
+
+	if envLevel := strings.TrimSpace(os.Getenv("IDX_LOG_LEVEL")); envLevel != "" {
+		var parsedLevel zapcore.Level
+		if err := parsedLevel.Set(strings.ToLower(envLevel)); err != nil {
+			return nil, fmt.Errorf("invalid IDX_LOG_LEVEL %q: expected one of [debug info warn error dpanic panic fatal]", envLevel)
+		}
+		logLevel = parsedLevel
+	}
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+	rotatingWriter := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    1,
+		MaxBackups: 5,
+	}
+
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.AddSync(rotatingWriter),
+		logLevel,
+	)
+
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+
+	zap.ReplaceGlobals(logger)
+	return logger, nil
+}
+
+func loggerOutputPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve user home directory: %w", err)
+	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve current directory for logger path: %w", err)
+	}
+
+	projectName := projectNameFromDir(currentDir)
+	logsDir := filepath.Join(homeDir, ".idx", "logs", projectName)
+	if err := os.MkdirAll(logsDir, 0o750); err != nil {
+		return "", fmt.Errorf("failed to create logs directory %q: %w", logsDir, err)
+	}
+
+	return filepath.Join(logsDir, "idx.log"), nil
+}
+
+func projectNameFromDir(currentDir string) string {
+	rootDir := gitRootFrom(currentDir)
+	baseName := filepath.Base(rootDir)
+	return sanitizePathSegment(baseName)
+}
+
+func gitRootFrom(startDir string) string {
+	currentDir := startDir
+	for {
+		if _, err := os.Stat(filepath.Join(currentDir, ".git")); err == nil {
+			return currentDir
+		}
+
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			return startDir
+		}
+
+		currentDir = parentDir
+	}
+}
+
+func sanitizePathSegment(name string) string {
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		return "unknown-project"
+	}
+
+	b := strings.Builder{}
+	b.Grow(len(name))
+	for i := 0; i < len(name); i++ {
+		char := name[i]
+		if isPathSafeChar(char) {
+			b.WriteByte(char)
+			continue
+		}
+
+		b.WriteByte('_')
+	}
+
+	clean := strings.Trim(b.String(), "._-")
+	if clean == "" {
+		return "unknown-project"
+	}
+
+	return clean
+}
+
+func isPathSafeChar(char byte) bool {
+	if char >= 'a' && char <= 'z' {
+		return true
+	}
+
+	if char >= 'A' && char <= 'Z' {
+		return true
+	}
+
+	if char >= '0' && char <= '9' {
+		return true
+	}
+
+	return char == '-' || char == '_' || char == '.'
 }
 
 func run(arguments []string, output io.Writer) error {
