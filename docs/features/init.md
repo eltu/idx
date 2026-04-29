@@ -20,6 +20,8 @@
 
 - Skips `.git` and `.idx` directories.
 - Applies `.gitignore` rules.
+- Ensures `.idx/` is present in the project root `.gitignore` before indexing.
+- Creates `.gitignore` with `.idx/` when the file does not exist.
 - If root index already exists, it does not rebuild root index.
 
 ## Side effects
