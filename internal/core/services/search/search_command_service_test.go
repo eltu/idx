@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"idx/internal/core/domain"
+	"idx/internal/core/ports"
 	search "idx/internal/core/services/search"
 )
 
@@ -36,7 +37,7 @@ func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 		t.Fatalf("expected 8 output lines, got %d: %v", len(output.lines), output.lines)
 	}
 
-	if stripANSICodes(output.lines[1]) != "./guide.md (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "./guide.md" {
 		t.Fatalf("expected best result file header first, got %q", output.lines[1])
 	}
 }
@@ -60,7 +61,7 @@ func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "./go.mod" {
 		t.Fatalf("expected only full match result, got %q", output.lines[1])
 	}
 }
@@ -126,7 +127,7 @@ func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "./near.txt (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "./near.txt" {
 		t.Fatalf("expected nearby terms file first, got %q", output.lines[1])
 	}
 }
@@ -150,7 +151,7 @@ func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "internal/core/go.mod (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "internal/core/go.mod" {
 		t.Fatalf("expected project-relative path output, got %q", output.lines[1])
 	}
 }
@@ -174,7 +175,27 @@ func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if stripANSICodes(output.lines[1]) != "docs/guide.md (score: 1.0000)" {
+	if stripANSICodes(output.lines[1]) != "docs/guide.md" {
 		t.Fatalf("expected child directory file header, got %q", output.lines[1])
+	}
+}
+
+func TestSearchCommandServiceRunWithExplainShowsScoreInTextOutput(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "go.mod"): "module idx",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Explain: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
+		t.Fatalf("expected score when explain is enabled, got %q", output.lines[1])
 	}
 }

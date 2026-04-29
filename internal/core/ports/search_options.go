@@ -10,6 +10,7 @@ type SearchOptions struct {
 	Format      string
 	Context     int
 	PrettyJSON  bool
+	Explain     bool
 	MatchesOnly bool
 	FilesOnly   bool
 	PathQuery   string

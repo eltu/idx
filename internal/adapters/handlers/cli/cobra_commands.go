@@ -103,6 +103,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	var format string
 	var contextLines int
 	var prettyJSON bool
+	var explain bool
 	var matchesOnly bool
 	var legacyMatchesOnly bool
 	var filesOnly bool
@@ -128,7 +129,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 				return err
 			}
 
-			options := buildSearchOptions(format, contextLines, prettyJSON, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size)
+			options := buildSearchOptions(format, contextLines, prettyJSON, explain, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size)
 			return runner.searchCommand.RunWithOptions(query, options)
 		},
 	}
@@ -136,6 +137,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	searchCommand.Flags().StringVar(&format, "format", ports.SearchOutputText, "Output format: text|json")
 	searchCommand.Flags().IntVar(&contextLines, "context", 0, "Number of context lines around matches")
 	searchCommand.Flags().BoolVar(&prettyJSON, "json-pretty", false, "Pretty-print JSON output")
+	searchCommand.Flags().BoolVar(&explain, "explain", false, "Include ranking metadata such as score")
 	searchCommand.Flags().BoolVar(&matchesOnly, "matches-only", false, "Show only directly matched lines")
 	searchCommand.Flags().BoolVar(&legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
 	searchCommand.Flags().MarkHidden("macthes-only")
@@ -191,6 +193,7 @@ func buildSearchOptions(
 	format string,
 	contextLines int,
 	prettyJSON bool,
+	explain bool,
 	matchesOnly bool,
 	legacyMatchesOnly bool,
 	filesOnly bool,
@@ -202,6 +205,7 @@ func buildSearchOptions(
 		Format:      format,
 		Context:     contextLines,
 		PrettyJSON:  prettyJSON,
+		Explain:     explain,
 		MatchesOnly: matchesOnly || legacyMatchesOnly,
 		FilesOnly:   filesOnly,
 		PathQueries: pathQueries,
