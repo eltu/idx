@@ -38,15 +38,23 @@ func TestCommandRunnerRunRejectsMissingCommand(t *testing.T) {
 }
 
 func TestParseInspectArgumentsInternal(t *testing.T) {
-	if _, err := parseInspectArguments([]string{}); err == nil {
-		t.Fatal("expected error for missing inspect path")
+	path, err := parseInspectArguments([]string{})
+	if err != nil {
+		t.Fatalf("expected no error for empty args, got %v", err)
+	}
+	if path != "" {
+		t.Fatalf("expected empty path for empty args, got %q", path)
 	}
 
 	if _, err := parseInspectArguments([]string{"--flag"}); err == nil {
 		t.Fatal("expected error for flag-like inspect path")
 	}
 
-	path, err := parseInspectArguments([]string{"internal"})
+	if _, err := parseInspectArguments([]string{"a", "b"}); err == nil {
+		t.Fatal("expected error for multiple inspect paths")
+	}
+
+	path, err = parseInspectArguments([]string{"internal"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
