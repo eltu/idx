@@ -3,8 +3,11 @@ package indexing
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,6 +16,8 @@ import (
 )
 
 var runInspectTUI = runInspectTUIProgram
+
+var inspectAvailableCommands = []string{"index", "tlog"}
 
 var (
 	inspectTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
@@ -70,8 +75,29 @@ type inspectViewMode int
 const (
 	inspectViewModeDirectories inspectViewMode = iota
 	inspectViewModeDocuments
+	inspectViewModeLogs
 	inspectViewModeJSON
 )
+
+type inspectCommandMode int
+
+const (
+	inspectCommandModeNone inspectCommandMode = iota
+	inspectCommandModeSearch
+	inspectCommandModeCommand
+)
+
+type inspectLogRow struct {
+	indexedAt string
+	path      string
+	hash      string
+	summary   string
+	jsonRaw   string
+}
+
+type inspectRealtimeRefreshMsg struct{}
+
+const inspectRealtimeRefreshInterval = time.Second
 
 type inspectModel struct {
 	index                *domain.InvertedIndex
@@ -93,6 +119,17 @@ type inspectModel struct {
 	documentSearchMode   bool
 	documentSelected     int
 	documentStart        int
+	logs                 []inspectLogRow
+	filteredLogs         []inspectLogRow
+	logSearchQuery       string
+	logSearchMode        bool
+	logSelected          int
+	logStart             int
+	logColumnOffset      int
+	commandMode          inspectCommandMode
+	commandQuery         string
+	commandError         string
+	jsonReturnMode       inspectViewMode
 	jsonTitle            string
 	jsonLines            []string
 	jsonStart            int
@@ -118,7 +155,313 @@ func newInspectModel(index *domain.InvertedIndex) inspectModel {
 		documentSearchMode:   false,
 		documentSelected:     0,
 		documentStart:        0,
+		logs:                 loadInspectTransactionLogs(),
+		filteredLogs:         []inspectLogRow{},
+		logSearchQuery:       "",
+		logSearchMode:        false,
+		logSelected:          0,
+		logStart:             0,
+		logColumnOffset:      0,
+		commandMode:          inspectCommandModeNone,
+		commandQuery:         "",
+		commandError:         "",
+		jsonReturnMode:       inspectViewModeDocuments,
 	}
+}
+
+func loadInspectTransactionLogs() []inspectLogRow {
+	projectRoot, err := resolveInspectProjectRoot()
+	if err != nil {
+		return []inspectLogRow{}
+	}
+
+	logFiles, err := discoverInspectTransactionLogFiles(projectRoot)
+	if err != nil {
+		return []inspectLogRow{}
+	}
+
+	rows := make([]inspectLogRow, 0)
+	for _, logFile := range logFiles {
+		fileRows, readErr := readInspectTransactionLogFile(logFile)
+		if readErr != nil {
+			continue
+		}
+
+		rows = append(rows, fileRows...)
+	}
+
+	sortInspectLogsNewestFirst(rows)
+
+	return rows
+}
+
+func sortInspectLogsNewestFirst(rows []inspectLogRow) {
+	sort.SliceStable(rows, func(i int, j int) bool {
+		left := rows[i]
+		right := rows[j]
+
+		leftTime, leftOK := parseInspectLogTime(left.indexedAt)
+		rightTime, rightOK := parseInspectLogTime(right.indexedAt)
+		if leftOK && rightOK {
+			return leftTime.After(rightTime)
+		}
+
+		if leftOK {
+			return true
+		}
+
+		if rightOK {
+			return false
+		}
+
+		return left.indexedAt > right.indexedAt
+	})
+}
+
+func parseInspectLogTime(value string) (time.Time, bool) {
+	if strings.TrimSpace(value) == "" || value == "-" {
+		return time.Time{}, false
+	}
+
+	layouts := []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02 15:04:05Z07:00"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, value)
+		if err == nil {
+			return parsed, true
+		}
+	}
+
+	return time.Time{}, false
+}
+
+func resolveInspectProjectRoot() (string, error) {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	searchDir := currentDir
+	for {
+		gitPath := filepath.Join(searchDir, ".git")
+		if info, statErr := os.Stat(gitPath); statErr == nil && info.IsDir() {
+			return searchDir, nil
+		}
+
+		parentDir := filepath.Dir(searchDir)
+		if parentDir == searchDir {
+			return currentDir, nil
+		}
+
+		searchDir = parentDir
+	}
+}
+
+func discoverInspectTransactionLogFiles(projectRoot string) ([]string, error) {
+	paths := make([]string, 0)
+	err := filepath.WalkDir(projectRoot, func(path string, directoryEntry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if directoryEntry.IsDir() {
+			if directoryEntry.Name() == ".git" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if directoryEntry.Name() != "tlog.idx" {
+			return nil
+		}
+
+		if !isInspectTransactionLogPath(path) {
+			return nil
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func isInspectTransactionLogPath(path string) bool {
+	relativePath := filepath.ToSlash(path)
+	return strings.HasSuffix(relativePath, "/.idx/logs/tlog.idx") || strings.HasSuffix(relativePath, "/idx/logs/tlog.idx")
+}
+
+func readInspectTransactionLogFile(filePath string) ([]inspectLogRow, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	rows := make([]inspectLogRow, 0, len(lines))
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		rows = append(rows, inspectBuildLogRow(trimmed, i+1, filePath))
+	}
+
+	// Show latest transactions first.
+	for left, right := 0, len(rows)-1; left < right; left, right = left+1, right-1 {
+		rows[left], rows[right] = rows[right], rows[left]
+	}
+
+	return rows, nil
+}
+
+func inspectBuildLogRow(line string, position int, filePath string) inspectLogRow {
+	row := inspectLogRow{
+		indexedAt: "-",
+		path:      filepath.Dir(filepath.Dir(filePath)),
+		hash:      "-",
+		summary:   line,
+		jsonRaw:   line,
+	}
+
+	jsonRaw := line
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(line), &parsed); err == nil {
+		if value, ok := parsed["summary"].(string); ok && strings.TrimSpace(value) != "" {
+			row.summary = value
+		}
+
+		row.indexedAt = inspectStringField(parsed, "indexed_at", "indexedAt", "timestamp", "time", "updated")
+		if row.indexedAt == "" {
+			row.indexedAt = "-"
+		}
+
+		parsedPath := inspectStringField(parsed, "path", "file_path", "filePath", "directory")
+		if parsedPath != "" {
+			row.path = parsedPath
+		}
+
+		row.hash = inspectStringField(parsed, "hash", "checksum", "sha", "sha256")
+		if row.hash == "" {
+			row.hash = "-"
+		}
+
+		pretty, marshalErr := json.MarshalIndent(parsed, "", "  ")
+		if marshalErr == nil {
+			jsonRaw = string(pretty)
+		}
+	}
+
+	indexedAt, pathValue, hash := parseInspectSummaryFields(row.summary)
+	if indexedAt != "" {
+		row.indexedAt = indexedAt
+	}
+	if pathValue != "" {
+		row.path = pathValue
+	}
+	if hash != "" {
+		row.hash = hash
+	}
+
+	row.jsonRaw = jsonRaw
+	return row
+}
+
+func inspectStringField(fields map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := fields[key]
+		if !ok {
+			continue
+		}
+
+		stringValue, isString := value.(string)
+		if !isString {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(stringValue)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return ""
+}
+
+func parseInspectSummaryFields(summary string) (string, string, string) {
+	if strings.TrimSpace(summary) == "" {
+		return "", "", ""
+	}
+
+	normalized := strings.NewReplacer(",", " ",
+		";", " ",
+		"|", " ",
+	).Replace(summary)
+
+	parsed := map[string]string{}
+	for _, token := range strings.Fields(normalized) {
+		if strings.Contains(token, "=") {
+			parts := strings.SplitN(token, "=", 2)
+			if len(parts) == 2 {
+				parsed[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+			}
+			continue
+		}
+
+		if strings.Contains(token, ":") {
+			parts := strings.SplitN(token, ":", 2)
+			if len(parts) == 2 {
+				parsed[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+			}
+		}
+	}
+
+	indexedAt := parsed["indexed_at"]
+	pathValue := parsed["path"]
+	hash := parsed["hash"]
+
+	if indexedAt == "" {
+		indexedAt = extractSummaryValue(summary, "indexed_at")
+	}
+	if pathValue == "" {
+		pathValue = extractSummaryValue(summary, "path")
+	}
+	if hash == "" {
+		hash = extractSummaryValue(summary, "hash")
+	}
+
+	return indexedAt, pathValue, hash
+}
+
+func extractSummaryValue(summary string, key string) string {
+	patterns := []string{key + "=", key + ":"}
+	for _, pattern := range patterns {
+		start := strings.Index(summary, pattern)
+		if start < 0 {
+			continue
+		}
+
+		value := strings.TrimSpace(summary[start+len(pattern):])
+		if value == "" {
+			continue
+		}
+
+		for index, runeValue := range value {
+			if runeValue == ',' || runeValue == ';' || runeValue == '|' || runeValue == ' ' || runeValue == '\t' {
+				return strings.TrimSpace(value[:index])
+			}
+		}
+
+		return strings.TrimSpace(value)
+	}
+
+	return ""
 }
 
 func inspectRowsFromIndex(index *domain.InvertedIndex) ([]inspectDirectoryRow, map[string][]inspectDocumentRow) {
@@ -211,11 +554,23 @@ func documentTermCount(index *domain.InvertedIndex, documentName string) int {
 }
 
 func (model inspectModel) Init() tea.Cmd {
-	return nil
+	return inspectRealtimeRefreshCmd()
+}
+
+func inspectRealtimeRefreshCmd() tea.Cmd {
+	return tea.Tick(inspectRealtimeRefreshInterval, func(time.Time) tea.Msg {
+		return inspectRealtimeRefreshMsg{}
+	})
 }
 
 func (model inspectModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
+	case inspectRealtimeRefreshMsg:
+		if model.mode == inspectViewModeLogs {
+			model = refreshInspectLogs(model)
+		}
+
+		return model, inspectRealtimeRefreshCmd()
 	case tea.WindowSizeMsg:
 		model.width = msg.Width
 		model.height = msg.Height
@@ -228,12 +583,27 @@ func (model inspectModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return model, nil
 	case tea.KeyMsg:
+		if model.commandMode == inspectCommandModeCommand {
+			return updateInspectCommandInputMode(model, msg)
+		}
+
+		if msg.String() == ":" {
+			model.commandMode = inspectCommandModeCommand
+			model.commandQuery = ""
+			model.commandError = ""
+			return model, nil
+		}
+
 		if model.mode == inspectViewModeJSON {
 			return updateInspectJSONMode(model, msg)
 		}
 
 		if model.mode == inspectViewModeDocuments {
 			return updateInspectDocumentsMode(model, msg)
+		}
+
+		if model.mode == inspectViewModeLogs {
+			return updateInspectLogsMode(model, msg)
 		}
 
 		return updateInspectDirectoriesMode(model, msg)
@@ -254,6 +624,7 @@ func updateInspectDirectoriesMode(model inspectModel, key tea.KeyMsg) (tea.Model
 	case "/":
 		model.directorySearchMode = true
 		model.directorySearchQuery = ""
+		model.commandMode = inspectCommandModeSearch
 		model = applyInspectDirectoryFilter(model)
 		return model, nil
 	case "enter":
@@ -308,6 +679,7 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 	case "/":
 		model.documentSearchMode = true
 		model.documentSearchQuery = ""
+		model.commandMode = inspectCommandModeSearch
 		model = applyInspectDocumentFilter(model)
 		return model, nil
 	case "esc":
@@ -329,6 +701,7 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 		}
 
 		model.mode = inspectViewModeJSON
+		model.jsonReturnMode = inspectViewModeDocuments
 		model.jsonTitle = selected.path
 		model.jsonLines = strings.Split(jsonText, "\n")
 		model.jsonStart = 0
@@ -358,15 +731,62 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 	return model, nil
 }
 
+func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if model.logSearchMode {
+		return updateInspectLogSearchMode(model, key)
+	}
+
+	switch key.String() {
+	case "ctrl+c", "q":
+		model.quitting = true
+		return model, tea.Quit
+	case "/":
+		model.logSearchMode = true
+		model.logSearchQuery = ""
+		model.commandMode = inspectCommandModeSearch
+		model = applyInspectLogFilter(model)
+		return model, nil
+	case "enter":
+		// Logs list is the final data view; keep selection unchanged on Enter.
+		return model, nil
+	case "up", "k":
+		if model.logSelected > 0 {
+			model.logSelected--
+		}
+	case "down", "j":
+		if model.logSelected < len(model.filteredLogs)-1 {
+			model.logSelected++
+		}
+	case "pgup":
+		model.logSelected -= inspectLogsPageStep(model)
+		if model.logSelected < 0 {
+			model.logSelected = 0
+		}
+	case "pgdown":
+		model.logSelected += inspectLogsPageStep(model)
+		if model.logSelected >= len(model.filteredLogs) {
+			model.logSelected = len(model.filteredLogs) - 1
+		}
+	case "left":
+		if model.logColumnOffset > 0 {
+			model.logColumnOffset -= 4
+			if model.logColumnOffset < 0 {
+				model.logColumnOffset = 0
+			}
+		}
+	case "right":
+		model.logColumnOffset += 4
+	}
+
+	model = adjustInspectLogsViewport(model)
+	return model, nil
+}
+
 func updateInspectDirectorySearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.Type {
-	case tea.KeyEsc:
-		model.directorySearchMode = false
-		model.directorySearchQuery = ""
-		model = applyInspectDirectoryFilter(model)
-		return model, nil
 	case tea.KeyEnter:
 		model.directorySearchMode = false
+		model.commandMode = inspectCommandModeNone
 		return model, nil
 	case tea.KeyBackspace, tea.KeyDelete:
 		model.directorySearchQuery = trimLastRune(model.directorySearchQuery)
@@ -388,13 +808,9 @@ func updateInspectDirectorySearchMode(model inspectModel, key tea.KeyMsg) (tea.M
 
 func updateInspectDocumentSearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.Type {
-	case tea.KeyEsc:
-		model.documentSearchMode = false
-		model.documentSearchQuery = ""
-		model = applyInspectDocumentFilter(model)
-		return model, nil
 	case tea.KeyEnter:
 		model.documentSearchMode = false
+		model.commandMode = inspectCommandModeNone
 		return model, nil
 	case tea.KeyBackspace, tea.KeyDelete:
 		model.documentSearchQuery = trimLastRune(model.documentSearchQuery)
@@ -403,6 +819,75 @@ func updateInspectDocumentSearchMode(model inspectModel, key tea.KeyMsg) (tea.Mo
 	case tea.KeyRunes:
 		model.documentSearchQuery += string(key.Runes)
 		model = applyInspectDocumentFilter(model)
+		return model, nil
+	}
+
+	if key.String() == "ctrl+c" || key.String() == "q" {
+		model.quitting = true
+		return model, tea.Quit
+	}
+
+	return model, nil
+}
+
+func updateInspectLogSearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEnter:
+		model.logSearchMode = false
+		model.commandMode = inspectCommandModeNone
+		return model, nil
+	case tea.KeyBackspace, tea.KeyDelete:
+		model.logSearchQuery = trimLastRune(model.logSearchQuery)
+		model = applyInspectLogFilter(model)
+		return model, nil
+	case tea.KeyRunes:
+		model.logSearchQuery += string(key.Runes)
+		model = applyInspectLogFilter(model)
+		return model, nil
+	}
+
+	if key.String() == "ctrl+c" || key.String() == "q" {
+		model.quitting = true
+		return model, tea.Quit
+	}
+
+	return model, nil
+}
+
+func updateInspectCommandInputMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEnter:
+		command := strings.TrimSpace(strings.TrimPrefix(model.commandQuery, ":"))
+		model.commandMode = inspectCommandModeNone
+		model.commandQuery = ""
+		switch command {
+		case "index":
+			model.mode = inspectViewModeDirectories
+			model.commandError = ""
+			model = adjustInspectDirectoriesViewport(model)
+		case "tlog":
+			model.logs = loadInspectTransactionLogs()
+			model.filteredLogs = append([]inspectLogRow(nil), model.logs...)
+			model.logSearchQuery = ""
+			model.logSearchMode = false
+			model.mode = inspectViewModeLogs
+			model.logSelected = 0
+			model.logStart = 0
+			model.commandError = ""
+			model = adjustInspectLogsViewport(model)
+		default:
+			model.commandError = fmt.Sprintf("unknown command %q, use :index or :tlog", command)
+		}
+
+		return model, nil
+	case tea.KeyTab:
+		model.commandQuery = autocompleteInspectCommand(model.commandQuery)
+		return model, nil
+	case tea.KeyBackspace, tea.KeyDelete:
+		model.commandQuery = trimLastRune(model.commandQuery)
+		return model, nil
+	case tea.KeyRunes:
+		model.commandQuery += string(key.Runes)
 		return model, nil
 	}
 
@@ -456,6 +941,52 @@ func applyInspectDocumentFilter(model inspectModel) inspectModel {
 	return adjustInspectDocumentsViewport(model)
 }
 
+func applyInspectLogFilter(model inspectModel) inspectModel {
+	query := strings.ToLower(strings.TrimSpace(model.logSearchQuery))
+	filtered := make([]inspectLogRow, 0, len(model.logs))
+	for _, row := range model.logs {
+		if query == "" || strings.Contains(strings.ToLower(row.indexedAt), query) || strings.Contains(strings.ToLower(row.path), query) || strings.Contains(strings.ToLower(row.hash), query) || strings.Contains(strings.ToLower(row.summary), query) {
+			filtered = append(filtered, row)
+		}
+	}
+
+	model.filteredLogs = filtered
+	if model.logSelected >= len(model.filteredLogs) {
+		model.logSelected = len(model.filteredLogs) - 1
+	}
+	if model.logSelected < 0 {
+		model.logSelected = 0
+	}
+
+	return adjustInspectLogsViewport(model)
+}
+
+func refreshInspectLogs(model inspectModel) inspectModel {
+	latest := loadInspectTransactionLogs()
+	return replaceInspectLogs(model, latest)
+}
+
+func replaceInspectLogs(model inspectModel, logs []inspectLogRow) inspectModel {
+	selectedRaw := ""
+	if len(model.filteredLogs) > 0 && model.logSelected >= 0 && model.logSelected < len(model.filteredLogs) {
+		selectedRaw = model.filteredLogs[model.logSelected].jsonRaw
+	}
+
+	model.logs = logs
+	model = applyInspectLogFilter(model)
+
+	if selectedRaw != "" {
+		for i, row := range model.filteredLogs {
+			if row.jsonRaw == selectedRaw {
+				model.logSelected = i
+				break
+			}
+		}
+	}
+
+	return adjustInspectLogsViewport(model)
+}
+
 func trimLastRune(value string) string {
 	runes := []rune(value)
 	if len(runes) == 0 {
@@ -482,6 +1013,10 @@ func (model inspectModel) View() string {
 		return inspectDocumentsView(model)
 	}
 
+	if model.mode == inspectViewModeLogs {
+		return inspectLogsView(model)
+	}
+
 	return inspectDirectoriesView(model)
 }
 
@@ -493,7 +1028,7 @@ func inspectDirectoriesView(model inspectModel) string {
 	builder.WriteString("\n\n")
 	builder.WriteString(inspectLabelStyle.Render(fmt.Sprintf("Directories (%d shown of %d)", len(model.filteredDirectories), len(model.directories))))
 	builder.WriteString("\n")
-	builder.WriteString(inspectSearchLine(model.directorySearchMode, model.directorySearchQuery))
+	builder.WriteString(inspectInputLine(model, model.directorySearchMode, model.directorySearchQuery))
 	builder.WriteString("\n")
 	builder.WriteString("\n")
 
@@ -547,19 +1082,19 @@ func inspectDirectoriesView(model inspectModel) string {
 
 func inspectDocumentsView(model inspectModel) string {
 	if len(model.filteredDocuments) == 0 && strings.TrimSpace(model.documentSearchQuery) == "" {
-		return "\n" + inspectEmptyStateStyle.Render("No indexed documents in this directory.") + "\n" + inspectHelpStyle.Render("Press esc to go back.") + "\n"
+		return "\n" + inspectEmptyStateStyle.Render("No indexed documents in this directory.") + "\n" + inspectHelpStyle.Render("Press esc to go back to directories.") + "\n"
 	}
 
 	var builder strings.Builder
 	builder.WriteString(inspectTitleStyle.Render("idx inspect - Directory documents"))
 	builder.WriteString("\n")
-	builder.WriteString(inspectHelpStyle.Render("Navigate: up/down (k/j, pgup/pgdown) | Search: / | Open JSON: enter | Back: esc | Quit: q, ctrl+c"))
+	builder.WriteString(inspectHelpStyle.Render("Navigate: up/down (k/j, pgup/pgdown) | Search: / | Open JSON: enter | Back: esc | Commands: : | Quit: q, ctrl+c"))
 	builder.WriteString("\n\n")
 	builder.WriteString(inspectDocumentPathStyle.Render(inspectTruncateLine("Directory: "+model.activeDirectory, model.width)))
 	builder.WriteString("\n")
 	builder.WriteString(inspectLabelStyle.Render(fmt.Sprintf("Documents (%d shown of %d)", len(model.filteredDocuments), len(model.documents))))
 	builder.WriteString("\n")
-	builder.WriteString(inspectSearchLine(model.documentSearchMode, model.documentSearchQuery))
+	builder.WriteString(inspectInputLine(model, model.documentSearchMode, model.documentSearchQuery))
 	builder.WriteString("\n")
 	builder.WriteString("\n")
 
@@ -615,6 +1150,71 @@ func inspectDocumentsView(model inspectModel) string {
 	return builder.String()
 }
 
+func inspectLogsView(model inspectModel) string {
+	var builder strings.Builder
+	builder.WriteString(inspectTitleStyle.Render("idx inspect - Index transaction logs"))
+	builder.WriteString("\n")
+	builder.WriteString(inspectHelpStyle.Render("Navigate: up/down (k/j, pgup/pgdown, left/right) | Search: / | Commands: : | Quit: q, ctrl+c"))
+	builder.WriteString("\n\n")
+	builder.WriteString(inspectLabelStyle.Render(fmt.Sprintf("Transactions (%d shown of %d)", len(model.filteredLogs), len(model.logs))))
+	builder.WriteString("\n")
+	builder.WriteString(inspectInputLine(model, model.logSearchMode, model.logSearchQuery))
+	builder.WriteString("\n\n")
+	builder.WriteString(inspectLabelStyle.Render(inspectHorizontalWindow(inspectLogTableHeader(), model.width, model.logColumnOffset)))
+	builder.WriteString("\n")
+
+	start, end := inspectLogsVisibleRange(model)
+	rowsWritten := 0
+	for i := start; i < end; i++ {
+		row := model.filteredLogs[i]
+		cursor := "  "
+		if i == model.logSelected {
+			cursor = "> "
+		}
+
+		line := inspectHorizontalWindow(fmt.Sprintf("%s%s", cursor, inspectLogTableRow(row)), model.width, model.logColumnOffset)
+		if i == model.logSelected {
+			builder.WriteString(inspectSelectedRowStyle.Render(line))
+		} else {
+			builder.WriteString(inspectRowStyle.Render(line))
+		}
+		builder.WriteString("\n")
+		rowsWritten++
+	}
+
+	rowsCapacity := inspectLogsListHeight(model)
+	if rowsCapacity < 1 {
+		rowsCapacity = 1
+	}
+	for rowsWritten < rowsCapacity {
+		builder.WriteString("\n")
+		rowsWritten++
+	}
+
+	builder.WriteString(inspectStatusLineStyle.Render(fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(model.filteredLogs))))
+	builder.WriteString("\n")
+	builder.WriteString(inspectStatusLineStyle.Render(fmt.Sprintf("Column offset: %d", model.logColumnOffset)))
+	builder.WriteString("\n")
+	builder.WriteString(inspectDividerStyle.Render(strings.Repeat("-", inspectDividerWidth(model.width))))
+	builder.WriteString("\n")
+
+	if len(model.filteredLogs) == 0 {
+		builder.WriteString(inspectEmptyStateStyle.Render("No transactions match current filter."))
+		return builder.String()
+	}
+
+	selected := model.filteredLogs[model.logSelected]
+	builder.WriteString(inspectLabelStyle.Render("Details"))
+	builder.WriteString("\n")
+	builder.WriteString(inspectInfoStyle.Render(inspectTruncateLine("indexed_at: "+selected.indexedAt, model.width)))
+	builder.WriteString("\n")
+	builder.WriteString(inspectInfoStyle.Render(inspectTruncateLine("path: "+selected.path, model.width)))
+	builder.WriteString("\n")
+	builder.WriteString(inspectInfoStyle.Render(inspectTruncateLine("hash: "+selected.hash, model.width)))
+
+	return builder.String()
+}
+
 func inspectDirectoriesVisibleRange(model inspectModel) (int, int) {
 	if len(model.filteredDirectories) == 0 {
 		return 0, 0
@@ -661,6 +1261,29 @@ func inspectDocumentsVisibleRange(model inspectModel) (int, int) {
 	return start, end
 }
 
+func inspectLogsVisibleRange(model inspectModel) (int, int) {
+	if len(model.filteredLogs) == 0 {
+		return 0, 0
+	}
+
+	start := model.logStart
+	if start < 0 {
+		start = 0
+	}
+
+	end := start + inspectLogsListHeight(model)
+	if end > len(model.filteredLogs) {
+		end = len(model.filteredLogs)
+	}
+
+	if start >= end {
+		start = len(model.filteredLogs) - 1
+		end = len(model.filteredLogs)
+	}
+
+	return start, end
+}
+
 func inspectDirectoriesListHeight(model inspectModel) int {
 	const reservedLines = 11
 	listHeight := model.height - reservedLines
@@ -672,6 +1295,16 @@ func inspectDirectoriesListHeight(model inspectModel) int {
 }
 
 func inspectDocumentsListHeight(model inspectModel) int {
+	const reservedLines = 12
+	listHeight := model.height - reservedLines
+	if listHeight < 1 {
+		return 1
+	}
+
+	return listHeight
+}
+
+func inspectLogsListHeight(model inspectModel) int {
 	const reservedLines = 12
 	listHeight := model.height - reservedLines
 	if listHeight < 1 {
@@ -699,14 +1332,27 @@ func inspectDocumentsPageStep(model inspectModel) int {
 	return step
 }
 
+func inspectLogsPageStep(model inspectModel) int {
+	step := inspectLogsListHeight(model) - 1
+	if step < 1 {
+		return 1
+	}
+
+	return step
+}
+
 func updateInspectJSONMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "ctrl+c", "q":
 		model.quitting = true
 		return model, tea.Quit
 	case "esc":
-		model.mode = inspectViewModeDocuments
-		model = adjustInspectDocumentsViewport(model)
+		model.mode = model.jsonReturnMode
+		if model.mode == inspectViewModeLogs {
+			model = adjustInspectLogsViewport(model)
+		} else {
+			model = adjustInspectDocumentsViewport(model)
+		}
 		return model, nil
 	case "up", "k":
 		if model.jsonStart > 0 {
@@ -739,7 +1385,7 @@ func inspectJSONView(model inspectModel) string {
 	var builder strings.Builder
 	builder.WriteString(inspectTitleStyle.Render("idx inspect - Document JSON (read-only)"))
 	builder.WriteString("\n")
-	builder.WriteString(inspectHelpStyle.Render("Navigate JSON: up/down (or k/j, pgup/pgdown) | Back: esc | Quit: q, ctrl+c"))
+	builder.WriteString(inspectHelpStyle.Render("Navigate JSON: up/down (or k/j, pgup/pgdown) | Back: esc | Commands: : | Quit: q, ctrl+c"))
 	builder.WriteString("\n\n")
 	builder.WriteString(inspectDocumentPathStyle.Render(inspectTruncateLine("Document: "+model.jsonTitle, model.width)))
 	builder.WriteString("\n\n")
@@ -1082,17 +1728,192 @@ func adjustInspectDocumentsViewport(model inspectModel) inspectModel {
 	return model
 }
 
-func inspectSearchLine(active bool, query string) string {
-	prefix := "/"
-	if active {
-		return inspectStatusLineStyle.Render(prefix + query + "_")
+func adjustInspectLogsViewport(model inspectModel) inspectModel {
+	maxOffset := inspectMaxLogColumnOffset(model)
+	if model.logColumnOffset < 0 {
+		model.logColumnOffset = 0
+	}
+	if model.logColumnOffset > maxOffset {
+		model.logColumnOffset = maxOffset
 	}
 
-	if strings.TrimSpace(query) == "" {
-		return inspectHelpStyle.Render("/: quick filter")
+	if len(model.filteredLogs) == 0 {
+		model.logStart = 0
+		model.logSelected = 0
+		return model
 	}
 
-	return inspectStatusLineStyle.Render(prefix + query)
+	if model.logSelected < 0 {
+		model.logSelected = 0
+	}
+	if model.logSelected >= len(model.filteredLogs) {
+		model.logSelected = len(model.filteredLogs) - 1
+	}
+
+	listHeight := inspectLogsListHeight(model)
+	if model.logSelected < model.logStart {
+		model.logStart = model.logSelected
+	}
+	if model.logSelected >= model.logStart+listHeight {
+		model.logStart = model.logSelected - listHeight + 1
+	}
+
+	maxStart := len(model.filteredLogs) - listHeight
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	if model.logStart > maxStart {
+		model.logStart = maxStart
+	}
+	if model.logStart < 0 {
+		model.logStart = 0
+	}
+
+	return model
+}
+
+func inspectMaxLogColumnOffset(model inspectModel) int {
+	maxWidth := len([]rune(inspectLogTableHeader()))
+	for _, row := range model.filteredLogs {
+		rowWidth := len([]rune(inspectLogTableRow(row)))
+		if rowWidth > maxWidth {
+			maxWidth = rowWidth
+		}
+	}
+
+	availableWidth := model.width
+	if availableWidth < 1 {
+		availableWidth = 1
+	}
+
+	maxOffset := maxWidth - availableWidth
+	if maxOffset < 0 {
+		return 0
+	}
+
+	return maxOffset
+}
+
+func inspectInputLine(model inspectModel, searchActive bool, searchQuery string) string {
+	if model.commandMode == inspectCommandModeCommand {
+		suggestions := inspectCommandSuggestions(model.commandQuery)
+		if len(suggestions) == 0 {
+			return inspectStatusLineStyle.Render(":" + model.commandQuery + "_")
+		}
+
+		return inspectStatusLineStyle.Render(fmt.Sprintf(":%s_  [%s]", model.commandQuery, strings.Join(suggestions, " | ")))
+	}
+
+	if searchActive {
+		return inspectStatusLineStyle.Render("/" + searchQuery + "_")
+	}
+
+	if model.commandError != "" {
+		return inspectEmptyStateStyle.Render(model.commandError)
+	}
+
+	if strings.TrimSpace(searchQuery) != "" {
+		return inspectStatusLineStyle.Render("/" + searchQuery)
+	}
+
+	return inspectHelpStyle.Render("/ quick filter | :index | :tlog | tab autocomplete")
+}
+
+func autocompleteInspectCommand(query string) string {
+	normalized := strings.TrimSpace(strings.TrimPrefix(query, ":"))
+	if normalized == "" {
+		return query
+	}
+
+	matches := inspectCommandSuggestions(normalized)
+	if len(matches) == 1 {
+		return matches[0]
+	}
+
+	if len(matches) <= 1 {
+		return query
+	}
+
+	prefix := matches[0]
+	for _, match := range matches[1:] {
+		prefix = inspectCommonPrefix(prefix, match)
+		if prefix == "" {
+			break
+		}
+	}
+
+	if len(prefix) > len(normalized) {
+		return prefix
+	}
+
+	return query
+}
+
+func inspectCommandSuggestions(query string) []string {
+	normalized := strings.TrimSpace(strings.TrimPrefix(query, ":"))
+	if normalized == "" {
+		return append([]string(nil), inspectAvailableCommands...)
+	}
+
+	suggestions := make([]string, 0, len(inspectAvailableCommands))
+	for _, command := range inspectAvailableCommands {
+		if strings.HasPrefix(command, normalized) {
+			suggestions = append(suggestions, command)
+		}
+	}
+
+	return suggestions
+}
+
+func inspectCommonPrefix(left string, right string) string {
+	leftRunes := []rune(left)
+	rightRunes := []rune(right)
+	maxLen := len(leftRunes)
+	if len(rightRunes) < maxLen {
+		maxLen = len(rightRunes)
+	}
+
+	index := 0
+	for index < maxLen && leftRunes[index] == rightRunes[index] {
+		index++
+	}
+
+	return string(leftRunes[:index])
+}
+
+func inspectLogTableHeader() string {
+	return fmt.Sprintf("%-24s | %-52s | %-24s", "INDEXED_AT", "PATH", "HASH")
+}
+
+func inspectLogTableRow(row inspectLogRow) string {
+	return fmt.Sprintf("%-24s | %-52s | %-24s", row.indexedAt, row.path, row.hash)
+}
+
+func inspectHorizontalWindow(text string, width int, offset int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	runes := []rune(text)
+	if offset >= len(runes) {
+		return ""
+	}
+
+	end := offset + width
+	if end > len(runes) {
+		end = len(runes)
+	}
+
+	window := string(runes[offset:end])
+	if len([]rune(window)) < width {
+		window = window + strings.Repeat(" ", width-len([]rune(window)))
+	}
+
+	return window
 }
 
 func inspectTruncateLine(text string, width int) string {
