@@ -672,41 +672,66 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 		return updateInspectDocumentSearchMode(model, key)
 	}
 
-	switch key.String() {
-	case "ctrl+c", "q":
+	keyString := key.String()
+	if keyString == "ctrl+c" || keyString == "q" {
 		model.quitting = true
 		return model, tea.Quit
+	}
+
+	if updatedModel, handled := handleInspectDocumentsViewAction(model, keyString); handled {
+		return updatedModel, nil
+	}
+
+	model = updateInspectDocumentsSelection(model, keyString)
+
+	model = adjustInspectDocumentsViewport(model)
+	return model, nil
+}
+
+func handleInspectDocumentsViewAction(model inspectModel, key string) (inspectModel, bool) {
+	switch key {
 	case "/":
 		model.documentSearchMode = true
 		model.documentSearchQuery = ""
 		model.commandMode = inspectCommandModeSearch
 		model = applyInspectDocumentFilter(model)
-		return model, nil
+		return model, true
 	case "esc":
 		model.mode = inspectViewModeDirectories
 		model.documentSearchMode = false
 		model.documentSearchQuery = ""
 		model.filteredDocuments = append([]inspectDocumentRow(nil), model.documents...)
 		model = adjustInspectDirectoriesViewport(model)
-		return model, nil
+		return model, true
 	case "enter":
-		if len(model.filteredDocuments) == 0 {
-			return model, nil
-		}
+		return openInspectSelectedDocumentJSON(model), true
+	default:
+		return model, false
+	}
+}
 
-		selected := model.filteredDocuments[model.documentSelected]
-		jsonText, err := inspectDocumentJSON(model.index, selected)
-		if err != nil {
-			jsonText = fmt.Sprintf("{\n  \"error\": %q\n}", err.Error())
-		}
+func openInspectSelectedDocumentJSON(model inspectModel) inspectModel {
+	if len(model.filteredDocuments) == 0 {
+		return model
+	}
 
-		model.mode = inspectViewModeJSON
-		model.jsonReturnMode = inspectViewModeDocuments
-		model.jsonTitle = selected.path
-		model.jsonLines = strings.Split(jsonText, "\n")
-		model.jsonStart = 0
-		model = adjustInspectJSONViewport(model)
-		return model, nil
+	selected := model.filteredDocuments[model.documentSelected]
+	jsonText, err := inspectDocumentJSON(model.index, selected)
+	if err != nil {
+		jsonText = fmt.Sprintf("{\n  \"error\": %q\n}", err.Error())
+	}
+
+	model.mode = inspectViewModeJSON
+	model.jsonReturnMode = inspectViewModeDocuments
+	model.jsonTitle = selected.path
+	model.jsonLines = strings.Split(jsonText, "\n")
+	model.jsonStart = 0
+
+	return adjustInspectJSONViewport(model)
+}
+
+func updateInspectDocumentsSelection(model inspectModel, key string) inspectModel {
+	switch key {
 	case "up", "k":
 		if model.documentSelected > 0 {
 			model.documentSelected--
@@ -727,8 +752,7 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 		}
 	}
 
-	model = adjustInspectDocumentsViewport(model)
-	return model, nil
+	return model
 }
 
 func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -736,19 +760,41 @@ func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.C
 		return updateInspectLogSearchMode(model, key)
 	}
 
-	switch key.String() {
-	case "ctrl+c", "q":
+	keyString := key.String()
+	if keyString == "ctrl+c" || keyString == "q" {
 		model.quitting = true
 		return model, tea.Quit
+	}
+
+	if updatedModel, handled := handleInspectLogsViewAction(model, keyString); handled {
+		return updatedModel, nil
+	}
+
+	model = updateInspectLogsSelection(model, keyString)
+	model = updateInspectLogsHorizontalOffset(model, keyString)
+
+	model = adjustInspectLogsViewport(model)
+	return model, nil
+}
+
+func handleInspectLogsViewAction(model inspectModel, key string) (inspectModel, bool) {
+	switch key {
 	case "/":
 		model.logSearchMode = true
 		model.logSearchQuery = ""
 		model.commandMode = inspectCommandModeSearch
 		model = applyInspectLogFilter(model)
-		return model, nil
+		return model, true
 	case "enter":
 		// Logs list is the final data view; keep selection unchanged on Enter.
-		return model, nil
+		return model, true
+	default:
+		return model, false
+	}
+}
+
+func updateInspectLogsSelection(model inspectModel, key string) inspectModel {
+	switch key {
 	case "up", "k":
 		if model.logSelected > 0 {
 			model.logSelected--
@@ -767,6 +813,13 @@ func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.C
 		if model.logSelected >= len(model.filteredLogs) {
 			model.logSelected = len(model.filteredLogs) - 1
 		}
+	}
+
+	return model
+}
+
+func updateInspectLogsHorizontalOffset(model inspectModel, key string) inspectModel {
+	switch key {
 	case "left":
 		if model.logColumnOffset > 0 {
 			model.logColumnOffset -= 4
@@ -778,8 +831,7 @@ func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.C
 		model.logColumnOffset += 4
 	}
 
-	model = adjustInspectLogsViewport(model)
-	return model, nil
+	return model
 }
 
 func updateInspectDirectorySearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1496,29 +1548,39 @@ func inspectReadJSONNumber(line string, start int) (string, int) {
 		i++
 	}
 
-	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-		i++
-	}
+	i = inspectConsumeJSONDigits(line, i)
 
 	if i < len(line) && line[i] == '.' {
 		i++
-		for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-			i++
-		}
+		i = inspectConsumeJSONDigits(line, i)
 	}
 
-	if i < len(line) && (line[i] == 'e' || line[i] == 'E') {
-		i++
-		if i < len(line) && (line[i] == '+' || line[i] == '-') {
-			i++
-		}
-
-		for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-			i++
-		}
-	}
+	i = inspectConsumeJSONExponent(line, i)
 
 	return line[start:i], i
+}
+
+func inspectConsumeJSONDigits(line string, start int) int {
+	index := start
+	for index < len(line) && line[index] >= '0' && line[index] <= '9' {
+		index++
+	}
+
+	return index
+}
+
+func inspectConsumeJSONExponent(line string, start int) int {
+	index := start
+	if index >= len(line) || (line[index] != 'e' && line[index] != 'E') {
+		return index
+	}
+
+	index++
+	if index < len(line) && (line[index] == '+' || line[index] == '-') {
+		index++
+	}
+
+	return inspectConsumeJSONDigits(line, index)
 }
 
 func inspectReadJSONKeyword(line string, start int) (string, int, bool) {
