@@ -72,8 +72,8 @@ func (runner CommandRunner) newInitCommand() *cobra.Command {
 
 func (runner CommandRunner) newInspectCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "inspect <path>",
-		Short: "Inspect an index payload",
+		Use:   "inspect [path]",
+		Short: "Inspect an index payload (JSON with path, interactive without path)",
 		Args: func(_ *cobra.Command, args []string) error {
 			_, err := parseInspectArguments(args)
 			return err

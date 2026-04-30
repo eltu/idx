@@ -132,19 +132,23 @@ func TestCommandRunnerRunExecutesInspectCommandWithPath(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerRunRejectsInspectWithoutPath(t *testing.T) {
+func TestCommandRunnerRunExecutesInspectCommandWithoutPath(t *testing.T) {
 	initCommand := &fakeInitCommand{}
 	destroyCommand := &fakeDestroyCommand{}
 	searchCommand := &fakeSearchCommand{}
 	daemonCommand := &fakeDaemonCommand{}
 	runner := cli.NewCommandRunner([]string{"idx", "inspect"}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
-	if err := runner.Run(); err == nil {
-		t.Fatal("expected an error, got nil")
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if initCommand.inspectCalls != 0 {
-		t.Fatalf("expected 0 inspect calls, got %d", initCommand.inspectCalls)
+	if initCommand.inspectCalls != 1 {
+		t.Fatalf("expected 1 inspect call, got %d", initCommand.inspectCalls)
+	}
+
+	if initCommand.lastInspectPath != "" {
+		t.Fatalf("expected empty inspect path, got %q", initCommand.lastInspectPath)
 	}
 }
 

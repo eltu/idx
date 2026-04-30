@@ -184,7 +184,13 @@ func (service InitCommandService) Inspect(indexPath string) error {
 		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
-	targetDirectory := filepath.Clean(filepath.Join(currentDir, filepath.FromSlash(path.Clean(indexPath))))
+	trimmedIndexPath := strings.TrimSpace(indexPath)
+	if trimmedIndexPath == "" {
+		return service.inspectAllProjectIndices(currentDir)
+	}
+
+	targetDirectory := filepath.Clean(filepath.Join(currentDir, filepath.FromSlash(path.Clean(trimmedIndexPath))))
+
 	targetIndexPath := indexFilePath(targetDirectory)
 	hasIndex, err := service.projectTree.Exists(targetIndexPath)
 	if err != nil {
@@ -196,6 +202,145 @@ func (service InitCommandService) Inspect(indexPath string) error {
 	}
 
 	return service.writeInspectIndex(targetDirectory)
+}
+
+func (service InitCommandService) inspectAllProjectIndices(currentDir string) error {
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return err
+	}
+
+	directories, err := IndexedDirectories(service.projectTree, projectRoot)
+	if err != nil {
+		return err
+	}
+
+	if len(directories) == 0 {
+		return fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
+	}
+
+	return service.runInspectTUIForDirectories(directories)
+}
+
+func (service InitCommandService) runInspectTUIForDirectory(directoryPath string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
+	index, err := service.indexRepo.LoadIndex(directoryPath)
+	if err != nil {
+		return err
+	}
+
+	return runInspectTUI(index)
+}
+
+func (service InitCommandService) runInspectTUIForDirectories(directoryPaths []string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
+	mergedIndex, err := service.loadMergedInspectIndex(directoryPaths)
+	if err != nil {
+		return err
+	}
+
+	return runInspectTUI(mergedIndex)
+}
+
+func (service InitCommandService) loadMergedInspectIndex(directoryPaths []string) (*domain.InvertedIndex, error) {
+	sortedDirectories := append([]string(nil), directoryPaths...)
+	sort.Strings(sortedDirectories)
+
+	indicesByDirectory := make(map[string]*domain.InvertedIndex, len(sortedDirectories))
+	for _, directoryPath := range sortedDirectories {
+		index, err := service.indexRepo.LoadIndex(directoryPath)
+		if err != nil {
+			return nil, err
+		}
+
+		indicesByDirectory[directoryPath] = index
+	}
+
+	return mergeInspectIndices(indicesByDirectory), nil
+}
+
+func mergeInspectIndices(indicesByDirectory map[string]*domain.InvertedIndex) *domain.InvertedIndex {
+	merged := domain.NewInvertedIndex()
+	for _, directoryPath := range sortedIndexDirectories(indicesByDirectory) {
+		mergeInspectIndexDirectory(merged, directoryPath, indicesByDirectory[directoryPath])
+	}
+
+	merged.DocumentCount = len(merged.Documents)
+	merged.CalculateAverageDocLen()
+	merged.CalculateIDF()
+	return merged
+}
+
+func sortedIndexDirectories(indicesByDirectory map[string]*domain.InvertedIndex) []string {
+	directories := make([]string, 0, len(indicesByDirectory))
+	for directoryPath := range indicesByDirectory {
+		directories = append(directories, directoryPath)
+	}
+
+	sort.Strings(directories)
+	return directories
+}
+
+func mergeInspectIndexDirectory(target *domain.InvertedIndex, directoryPath string, index *domain.InvertedIndex) {
+	if index == nil {
+		return
+	}
+
+	mergeInspectDocuments(target, directoryPath, index)
+	mergeInspectTerms(target, directoryPath, index)
+}
+
+func mergeInspectDocuments(target *domain.InvertedIndex, directoryPath string, index *domain.InvertedIndex) {
+	for documentName, stats := range index.Documents {
+		if stats == nil {
+			continue
+		}
+
+		documentID := inspectDocumentID(directoryPath, documentName)
+		target.Documents[documentID] = &domain.DocStats{
+			Name:   stats.Name,
+			Path:   stats.Path,
+			Length: stats.Length,
+		}
+	}
+}
+
+func mergeInspectTerms(target *domain.InvertedIndex, directoryPath string, index *domain.InvertedIndex) {
+	for term, termStats := range index.Terms {
+		if termStats == nil {
+			continue
+		}
+
+		targetTerm := target.Terms[term]
+		if targetTerm == nil {
+			targetTerm = &domain.TermStats{Docs: make(map[string]*domain.DocTermStats)}
+			target.Terms[term] = targetTerm
+		}
+
+		for documentName, docTermStats := range termStats.Docs {
+			documentID := inspectDocumentID(directoryPath, documentName)
+			targetTerm.Docs[documentID] = cloneInspectDocTermStats(docTermStats)
+		}
+	}
+}
+
+func cloneInspectDocTermStats(docTermStats *domain.DocTermStats) *domain.DocTermStats {
+	if docTermStats == nil {
+		return &domain.DocTermStats{}
+	}
+
+	positions := append([]int(nil), docTermStats.Positions...)
+	return &domain.DocTermStats{TF: docTermStats.TF, Positions: positions}
+}
+
+func inspectDocumentID(directoryPath string, documentName string) string {
+	return directoryPath + "::" + documentName
 }
 
 func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Duration) error {
