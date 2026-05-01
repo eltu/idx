@@ -243,3 +243,91 @@ func TestDaemonStateRepositoryDirectoryCreation(t *testing.T) {
 		t.Fatal("expected .idx to be a directory")
 	}
 }
+
+func TestDaemonStateRepositoryReadStateReturnsNilWhenFileAbsent(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	repo := NewDaemonStateRepository()
+	state, err := repo.ReadState()
+	if err != nil {
+		t.Fatalf("expected no error when state file is absent, got %v", err)
+	}
+	if state != nil {
+		t.Fatal("expected nil state when file does not exist")
+	}
+}
+
+func TestDaemonStateRepositorySaveAndReadState(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	repo := NewDaemonStateRepository()
+	initial := &domain.DaemonState{
+		Projects: []domain.MonitoredProject{
+			{Path: "/project/a", PID: 42, Enabled: true},
+		},
+	}
+
+	if err := repo.SaveState(initial); err != nil {
+		t.Fatalf("expected save to succeed, got %v", err)
+	}
+
+	loaded, err := repo.ReadState()
+	if err != nil {
+		t.Fatalf("expected read to succeed, got %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected non-nil state after save")
+	}
+	if len(loaded.Projects) != 1 || loaded.Projects[0].Path != "/project/a" {
+		t.Fatalf("expected loaded project path '/project/a', got %v", loaded.Projects)
+	}
+}
+
+func TestDaemonStateRepositoryReadStateInvalidJSONReturnsError(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	stateDir := filepath.Join(tmpHome, ".idx")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatalf("failed to create state dir: %v", err)
+	}
+	statePath := filepath.Join(stateDir, "daemon.state")
+	if err := os.WriteFile(statePath, []byte("{invalid}"), 0600); err != nil {
+		t.Fatalf("failed to write invalid state file: %v", err)
+	}
+
+	repo := NewDaemonStateRepository()
+	_, err := repo.ReadState()
+	if err == nil {
+		t.Fatal("expected error for invalid JSON state file")
+	}
+}
+
+func TestDaemonStateRepositoryUpdateProjectPIDUpdatesExistingProject(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	repo := NewDaemonStateRepository()
+	initial := &domain.DaemonState{
+		Projects: []domain.MonitoredProject{
+			{Path: "/project/a", PID: 0},
+		},
+	}
+	if err := repo.SaveState(initial); err != nil {
+		t.Fatalf("expected save to succeed, got %v", err)
+	}
+
+	if err := repo.UpdateProjectPID("/project/a", 9999); err != nil {
+		t.Fatalf("expected update to succeed, got %v", err)
+	}
+
+	loaded, err := repo.ReadState()
+	if err != nil {
+		t.Fatalf("expected read to succeed, got %v", err)
+	}
+	if loaded.Projects[0].PID != 9999 {
+		t.Fatalf("expected PID 9999, got %d", loaded.Projects[0].PID)
+	}
+}

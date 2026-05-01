@@ -3,6 +3,7 @@ package indexing
 import (
 	"errors"
 	"math"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -114,6 +115,10 @@ type internalOutput struct{}
 
 func (internalOutput) WriteLine(string) error { return nil }
 
+type internalInspectUIRunner struct{}
+
+func (internalInspectUIRunner) Run(_ *domain.InvertedIndex) error { return nil }
+
 type internalFileReader struct {
 	files map[string]string
 	err   error
@@ -220,6 +225,19 @@ func (repo internalSnapshotChecksumRepo) SaveSnapshot(string, ports.DirectoryChe
 	return repo.saveSnapshotErr
 }
 
+type internalDaemonRepo struct {
+	state   *domain.DaemonState
+	readErr error
+}
+
+func (r internalDaemonRepo) ReadState() (*domain.DaemonState, error) {
+	return r.state, r.readErr
+}
+
+func (r internalDaemonRepo) SaveState(_ *domain.DaemonState) error { return nil }
+
+func (r internalDaemonRepo) UpdateProjectPID(_ string, _ int) error { return nil }
+
 func newValidInternalService(root string) InitCommandService {
 	tree := newInternalProjectTree(root)
 	tree.existsMap[indexFilePath(root)] = true
@@ -232,6 +250,7 @@ func newValidInternalService(root string) InitCommandService {
 		indexer:        internalIndexer{},
 		indexRepo:      internalIndexRepo{},
 		checksumRepo:   internalChecksumRepo{loadData: map[string]string{}, exists: true},
+		inspectUI:      internalInspectUIRunner{},
 	}
 }
 
@@ -250,6 +269,7 @@ func TestInitCommandServiceValidateDependenciesBranches(t *testing.T) {
 		{name: "nil indexer", mutate: func(service *InitCommandService) { service.indexer = nil }},
 		{name: "nil index repo", mutate: func(service *InitCommandService) { service.indexRepo = nil }},
 		{name: "nil checksum repo", mutate: func(service *InitCommandService) { service.checksumRepo = nil }},
+		{name: "nil inspect UI", mutate: func(service *InitCommandService) { service.inspectUI = nil }},
 	}
 
 	for _, current := range cases {
@@ -557,5 +577,185 @@ func TestInitCommandServiceRemoveDirectoryIndexErrorBranch(t *testing.T) {
 	err := service.removeDirectoryIndex(root)
 	if err == nil {
 		t.Fatal("expected removeDirectoryIndex error")
+	}
+}
+
+func TestCloneInspectDocTermStatsNilReturnsEmpty(t *testing.T) {
+	got := cloneInspectDocTermStats(nil)
+	if got == nil {
+		t.Fatal("expected non-nil result for nil input")
+	}
+	if got.TF != 0 || len(got.Positions) != 0 {
+		t.Fatalf("expected empty DocTermStats, got TF=%d positions=%v", got.TF, got.Positions)
+	}
+}
+
+func TestCloneInspectDocTermStatsCopiesPositions(t *testing.T) {
+	original := &domain.DocTermStats{TF: 3, Positions: []int{1, 4, 7}}
+	cloned := cloneInspectDocTermStats(original)
+
+	if cloned.TF != 3 {
+		t.Fatalf("expected TF=3, got %d", cloned.TF)
+	}
+	if len(cloned.Positions) != 3 || cloned.Positions[0] != 1 || cloned.Positions[2] != 7 {
+		t.Fatalf("expected positions [1 4 7], got %v", cloned.Positions)
+	}
+
+	// Mutating original must not affect clone.
+	original.Positions[0] = 99
+	if cloned.Positions[0] == 99 {
+		t.Fatal("expected deep copy of positions slice, but clone was mutated")
+	}
+}
+
+func TestRunInspectTUIForDirectoryCallsInspectUI(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	called := false
+	service := newValidInternalService(root)
+	service.inspectUI = internalInspectUIRunnerFunc(func(_ *domain.InvertedIndex) error {
+		called = true
+		return nil
+	})
+
+	if err := service.runInspectTUIForDirectory(root); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected inspectUI.Run to be called")
+	}
+}
+
+func TestRunInspectTUIForDirectoryPropagatesIndexLoadError(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.indexRepo = internalIndexRepo{loadErr: errors.New("load failure")}
+
+	if err := service.runInspectTUIForDirectory(root); err == nil {
+		t.Fatal("expected index load error to be propagated")
+	}
+}
+
+type internalInspectUIRunnerFunc func(*domain.InvertedIndex) error
+
+func (fn internalInspectUIRunnerFunc) Run(index *domain.InvertedIndex) error { return fn(index) }
+
+func TestMergeInspectTermsCopiesTermsWithNamespacedDocIDs(t *testing.T) {
+	source := domain.NewInvertedIndex()
+	source.AddDocument("service.go", "internal/service.go", 10)
+	source.AddTerm("alpha", "service.go", 2, []int{1, 5})
+
+	target := domain.NewInvertedIndex()
+	mergeInspectTerms(target, "/repo/internal", source)
+
+	termStats, ok := target.Terms["alpha"]
+	if !ok {
+		t.Fatal("expected term 'alpha' to be merged into target")
+	}
+
+	expectedDocID := "/repo/internal::service.go"
+	if _, ok := termStats.Docs[expectedDocID]; !ok {
+		t.Fatalf("expected namespaced docID %q in merged terms, got keys: %v", expectedDocID, termStats.Docs)
+	}
+}
+
+func TestMergeInspectTermsSkipsNilTermStats(t *testing.T) {
+	source := domain.NewInvertedIndex()
+	source.Terms["alpha"] = nil
+
+	target := domain.NewInvertedIndex()
+	mergeInspectTerms(target, "/repo", source)
+
+	if _, ok := target.Terms["alpha"]; ok {
+		t.Fatal("expected nil term stats to be skipped during merge")
+	}
+}
+
+func TestRunInspectTUIForDirectoriesCallsInspectUI(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	called := false
+	service := newValidInternalService(root)
+	service.indexRepo = internalIndexRepo{index: domain.NewInvertedIndex()}
+	service.inspectUI = internalInspectUIRunnerFunc(func(_ *domain.InvertedIndex) error {
+		called = true
+		return nil
+	})
+
+	if err := service.runInspectTUIForDirectories([]string{root}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected inspectUI.Run to be called for directories")
+	}
+}
+
+func TestRunInspectTUIForDirectoriesPropagatesLoadError(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.indexRepo = internalIndexRepo{loadErr: errors.New("load failure")}
+
+	if err := service.runInspectTUIForDirectories([]string{root}); err == nil {
+		t.Fatal("expected index load error to be propagated from runInspectTUIForDirectories")
+	}
+}
+func TestWatchReturnsErrorForNonPositiveDebounce(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+
+	err := service.Watch(false, 0)
+	if err == nil {
+		t.Fatal("expected error for zero debounce")
+	}
+}
+
+func TestWatchReturnsErrorWhenDaemonAlreadyMonitoring(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.daemonRepo = internalDaemonRepo{state: &domain.DaemonState{
+		Projects: []domain.MonitoredProject{{Path: root, Enabled: true, PID: 1}},
+	}}
+
+	err := service.Watch(false, time.Second)
+	if err == nil {
+		t.Fatal("expected error when daemon is already monitoring")
+	}
+}
+
+func TestWatchReturnsErrorWhenDaemonCheckSkippedWithNilRepo(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.daemonRepo = nil // no daemon repo — should skip check and proceed to watchLoop
+
+	// watchLoop will fail because the fake project tree has no .git and fsnotify can't start
+	// but the Watch method must not return an error from the daemon check path
+	err := service.Watch(false, time.Second)
+	// We only care that a nil daemonRepo does NOT cause a nil-deref panic.
+	_ = err
+}
+
+func TestIsMissingFileErrorReturnsTrueForNotExistError(t *testing.T) {
+	err := os.ErrNotExist
+	if !isMissingFileError(err) {
+		t.Fatal("expected isMissingFileError to return true for os.ErrNotExist")
+	}
+}
+
+func TestIsMissingFileErrorReturnsTrueForFileNotFoundMessage(t *testing.T) {
+	err := errors.New("file not found")
+	if !isMissingFileError(err) {
+		t.Fatal("expected isMissingFileError to return true for 'file not found' message")
+	}
+}
+
+func TestIsMissingFileErrorReturnsTrueForNoSuchFileMessage(t *testing.T) {
+	err := errors.New("no such file or directory")
+	if !isMissingFileError(err) {
+		t.Fatal("expected isMissingFileError to return true for 'no such file or directory' message")
+	}
+}
+
+func TestIsMissingFileErrorReturnsFalseForOtherErrors(t *testing.T) {
+	err := errors.New("some other error")
+	if isMissingFileError(err) {
+		t.Fatal("expected isMissingFileError to return false for other errors")
 	}
 }

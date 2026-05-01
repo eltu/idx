@@ -77,3 +77,45 @@ func TestSanitizePathSegmentFallbackForEmptyName(t *testing.T) {
 		t.Fatalf("expected fallback name %q, got %q", "unknown-project", result)
 	}
 }
+
+func TestNewLoggerWithValidIDXLogLevel(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("IDX_LOG_LEVEL", "debug")
+
+	logger, err := newLogger()
+	if err != nil {
+		t.Fatalf("expected no error with valid log level, got %v", err)
+	}
+	if logger == nil {
+		t.Fatal("expected non-nil logger")
+	}
+	defer logger.Sync() //nolint:errcheck
+}
+
+func TestNewLoggerWithInvalidIDXLogLevel(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("IDX_LOG_LEVEL", "not-a-level")
+
+	_, err := newLogger()
+	if err == nil {
+		t.Fatal("expected error with invalid log level, got nil")
+	}
+}
+
+func TestLoggerOutputPathCreatesDirUnderHome(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	path, err := loggerOutputPath()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if path == "" {
+		t.Fatal("expected non-empty log path")
+	}
+	if filepath.Ext(path) != ".log" {
+		t.Fatalf("expected .log extension, got %q", path)
+	}
+}

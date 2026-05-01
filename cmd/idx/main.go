@@ -12,6 +12,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"idx/internal/adapters/handlers/cli"
+	"idx/internal/adapters/handlers/tui"
 	"idx/internal/adapters/repository"
 	"idx/internal/core/ports"
 	"idx/internal/core/services/daemon"
@@ -165,8 +166,9 @@ func run(arguments []string, output io.Writer) error {
 	checksumRepo := repository.NewDirectoryChecksumRepository()
 	daemonStateRepo := repository.NewDaemonStateRepository()
 	processSpawner := &repository.OSProcessSpawner{}
+	inspectRunner := tui.NewInspectRunner()
 
-	initCommand := indexing.NewInitCommandService(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo)
+	initCommand := indexing.NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner)
 
 	// Adapter that allows calling init from a specific path
 	initCommandAdapter := &initCommandAdapter{
