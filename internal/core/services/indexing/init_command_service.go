@@ -23,11 +23,18 @@ type InitCommandService struct {
 	indexRepo      ports.IndexRepository
 	checksumRepo   ports.DirectoryChecksumRepository
 	daemonRepo     ports.DaemonRepository
+	inspectUI      ports.InspectUIRunner
 }
 
 // NewInitCommandService builds the init use case.
 // Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo).
 func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository) InitCommandService {
+	return NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, defaultInspectUIRunner{})
+}
+
+// NewInitCommandServiceWithInspectUI builds the init use case with an injected inspect UI runner.
+// Example: service := NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, inspectUI).
+func NewInitCommandServiceWithInspectUI(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository, inspectUI ports.InspectUIRunner) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
@@ -37,6 +44,7 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 		indexRepo:      indexRepo,
 		checksumRepo:   checksumRepo,
 		daemonRepo:     daemonRepo,
+		inspectUI:      inspectUI,
 	}
 }
 
@@ -232,7 +240,7 @@ func (service InitCommandService) runInspectTUIForDirectory(directoryPath string
 		return err
 	}
 
-	return runInspectTUI(index)
+	return service.inspectUI.Run(index)
 }
 
 func (service InitCommandService) runInspectTUIForDirectories(directoryPaths []string) error {
@@ -245,7 +253,7 @@ func (service InitCommandService) runInspectTUIForDirectories(directoryPaths []s
 		return err
 	}
 
-	return runInspectTUI(mergedIndex)
+	return service.inspectUI.Run(mergedIndex)
 }
 
 func (service InitCommandService) loadMergedInspectIndex(directoryPaths []string) (*domain.InvertedIndex, error) {
@@ -390,6 +398,10 @@ func (service InitCommandService) validateDependencies() error {
 
 	if service.checksumRepo == nil {
 		return fmt.Errorf("failed to run init command: got nil checksum repository dependency, expected non-nil ports.DirectoryChecksumRepository")
+	}
+
+	if service.inspectUI == nil {
+		return fmt.Errorf("failed to run init command: got nil inspect UI dependency, expected non-nil ports.InspectUIRunner")
 	}
 
 	return nil

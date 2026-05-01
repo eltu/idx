@@ -11,6 +11,7 @@
 
 - Functions: 4-20 lines. Split if longer.
 - Files: under 500 lines. Split by responsibility.
+- Cyclomatic complexity: must stay below 15 per function.
 - One thing per function, one responsibility per module (SRP).
 - Names: specific and unique. Avoid `data`, `handler`, `Manager`.
   Prefer names that return <5 grep hits in the codebase.
@@ -54,22 +55,29 @@
 ```
 .
 ├── cmd/
-│   └── idx/
-│       └── main.go                  # Dependency injection & app startup
+│   └── idx/                 # Dependency injection & app startup
 ├── internal/
-│   ├── core/                        # The "Inside" (Business Logic)
-│   │   ├── domain/                  # Entities/Models (structs)
-│   │   ├── ports/                   # Interfaces (contracts for In/Out)
+│   ├── core/                # The "Inside" (Business Logic)
+│   │   ├── domain/          # Entities/Models (structs)
+│   │   ├── ports/           # Interfaces (contracts for In/Out)
 │   │   └── services/
-│   │       ├── indexing/            # Init & BM25 indexing use cases
-│   │       ├── search/              # Search use cases
-│   │       └── lifecycle/           # Destroy use cases
-│   └── adapters/                    # The "Outside" (Infrastructure)
+│   │       ├── indexing/    # Init & BM25 indexing use cases
+│   │       ├── search/      # Search use cases
+│   │       └── lifecycle/   # Destroy use cases
+│   └── adapters/            # The "Outside" (Infrastructure)
 │       ├── handlers/
-│       │   └── cli/                 # Input (CLI commands)
-│       └── repository/              # Output (filesystem, index storage)
+│       │   ├── cli/         # Input (CLI commands)
+│       │   └── tui/         # Input (TUI adapters)
+│       └── repository/      # Output (filesystem, index storage)
 └── go.mod
 ```
+
+## Port Conventions
+
+- Ports live in `core/ports/` and are plain Go interfaces owned by this project.
+- Each port describes one capability (e.g. `InspectUIRunner`, `IndexingRepository`).
+- The default implementation of a port that belongs to a service lives alongside that service (e.g. `services/indexing/inspect_ui_runner.go`).
+- Adapter implementations live in `adapters/` and wire the port to external infrastructure (e.g. `adapters/handlers/tui/`).
 
 ## Current Decisions
 
@@ -77,6 +85,9 @@
 - ADR 0002: Index files are stored in binary GOB format by default to reduce disk and memory overhead.
 - ADR 0003: File name and path are indexed as metadata filters separate from the BM25 content corpus.
 - ADR 0004: Incremental sync uses checksums to avoid re-indexing unchanged directories.
+- ADR 0005: Real-time watch mode syncs the index incrementally on file system events.
+- ADR 0006: Daemon management system to run watch mode as a background process.
+- ADR 0007: Inspect TUI is injected via the InspectUIRunner port to decouple UI from core service.
 
 ## Formatting
 

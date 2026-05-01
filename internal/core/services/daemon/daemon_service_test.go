@@ -5,7 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"idx/internal/core/domain"
+	"idx/internal/core/services/daemon"
+	"idx/internal/core/services/daemon/mocks"
 )
 
 func TestDaemonServiceEnableCreatesNewProject(t *testing.T) {
@@ -161,5 +165,74 @@ func TestDaemonServiceEnableMultipleProjects(t *testing.T) {
 
 	if len(env.state.Projects) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(env.state.Projects))
+	}
+}
+
+func TestDaemonServiceEnableReturnsErrorWhenSpawnFails(t *testing.T) {
+	projectDir := t.TempDir()
+	createIndexFile(t, projectDir)
+
+	env := newDaemonTestEnv(t, nil)
+	env.spawner.EXPECT().SpawnWatchProcess(projectDir).Return(0, errors.New("spawn failed")).Times(1)
+
+	err := env.service().Enable(projectDir)
+	if err == nil {
+		t.Fatal("expected error when spawn fails, got nil")
+	}
+}
+
+func TestDaemonServiceDisableReturnsErrorWhenStateIsNil(t *testing.T) {
+	// newDaemonTestEnv(t, nil) initialises state to nil → ReadState returns nil
+	env := newDaemonTestEnv(t, nil)
+
+	err := env.service().Disable(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when state is nil, got nil")
+	}
+}
+
+func TestDaemonServiceDisableReturnsErrorWhenReadStateFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mocks.NewMockDaemonRepository(ctrl)
+	tree := mocks.NewMockProjectTree(ctrl)
+	output := mocks.NewMockTextOutput(ctrl)
+	initCmd := mocks.NewMockInitCommandInterface(ctrl)
+	spawner := mocks.NewMockProcessSpawner(ctrl)
+
+	repo.EXPECT().ReadState().Return(nil, errors.New("state read error")).AnyTimes()
+
+	svc := daemon.NewDaemonService(repo, tree, output, initCmd, spawner)
+	err := svc.Disable(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when ReadState fails, got nil")
+	}
+}
+
+func TestDaemonServiceDisableReturnsErrorForUnknownProject(t *testing.T) {
+	known := t.TempDir()
+	unknown := t.TempDir()
+	env := newDaemonTestEnv(t, &domain.DaemonState{
+		Projects: []domain.MonitoredProject{monitoredProject(known, 99)},
+	})
+
+	err := env.service().Disable(unknown)
+	if err == nil {
+		t.Fatal("expected error for unmonitored project, got nil")
+	}
+}
+
+func TestDaemonServiceStatusWithDisabledProject(t *testing.T) {
+	projectDir := t.TempDir()
+	env := newDaemonTestEnv(t, &domain.DaemonState{
+		Projects: []domain.MonitoredProject{
+			{Path: projectDir, PID: 0, Enabled: false},
+		},
+	})
+
+	err := env.service().Status()
+	if err != nil {
+		t.Fatalf("expected status to succeed for disabled project, got %v", err)
 	}
 }
