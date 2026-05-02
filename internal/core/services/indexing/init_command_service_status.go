@@ -25,6 +25,21 @@ func (service InitCommandService) Status() error {
 		return fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
 	}
 
+	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+
+	eligibleWithFiles, err := service.filterDirectoriesWithFiles(eligible, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+
+	missing := missingIndexDirectories(directories, eligibleWithFiles)
+	if len(missing) > 0 {
+		return fmt.Errorf("unindexed directories found: %v — run idx sync to update", missing)
+	}
+
 	for _, directoryPath := range directories {
 		if err := service.verifyDirectoryIndexCurrent(directoryPath, projectRoot, matcher); err != nil {
 			return err
@@ -69,4 +84,38 @@ func (service InitCommandService) verifyDirectoryIndexCurrent(directoryPath, pro
 	}
 
 	return nil
+}
+
+// missingIndexDirectories returns eligible directories that have no index yet.
+func missingIndexDirectories(indexed []string, eligible []string) []string {
+	indexedSet := make(map[string]struct{}, len(indexed))
+	for _, d := range indexed {
+		indexedSet[d] = struct{}{}
+	}
+
+	missing := make([]string, 0)
+	for _, d := range eligible {
+		if _, ok := indexedSet[d]; !ok {
+			missing = append(missing, d)
+		}
+	}
+
+	return missing
+}
+
+// filterDirectoriesWithFiles returns only the directories that have at least one indexable file.
+func (service InitCommandService) filterDirectoriesWithFiles(directories []string, projectRoot string, matcher ports.IgnoreMatcher) ([]string, error) {
+	result := make([]string, 0, len(directories))
+	for _, directoryPath := range directories {
+		fileEntries, err := service.indexableFileEntries(directoryPath, projectRoot, matcher)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(fileEntries) > 0 {
+			result = append(result, directoryPath)
+		}
+	}
+
+	return result, nil
 }
