@@ -57,10 +57,14 @@ func (tree OSProjectTree) ReadDir(path string) ([]domain.DirectoryEntry, error) 
 			return nil, fmt.Errorf("failed to read metadata for entry %q in %q: got error %v, expected accessible file metadata", entry.Name(), path, err)
 		}
 
+		entryPath := filepath.Join(path, entry.Name())
+		isSymlink := entry.Type()&os.ModeSymlink != 0
+
 		entries = append(entries, domain.DirectoryEntry{
 			Name:            entry.Name(),
-			Path:            filepath.Join(path, entry.Name()),
+			Path:            entryPath,
 			IsDir:           entry.IsDir(),
+			IsSymlink:       isSymlink,
 			Size:            info.Size(),
 			ModTimeUnixNano: info.ModTime().UnixNano(),
 		})

@@ -30,8 +30,7 @@ func (factory GitIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatc
 }
 
 func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
-	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path) //nolint:gosec
-	err := command.Run()
+	err := matcher.runCheckIgnore(path)
 	if err == nil {
 		return true, nil
 	}
@@ -41,6 +40,11 @@ func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
 	}
 
 	return false, fmt.Errorf("failed to evaluate ignore rules for path %q: got error %v, expected git check-ignore to exit with status 0 or 1", path, err)
+}
+
+func (matcher gitIgnoreMatcher) runCheckIgnore(path string) error {
+	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path) //nolint:gosec
+	return command.Run()
 }
 
 func (matcher gitIgnoreMatcher) verifyGitBinary() error {

@@ -126,3 +126,39 @@ func TestOSProjectTreeErrorBranches(t *testing.T) {
 		t.Fatal("expected WriteFile error for invalid path")
 	}
 }
+
+func TestOSProjectTreeReadDirMarksSymlinkEntries(t *testing.T) {
+	tree := NewOSProjectTree()
+	root := t.TempDir()
+
+	targetFile := filepath.Join(root, "target.txt")
+	if err := os.WriteFile(targetFile, []byte("content"), 0600); err != nil {
+		t.Fatalf("expected target file creation to succeed, got %v", err)
+	}
+
+	symlinkPath := filepath.Join(root, "link.txt")
+	if err := os.Symlink("target.txt", symlinkPath); err != nil {
+		t.Fatalf("expected symlink creation to succeed, got %v", err)
+	}
+
+	entries, err := tree.ReadDir(root)
+	if err != nil {
+		t.Fatalf("expected readdir to succeed, got %v", err)
+	}
+
+	found := false
+	for _, entry := range entries {
+		if entry.Name != "link.txt" {
+			continue
+		}
+
+		found = true
+		if !entry.IsSymlink {
+			t.Fatal("expected symlink entry to be marked as IsSymlink=true")
+		}
+	}
+
+	if !found {
+		t.Fatal("expected link.txt to be present in directory entries")
+	}
+}
