@@ -111,6 +111,15 @@ func (matcher internalMatcher) Matches(_ string) (bool, error) {
 	return matcher.ignored, nil
 }
 
+type countingMatcher struct {
+	calls int
+}
+
+func (matcher *countingMatcher) Matches(_ string) (bool, error) {
+	matcher.calls++
+	return false, nil
+}
+
 type internalOutput struct{}
 
 func (internalOutput) WriteLine(string) error { return nil }
@@ -456,6 +465,21 @@ func TestInitCommandServiceHelpersCoverUncoveredBranches(t *testing.T) {
 		map[string]ports.FileChecksumState{"a": {Checksum: "2"}},
 	) {
 		t.Fatal("expected sameSnapshotChecksums false when checksum differs")
+	}
+
+	matcher := &countingMatcher{}
+	filtered, err := filterEntries([]domain.DirectoryEntry{
+		{Name: "link", Path: filepath.Join(root, "link"), IsSymlink: true},
+		{Name: "file.txt", Path: filepath.Join(root, "file.txt")},
+	}, root, matcher)
+	if err != nil {
+		t.Fatalf("expected filterEntries to skip symlink without errors, got %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].Name != "file.txt" {
+		t.Fatalf("expected only non-symlink file to remain, got %+v", filtered)
+	}
+	if matcher.calls != 1 {
+		t.Fatalf("expected matcher to be called only for non-symlink entries, got %d calls", matcher.calls)
 	}
 }
 

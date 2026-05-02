@@ -17,6 +17,10 @@ func filterEntries(entries []domain.DirectoryEntry, projectRoot string, matcher 
 			continue
 		}
 
+		if entry.IsSymlink {
+			continue
+		}
+
 		relativePath, err := filepath.Rel(projectRoot, entry.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve relative path for %q from %q: got error %v, expected a descendant path", entry.Path, projectRoot, err)
