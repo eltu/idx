@@ -95,7 +95,7 @@ func TestGitIgnoreMatcherMatchesReturnsErrorWhenGitFails(t *testing.T) {
 	}
 
 	if matched {
-		t.Fatal("expected matched to be false when command fails")
+		t.Fatal("expected matched to be false when command fails ")
 	}
 }
 

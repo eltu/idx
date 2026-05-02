@@ -2,9 +2,8 @@ package indexing
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
-	"time"
+
+	"idx/internal/core/ports"
 )
 
 func (service InitCommandService) Status() error {
@@ -12,7 +11,7 @@ func (service InitCommandService) Status() error {
 		return err
 	}
 
-	projectRoot, err := service.resolveProjectRoot()
+	projectRoot, matcher, err := service.statusMatcher()
 	if err != nil {
 		return err
 	}
@@ -27,7 +26,7 @@ func (service InitCommandService) Status() error {
 	}
 
 	for _, directoryPath := range directories {
-		if err := service.verifyLatestDirectoryLogEntry(directoryPath); err != nil {
+		if err := service.verifyDirectoryIndexCurrent(directoryPath, projectRoot, matcher); err != nil {
 			return err
 		}
 	}
@@ -35,101 +34,39 @@ func (service InitCommandService) Status() error {
 	return service.output.WriteLine("✅ Indices are up to date.")
 }
 
-func (service InitCommandService) resolveProjectRoot() (string, error) {
+func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, error) {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+		return "", nil, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return projectRoot, nil
+	matcher, err := service.matcherFactory.New(projectRoot)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
+	}
+
+	return projectRoot, matcher, nil
 }
 
-func (service InitCommandService) verifyLatestDirectoryLogEntry(directoryPath string) error {
-	logPath := filepath.Join(directoryPath, ".idx", "logs", "tlog.idx")
-
-	hasLog, err := service.projectTree.Exists(logPath)
+func (service InitCommandService) verifyDirectoryIndexCurrent(directoryPath, projectRoot string, matcher ports.IgnoreMatcher) error {
+	fileEntries, err := service.indexableFileEntries(directoryPath, projectRoot, matcher)
 	if err != nil {
 		return err
 	}
 
-	if !hasLog {
-		return fmt.Errorf("missing transaction log at %q: expected an indexed directory with .idx/logs/tlog.idx", logPath)
-	}
-
-	entry, err := service.latestTransactionLogEntry(logPath)
+	_, _, shouldReindex, err := service.reindexState(directoryPath, fileEntries)
 	if err != nil {
 		return err
 	}
 
-	fileUpdatedAt, err := service.fileModTime(entry.Path)
-	if err != nil {
-		return err
-	}
-
-	fileMtime := fileUpdatedAt.UTC().Truncate(time.Second)
-	indexedAt := entry.IndexedAt.UTC().Truncate(time.Second)
-	if fileMtime.After(indexedAt) {
-		return fmt.Errorf("stale index record for path %q: file modified at %q is newer than last indexed_at %q", entry.Path, fileUpdatedAt.Format(time.RFC3339), entry.IndexedAt.Format(time.RFC3339))
+	if shouldReindex {
+		return fmt.Errorf("stale index at %q: run idx sync to update", directoryPath)
 	}
 
 	return nil
-}
-
-func (service InitCommandService) latestTransactionLogEntry(logPath string) (indexedFileLogEntry, error) {
-	content, err := service.fileReader.ReadFile(logPath)
-	if err != nil {
-		return indexedFileLogEntry{}, fmt.Errorf("failed to read transaction log %q: got error %v, expected a readable file", logPath, err)
-	}
-
-	lastLine := lastNonEmptyLine(content)
-	if lastLine == "" {
-		return indexedFileLogEntry{}, fmt.Errorf("empty transaction log at %q: expected at least one entry with path/hash/indexed_at fields", logPath)
-	}
-
-	return parseTransactionLogEntry(lastLine, logPath)
-}
-
-func lastNonEmptyLine(content string) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
-		return ""
-	}
-
-	lines := strings.Split(trimmed, "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
-}
-
-func parseTransactionLogEntry(line string, logPath string) (indexedFileLogEntry, error) {
-	indexedAtValue, pathValue, hashValue := parseInspectSummaryFields(line)
-	if pathValue == "" || indexedAtValue == "" {
-		return indexedFileLogEntry{}, fmt.Errorf("invalid transaction log entry %q in %q: expected fields path=<file> hash=<checksum> indexed_at=<RFC3339>", line, logPath)
-	}
-
-	indexedAt, ok := parseInspectLogTime(indexedAtValue)
-	if !ok {
-		return indexedFileLogEntry{}, fmt.Errorf("invalid indexed_at value %q in %q: expected RFC3339 timestamp", indexedAtValue, logPath)
-	}
-
-	return indexedFileLogEntry{Path: pathValue, Checksum: hashValue, IndexedAt: indexedAt.UTC()}, nil
-}
-
-func (service InitCommandService) fileModTime(path string) (time.Time, error) {
-	entries, err := service.projectTree.ReadDir(filepath.Dir(path))
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	fileName := filepath.Base(path)
-	for _, entry := range entries {
-		if entry.Name == fileName && !entry.IsDir {
-			return time.Unix(0, entry.ModTimeUnixNano).UTC(), nil
-		}
-	}
-
-	return time.Time{}, fmt.Errorf("file listed in transaction log was not found: got path %q, expected an existing file", path)
 }
