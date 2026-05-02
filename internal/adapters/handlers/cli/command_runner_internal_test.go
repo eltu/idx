@@ -11,6 +11,7 @@ type noOpIndexCommand struct{}
 
 func (noOpIndexCommand) Run() error           { return nil }
 func (noOpIndexCommand) Sync() error          { return nil }
+func (noOpIndexCommand) Status() error        { return nil }
 func (noOpIndexCommand) Inspect(string) error { return nil }
 func (noOpIndexCommand) Watch(bool, time.Duration) error {
 	return nil
