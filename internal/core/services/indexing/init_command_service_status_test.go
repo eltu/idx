@@ -67,6 +67,34 @@ func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 	}
 }
 
+func TestStatusFailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
+	rootDir := t.TempDir()
+	ensureGitProject(t, rootDir)
+
+	rootFile := filepath.Join(rootDir, "root.txt")
+	writeFile(t, rootFile, "root v1")
+
+	service := newStatusService(&capturingTextOutput{})
+	changeTo(t, rootDir)
+
+	if err := service.Run(); err != nil {
+		t.Fatalf("expected init to succeed, got %v", err)
+	}
+
+	// Add a new subdirectory with a file after indexing — it should be detected as missing.
+	newDir := filepath.Join(rootDir, "newpkg")
+	writeFile(t, filepath.Join(newDir, "handler.txt"), "new content")
+
+	err := service.Status()
+	if err == nil {
+		t.Fatal("expected status to fail when a new unindexed directory exists")
+	}
+
+	if !strings.Contains(err.Error(), "unindexed") {
+		t.Fatalf("expected unindexed directories error, got %v", err)
+	}
+}
+
 func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
 	return indexing.NewInitCommandService(
 		repository.NewOSProjectTree(),
