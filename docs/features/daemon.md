@@ -1,48 +1,66 @@
 # daemon
 
-## Contract
+## Purpose
 
-- Command group: `idx daemon`
-- Purpose: Manage persistent/background monitoring per project.
-- Scope: Projects registered in daemon state.
+Manage background watch processes for one or more projects.
 
-## Subcommands
+## Usage
 
-### `idx daemon enable <path>`
+```bash
+idx daemon <subcommand>
+idx daemon enable <path>
+idx daemon disable <path>
+idx daemon status
+```
 
-- Enables background monitoring for `<path>`.
-- Auto-runs initialization when index is missing.
+## Arguments
 
-Parameters:
+- `enable <path>`: requires exactly one path argument.
+- `disable <path>`: requires exactly one path argument.
+- `status`: no positional arguments.
 
-- `<path>` required
+## Flags
 
-### `idx daemon disable <path>`
+- None.
 
-- Stops monitoring and removes project from daemon state.
+## Behavior and Side Effects
 
-Parameters:
+- `enable`:
+	- Resolves project path to absolute path and validates it exists.
+	- Checks daemon state to avoid duplicate monitoring.
+	- If index is missing, auto-runs init from target path.
+	- Spawns background watch process and stores PID/state.
+- `disable`:
+	- Resolves absolute path.
+	- Stops tracked process by PID when available.
+	- Removes project from daemon state.
+- `status`:
+	- Prints monitored project list with running/stopped indication.
 
-- `<path>` required
+## Output
 
-### `idx daemon status`
+- `enable` success:
+	- `✅ Watch enabled for "<abs-path>"`
+	- `👀 Monitoring in realtime (PID: <pid>)`
+- `enable` when index is missing:
+	- `ℹ️  Index not found. Creating initial index...`
+- `disable` success:
+	- `✅ Watch disabled for "<abs-path>"`
+- `status` with no projects:
+	- `❌ No projects being monitored`
+- `status` with projects:
+	- Header: `📊 Monitored Projects:`
+	- One line per project with status, path, PID, start time.
 
-- Lists monitored projects and runtime state.
+## Errors
 
-Parameters:
-
-- No args
-
-## Preconditions
-
-- `enable`/`disable` require exactly one project path argument.
-- Project path must exist for `enable`.
-
-## Behavior
-
-- Stores daemon state per user.
-- Prevents duplicate monitoring of same project.
-- Blocks manual `idx watch` when daemon already monitors project.
+- CLI argument contract:
+	- `expected project path argument` (wrong arg count for enable/disable)
+- `enable` path validation failures.
+- Project already monitored: `project "..." is already being monitored (PID: ...)`
+- Failure to start watch process.
+- Failure to persist daemon state.
+- `disable` when daemon state is empty or project not registered.
 
 ## Examples
 
@@ -51,9 +69,3 @@ idx daemon enable .
 idx daemon status
 idx daemon disable .
 ```
-
-## Common failures
-
-- Missing project path argument.
-- Already monitored project.
-- Invalid project path.

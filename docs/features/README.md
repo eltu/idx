@@ -6,6 +6,7 @@ Detailed end-user command reference, organized by command.
 
 - [init](init.md)
 - [sync](sync.md)
+- [status](status.md)
 - [search](search.md)
 - [inspect](inspect.md)
 - [watch](watch.md)
@@ -16,5 +17,6 @@ Detailed end-user command reference, organized by command.
 ## Recommended usage flow
 
 1. Run `idx init` once.
-2. Use `idx search` during development.
-3. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
+2. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
+3. Verify index freshness with `idx status`.
+4. Use `idx search` during development.

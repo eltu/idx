@@ -1,41 +1,52 @@
 # inspect
 
-## Contract
+## Purpose
 
-- Command: `idx inspect <path>`
-- Purpose: Read and print index payload for a given path.
-- Scope: `<path>/.idx/index.idx`
+Inspect index payloads either as JSON (single path) or in interactive TUI mode (all project indexes).
 
-## Parameters
+## Usage
 
-- Positional args:
-- `<path>` (required)
+```bash
+idx inspect [path]
+```
 
-- Flags: none
+## Arguments
 
-## Preconditions
+- `path` (optional): relative or absolute path from the current directory.
+- At most one path is accepted.
 
-- `<path>` must resolve from current working directory.
-- Target index file must exist.
+## Flags
 
-## Behavior
+- None.
 
-- Read-only operation.
-- Does not modify any index.
+## Behavior and Side Effects
 
-## Output contract
+- Read-only command; does not modify indexes.
+- If `path` is provided:
+	- Resolves path against current working directory.
+	- Validates `<path>/.idx/index.idx` exists.
+	- Loads and prints JSON payload of that index.
+- If `path` is omitted:
+	- Resolves Git project root.
+	- Loads all indexed directories under the project.
+	- Opens interactive inspect TUI with merged data.
 
-- Prints index content in structured, readable format.
+## Output
+
+- With `path`: pretty JSON payload printed to stdout.
+- Without `path`: interactive inspect TUI starts.
+
+## Errors
+
+- More than one argument: `inspect accepts at most one path...`
+- Invalid path token (empty or starts with `--`): `invalid inspect path ...`
+- No index found at target path.
+- No index found under project root when running without a path.
 
 ## Examples
 
 ```bash
+idx inspect
 idx inspect .
 idx inspect internal/
 ```
-
-## Common failures
-
-- Missing path argument.
-- Invalid path.
-- Missing index file under `<path>/.idx/index.idx`.

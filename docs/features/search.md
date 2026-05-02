@@ -1,43 +1,61 @@
 # search
 
-## Contract
+## Purpose
 
-- Command: `idx search [query terms]`
-- Purpose: Query indexed content across project indexes.
-- Scope: All discovered `.idx/index.idx` files in project.
+Search indexed project content using BM25 ranking and optional metadata filters.
 
-## Parameters
+## Usage
 
-- Positional args:
-- `query terms` (optional only when `--path` is provided)
+```bash
+idx search [query terms] [flags]
+```
 
-- Flags:
-- `--format text|json` (default: `text`)
-- `--json-pretty` (requires `--format json`)
-- `--explain` (include ranking metadata such as `score`)
-- `--context <N>` (`N >= 0`)
-- `--matches-only`
-- `--files-only`
-- `--path <pattern>` (repeatable)
-- `--from <N>` (`N >= 0`)
-- `--size <N>` (`N > 0` when set)
+## Arguments
 
-## Preconditions
+- `query terms` (optional only when at least one `--path` is provided).
 
-- Project indexes must exist (`idx init` first).
+## Flags
 
-## Behavior
+| Flag | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `--format` | string | `text` | Allowed: `text`, `json` |
+| `--json-pretty` | bool | `false` | Requires `--format json` |
+| `--explain` | bool | `false` | Includes ranking score |
+| `--context` | int | `0` | Must be `>= 0` |
+| `--matches-only` | bool | `false` | Keeps only matching lines |
+| `--files-only` | bool | `false` | Returns only file paths |
+| `--path` | string array | `[]` | Repeatable metadata-path filter |
+| `--from` | int | `0` | Pagination offset, must be `>= 0` |
+| `--size` | int | unset (`0`) | If set, must be `> 0` |
 
-- Ranks results using BM25 and normalization.
-- Hides ranking score by default in text and JSON output.
-- Shows ranking score only when `--explain` is provided.
-- Supports metadata-only search when query is empty and `--path` is provided.
-- Uses cached ranked results for pagination efficiency.
+Compatibility alias:
 
-## Output contract
+- Hidden flag `--macthes-only` maps to `--matches-only`.
 
-- `text` format: human-readable list/tree output. File headers include only file path by default; `--explain` appends score.
-- `json` format: structured result payload. `score` field is omitted by default and included only with `--explain`.
+## Behavior and Side Effects
+
+- Resolves project root and searches all indexed directories.
+- Tokenizes and deduplicates query terms.
+- Supports metadata-only search when query is empty and `--path` is set.
+- Applies BM25 + normalization for ranking.
+- Applies output filters in this order: `files-only` or `matches-only`, then pagination (`from`, `size`).
+- `--files-only` has priority over `--matches-only`.
+- Uses in-memory cache for ranked results (TTL: 1 minute) and renews TTL on cache hits.
+- Read-only command; no filesystem writes.
+
+## Output
+
+- Text mode with results:
+	- Header: `📁 Found <total> file(s) matching your search`
+	- Or paginated header: `📁 Found <total> file(s) matching your search (showing <displayed> with pagination)`
+- Text mode without results: `No results found.`
+- JSON mode without results:
+	- `{"count":0,"results":[]}` (pretty when `--json-pretty` is enabled)
+- JSON mode with results:
+	- Object with `count` and `results`.
+	- `score` only appears when `--explain` is true.
+- JSON + `--files-only`:
+	- Returns an array of file paths only.
 
 ## Examples
 
@@ -49,10 +67,17 @@ idx search auth token --format json --explain
 idx search auth token --context 2
 idx search --path internal/core
 idx search auth token --from 10 --size 5
+idx search auth token --files-only
+idx search auth token --matches-only
 ```
 
-## Common failures
+## Errors
 
-- `missing search query` when no terms and no `--path`.
-- Invalid flag values (`--context`, `--from`, `--size`).
-- `--json-pretty` without `--format json`.
+- Missing input contract: `missing search query... expected idx search <terms>`
+- Unsupported format: `unsupported --format value ... expected one of [text json]`
+- Invalid pretty/json combination: `--json-pretty requires --format json`
+- Invalid numeric constraints:
+	- `invalid --context value ... expected a non-negative integer`
+	- `invalid --from value ... expected a non-negative integer`
+	- `invalid --size value ... expected a positive integer`
+- Index/file access errors when loading indexes or source files.
