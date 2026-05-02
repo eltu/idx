@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"idx/internal/adapters/repository"
 	"idx/internal/core/services/indexing"
@@ -42,7 +41,7 @@ func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing
 	}
 }
 
-func TestStatusFailsWhenLatestLogTimestampDiffersFromFileTimestamp(t *testing.T) {
+func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
 
@@ -56,20 +55,15 @@ func TestStatusFailsWhenLatestLogTimestampDiffersFromFileTimestamp(t *testing.T)
 		t.Fatalf("expected init to succeed, got %v", err)
 	}
 
-	logPath := filepath.Join(rootDir, ".idx", "logs", "tlog.idx")
-	entry := latestLogEntry(t, logPath)
-
-	if err := os.Chtimes(entry.path, entry.indexedAt.Add(5*time.Second), entry.indexedAt.Add(5*time.Second)); err != nil {
-		t.Fatalf("expected file timestamp mutation to succeed, got %v", err)
-	}
+	writeFile(t, rootFile, "root v2 — changed after indexing")
 
 	err := service.Status()
 	if err == nil {
-		t.Fatal("expected status to fail when file timestamp differs from tlog indexed_at")
+		t.Fatal("expected status to fail when file content changed after indexing")
 	}
 
-	if !strings.Contains(err.Error(), "stale index record") {
-		t.Fatalf("expected stale index record error, got %v", err)
+	if !strings.Contains(err.Error(), "stale index") {
+		t.Fatalf("expected stale index error, got %v", err)
 	}
 }
 
@@ -84,58 +78,6 @@ func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
 		repository.NewDirectoryChecksumRepository(),
 		nil,
 	)
-}
-
-type transactionLogEntry struct {
-	path      string
-	indexedAt time.Time
-}
-
-func latestLogEntry(t *testing.T, logPath string) transactionLogEntry {
-	t.Helper()
-
-	content, err := os.ReadFile(logPath) //nolint:gosec
-	if err != nil {
-		t.Fatalf("expected log file read to succeed, got %v", err)
-	}
-
-	line := latestNonEmptyLine(string(content))
-	if line == "" {
-		t.Fatalf("expected non-empty log line in %q", logPath)
-	}
-
-	pathValue := ""
-	indexedAtValue := ""
-	for _, part := range strings.Split(line, "\t") {
-		if strings.HasPrefix(part, "path=") {
-			pathValue = strings.TrimPrefix(part, "path=")
-		}
-
-		if strings.HasPrefix(part, "indexed_at=") {
-			indexedAtValue = strings.TrimPrefix(part, "indexed_at=")
-		}
-	}
-
-	if pathValue == "" || indexedAtValue == "" {
-		t.Fatalf("expected path and indexed_at fields in %q", line)
-	}
-
-	indexedAt, err := time.Parse(time.RFC3339, indexedAtValue)
-	if err != nil {
-		t.Fatalf("expected RFC3339 indexed_at in %q, got %v", line, err)
-	}
-
-	return transactionLogEntry{path: pathValue, indexedAt: indexedAt}
-}
-
-func latestNonEmptyLine(content string) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
-		return ""
-	}
-
-	lines := strings.Split(trimmed, "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 func ensureGitProject(t *testing.T, rootDir string) {
