@@ -71,8 +71,10 @@ func (service InitCommandService) verifyLatestDirectoryLogEntry(directoryPath st
 		return err
 	}
 
-	if !timesMatchToSecond(entry.IndexedAt, fileUpdatedAt) {
-		return fmt.Errorf("stale index record for path %q: got tlog indexed_at %q, expected file modification time %q", entry.Path, entry.IndexedAt.Format(time.RFC3339), fileUpdatedAt.Format(time.RFC3339))
+	fileMtime := fileUpdatedAt.UTC().Truncate(time.Second)
+	indexedAt := entry.IndexedAt.UTC().Truncate(time.Second)
+	if fileMtime.After(indexedAt) {
+		return fmt.Errorf("stale index record for path %q: file modified at %q is newer than last indexed_at %q", entry.Path, fileUpdatedAt.Format(time.RFC3339), entry.IndexedAt.Format(time.RFC3339))
 	}
 
 	return nil
@@ -130,10 +132,4 @@ func (service InitCommandService) fileModTime(path string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("file listed in transaction log was not found: got path %q, expected an existing file", path)
-}
-
-func timesMatchToSecond(left time.Time, right time.Time) bool {
-	leftUTC := left.UTC().Truncate(time.Second)
-	rightUTC := right.UTC().Truncate(time.Second)
-	return leftUTC.Equal(rightUTC)
 }

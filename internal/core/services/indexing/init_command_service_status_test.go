@@ -29,8 +29,6 @@ func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing
 		t.Fatalf("expected init to succeed, got %v", err)
 	}
 
-	alignIndexedFileMtimeWithLatestLog(t, rootDir)
-
 	if err := service.Status(); err != nil {
 		t.Fatalf("expected status to succeed, got %v", err)
 	}
@@ -86,24 +84,6 @@ func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
 		repository.NewDirectoryChecksumRepository(),
 		nil,
 	)
-}
-
-func alignIndexedFileMtimeWithLatestLog(t *testing.T, projectRoot string) {
-	t.Helper()
-
-	projectTree := repository.NewOSProjectTree()
-	directories, err := indexing.IndexedDirectories(projectTree, projectRoot)
-	if err != nil {
-		t.Fatalf("expected indexed directories lookup to succeed, got %v", err)
-	}
-
-	for _, directoryPath := range directories {
-		logPath := filepath.Join(directoryPath, ".idx", "logs", "tlog.idx")
-		entry := latestLogEntry(t, logPath)
-		if err := os.Chtimes(entry.path, entry.indexedAt, entry.indexedAt); err != nil {
-			t.Fatalf("expected file timestamp alignment to succeed for %q, got %v", entry.path, err)
-		}
-	}
 }
 
 type transactionLogEntry struct {
