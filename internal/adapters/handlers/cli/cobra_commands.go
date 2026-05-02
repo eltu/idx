@@ -19,6 +19,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 
 	root.AddCommand(runner.newSyncCommand())
 	root.AddCommand(runner.newInitCommand())
+	root.AddCommand(runner.newStatusCommand())
 	root.AddCommand(runner.newInspectCommand())
 	root.AddCommand(runner.newWatchCommand())
 	root.AddCommand(runner.newDestroyCommand())
@@ -66,6 +67,16 @@ func (runner CommandRunner) newInitCommand() *cobra.Command {
 		Short: "Initialize project index",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runner.indexCommand.Run()
+		},
+	}
+}
+
+func (runner CommandRunner) newStatusCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Check whether indexed files are up to date",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runner.indexCommand.Status()
 		},
 	}
 }

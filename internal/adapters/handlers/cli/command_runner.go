@@ -16,6 +16,7 @@ type runnableCommand interface {
 type indexableCommand interface {
 	Run() error
 	Sync() error
+	Status() error
 	Inspect(indexPath string) error
 	Watch(showUpdatedFiles bool, debounce time.Duration) error
 }
@@ -58,13 +59,13 @@ func (runner CommandRunner) Run() error {
 	logger.Info("starting command execution", zap.Strings("arguments", runner.arguments))
 
 	if len(runner.arguments) < 2 {
-		err := fmt.Errorf("missing command: got %v, expected one of [sync init inspect watch destroy search]", runner.arguments)
+		err := fmt.Errorf("missing command: got %v, expected one of [sync init status inspect watch destroy search]", runner.arguments)
 		logger.Warn("invalid command invocation", zap.Error(err))
 		return err
 	}
 
 	if !canExecuteWithCobra(runner.arguments[1]) {
-		err := fmt.Errorf("unsupported command %q: expected one of [sync init inspect watch destroy search]", runner.arguments[1])
+		err := fmt.Errorf("unsupported command %q: expected one of [sync init status inspect watch destroy search]", runner.arguments[1])
 		logger.Warn("unsupported command", zap.String("command", runner.arguments[1]), zap.Error(err))
 		return err
 	}
@@ -84,7 +85,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "inspect", "watch", "destroy", "search", "daemon", "help", "--help", "-h":
+	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "help", "--help", "-h":
 		return true
 	default:
 		return false

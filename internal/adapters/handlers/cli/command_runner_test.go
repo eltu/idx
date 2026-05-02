@@ -11,6 +11,7 @@ import (
 type fakeInitCommand struct {
 	runCalls        int
 	syncCalls       int
+	statusCalls     int
 	inspectCalls    int
 	watchCalls      int
 	watchShowFiles  bool
@@ -25,6 +26,11 @@ func (command *fakeInitCommand) Run() error {
 
 func (command *fakeInitCommand) Sync() error {
 	command.syncCalls++
+	return nil
+}
+
+func (command *fakeInitCommand) Status() error {
+	command.statusCalls++
 	return nil
 }
 
@@ -129,6 +135,22 @@ func TestCommandRunnerRunExecutesInspectCommandWithPath(t *testing.T) {
 
 	if initCommand.inspectCalls != 1 || initCommand.lastInspectPath != "internal/" {
 		t.Fatalf("expected inspect call with path %q, got calls=%d path=%q", "internal/", initCommand.inspectCalls, initCommand.lastInspectPath)
+	}
+}
+
+func TestCommandRunnerRunExecutesStatusCommand(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "status"}, initCommand, destroyCommand, searchCommand, daemonCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.statusCalls != 1 {
+		t.Fatalf("expected status=1, got status=%d", initCommand.statusCalls)
 	}
 }
 
