@@ -1,33 +1,44 @@
 # destroy
 
-## Contract
+## Purpose
 
-- Command: `idx destroy`
-- Purpose: Remove index metadata from project.
-- Scope: `.idx` data under project root.
+Remove `.idx` metadata recursively from the current project.
 
-## Parameters
+## Usage
 
-- Positional args: none
-- Flags: none
+```bash
+idx destroy
+```
 
-## Preconditions
+## Arguments
 
-- Must run from Git project root.
+- None.
 
-## Behavior
+## Flags
 
-- Removes index metadata recursively.
+- None.
 
-## Side effects
+## Behavior and Side Effects
 
-- Deletes `.idx` content used by indexing/search.
+- Resolves current directory and Git root.
+- Must run from the project root.
+- Recursively traverses directories.
+- Skips `.git` directories.
+- Removes every `.idx` directory tree found.
 
-## Success output
+## Output
 
-- `🧹 Index metadata removed from project.`
+- Success: `🧹 Index metadata removed from project.`
 
-## Common failures
+## Errors
 
-- Running outside project root.
-- Permission errors when removing files.
+- Current directory cannot be resolved.
+- Current directory is not project root.
+- Directory traversal read errors.
+- One or more `.idx` directories could not be removed.
+
+## Examples
+
+```bash
+idx destroy
+```

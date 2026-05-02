@@ -1,24 +1,51 @@
 # Common Errors
 
-## Input and flag validation
+## Command dispatch and argument contract
 
-- `missing search query: ... expected idx search <terms>`
-- `invalid --debounce value ... expected a duration greater than 0`
-- `--json-pretty requires --format json`
-- `unsupported --format value ... expected one of [text json]`
-- `invalid --context value ... expected a non-negative integer`
-- `invalid --from value ... expected a non-negative integer`
-- `invalid --size value ... expected a positive integer`
+- `missing command: got ... expected one of [sync init status inspect watch destroy search]`
+- `unsupported command "...": expected one of [sync init status inspect watch destroy search]`
+- `inspect accepts at most one path: got ... expected idx inspect [path]`
+- `invalid inspect path "...": expected idx inspect [path]`
+- `expected project path argument` (daemon enable/disable)
 
-## State and environment
+## Search flag validation
 
-- Missing index before `search`/`sync`.
-- Running commands outside expected Git root.
-- File permission/read/write errors.
+- `missing search query: got ... expected idx search <terms>`
+- `unsupported --format value "...": expected one of [text json]`
+- `--json-pretty requires --format json: got format "..."`
+- `invalid --context value ...: expected a non-negative integer`
+- `invalid --from value ...: expected a non-negative integer`
+- `invalid --size value ...: expected a positive integer`
 
-## Recovery quick guide
+## Index lifecycle and state errors
 
-1. Run `idx init` if indexes are missing.
-2. Re-run from Git project root when required.
-3. Validate flags and argument counts.
-4. If using background mode, check `idx daemon status`.
+- `sync must run from project root: got current directory "...", expected root directory "..."`
+- `sync requires project root to be indexed: no index found at "...", run idx init first`
+- `destroy must run from project root: got current directory "...", expected root directory "..."`
+- `no index found at "...": run idx init first` (inspect with path)
+- `no index found under project root "...": run idx init first` (inspect without path or status)
+
+## Status-specific validation
+
+- `missing transaction log at "...": expected an indexed directory with .idx/logs/tlog.idx`
+- `empty transaction log at "...": expected at least one entry with path/hash/indexed_at fields`
+- `invalid transaction log entry "..." in "...": expected fields path=<file> hash=<checksum> indexed_at=<RFC3339>`
+- `invalid indexed_at value "..." in "...": expected RFC3339 timestamp`
+- `stale index record for path "...": got tlog indexed_at "...", expected file modification time "..."`
+
+## Watch and daemon errors
+
+- `invalid --debounce value ...: expected a duration greater than 0`
+- `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
+- `cannot run watch: daemon is already monitoring this project...`
+- `project "..." is already being monitored (PID: ...)`
+- `project "..." not being monitored`
+- `project "..." not being monitored: no projects active`
+
+## Recovery Quick Guide
+
+1. Run `idx init` to bootstrap indexes.
+2. Run root-scoped commands (`sync`, `destroy`) from the project root.
+3. Validate flags and positional arguments.
+4. Use `idx daemon status` before starting `idx watch`.
+5. Use `idx status` to verify whether index logs still match file modification timestamps.

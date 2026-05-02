@@ -1,39 +1,50 @@
 # init
 
-## Contract
+## Purpose
 
-- Command: `idx init`
-- Purpose: Create `.idx/index.idx` recursively from the current directory.
-- Scope: Current Git project subtree.
+Initialize BM25 indexes for the current Git project.
 
-## Parameters
+## Usage
 
-- Positional args: none
-- Flags: none
+```bash
+idx init
+```
 
-## Preconditions
+## Arguments
 
-- Must run inside a Git repository.
-- Working directory must be readable.
+- None.
 
-## Behavior
+## Flags
 
-- Skips `.git` and `.idx` directories.
-- Applies `.gitignore` rules.
-- Ensures `.idx/` is present in the project root `.gitignore` before indexing.
-- Creates `.gitignore` with `.idx/` when the file does not exist.
-- If root index already exists, it does not rebuild root index.
+- None.
 
-## Side effects
+## Behavior and Side Effects
 
-- Writes index files under `.idx/` for indexed directories.
+- Resolves the current working directory and Git project root.
+- Ensures `.idx/` is ignored in the root `.gitignore`.
+- If `.gitignore` is missing, creates it with `.idx/`.
+- Recursively indexes directories while skipping `.git` and `.idx`.
+- Applies `.gitignore` rules while traversing files and directories.
+- Writes index data under each indexed directory in `.idx/`.
+- Writes transaction log entries in `.idx/logs/tlog.idx` for indexed files.
+- If an index already exists in the current directory, does not rebuild and returns an info message.
 
-## Success output
+## Output
 
-- Typical: `✅ Index created. You can now run idx search.`
-- Already indexed: `ℹ️ This project is already indexed. You can run idx search.`
+- Success on first initialization: `✅ Index created. You can now run idx search.`
+- Already initialized in current directory: `ℹ️ This project is already indexed. You can run idx search.`
 
-## Common failures
+## Errors
 
-- Not inside Git project root resolution path.
-- Permission/read errors while traversing directories.
+- Current directory cannot be resolved.
+- Current directory is not inside a Git project.
+- `.gitignore` cannot be read or written.
+- Ignore matcher cannot be built from `.gitignore`.
+- Directory/file read errors during traversal.
+- Index repository write errors.
+
+## Examples
+
+```bash
+idx init
+```

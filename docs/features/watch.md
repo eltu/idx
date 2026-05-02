@@ -1,40 +1,49 @@
 # watch
 
-## Contract
+## Purpose
 
-- Command: `idx watch`
-- Purpose: Keep indexes synchronized in realtime while process is running.
-- Scope: Current Git project.
+Run continuous real-time synchronization while the process is active.
 
-## Parameters
+## Usage
 
-- Positional args: none
+```bash
+idx watch [flags]
+```
 
-- Flags:
-- `--debounce <duration>` (default: `750ms`, must be `> 0`)
-- `--show-updated-files` (default: `false`)
+## Arguments
 
-## Preconditions
+- None.
 
-- Must run inside a Git repository.
-- Daemon must not already be monitoring the same project.
+## Flags
 
-## Behavior
+| Flag | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `--debounce` | duration | `750ms` | Must be greater than `0` |
+| `--show-updated-files` | bool | `false` | Prints changed file list per batch |
 
-- Creates root index if missing before entering watch loop.
-- Watches directories recursively.
+## Behavior and Side Effects
+
+- Resolves current directory and Git root.
+- Loads `.gitignore` matcher.
+- If root index is missing, creates it before starting watch mode.
+- Recursively registers filesystem watches.
 - Skips `.git`, `.idx`, and ignored paths.
-- Batches events with debounce and syncs only affected directories.
+- Tracks create/write/rename/remove events.
+- Batches events by debounce window.
+- Re-indexes changed directories.
+- When `--show-updated-files` is enabled, prints the relative changed files per batch.
 
-## Side effects
+## Output
 
-- Updates index files continuously while running.
-
-## Output contract
-
-- Startup: `👀 Watch mode started. Press Ctrl+C to stop.`
-- Batch: `🔄 Synchronized <N> changed directorie(s).`
-- Stop: `🛑 Watch mode stopped.`
+- Optional startup pre-index messages:
+	- `ℹ️ Root index not found. Creating initial index before watch.`
+	- `✅ Initial index created. Starting realtime monitoring.`
+- Watch start: `👀 Watch mode started. Press Ctrl+C to stop.`
+- Batch sync: `🔄 Synchronized <N> changed directorie(s).`
+- With `--show-updated-files`:
+	- `   updated files:` plus file list, or
+	- `   files: none`
+- Stop (Ctrl+C / SIGTERM): `🛑 Watch mode stopped.`
 
 ## Examples
 
@@ -44,8 +53,12 @@ idx watch --debounce 500ms
 idx watch --show-updated-files
 ```
 
-## Common failures
+## Errors
 
-- Invalid debounce value (`<= 0`).
-- Watcher initialization errors.
-- Permission/read errors in monitored paths.
+- Invalid debounce value:
+	- CLI validation: `invalid --debounce value ... expected a duration greater than 0`
+	- Service validation: `failed to run watch command: got invalid debounce ...`
+- If daemon state already contains monitored projects:
+	- `cannot run watch: daemon is already monitoring this project...`
+- Watcher initialization or runtime watcher errors.
+- Directory read/sync/indexing errors during watch batches.
