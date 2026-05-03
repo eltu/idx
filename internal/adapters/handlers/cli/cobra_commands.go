@@ -15,6 +15,9 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 		Use:           "idx",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
 	}
 
 	root.AddCommand(runner.newSyncCommand())
