@@ -72,13 +72,24 @@ func (runner CommandRunner) newInitCommand() *cobra.Command {
 }
 
 func (runner CommandRunner) newStatusCommand() *cobra.Command {
-	return &cobra.Command{
+	var profile bool
+
+	statusCommand := &cobra.Command{
 		Use:   "status",
 		Short: "Check whether indexed files are up to date",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			if profile {
+				if profileCommand, ok := runner.indexCommand.(interface{ StatusWithProfile(bool) error }); ok {
+					return profileCommand.StatusWithProfile(true)
+				}
+			}
+
 			return runner.indexCommand.Status()
 		},
 	}
+
+	statusCommand.Flags().BoolVar(&profile, "profile", false, "Show detailed per-directory profile report")
+	return statusCommand
 }
 
 func (runner CommandRunner) newInspectCommand() *cobra.Command {

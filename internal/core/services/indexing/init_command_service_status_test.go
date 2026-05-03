@@ -41,6 +41,46 @@ func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing
 	}
 }
 
+func TestStatusWithProfileReportsDetailedTableAndSummary(t *testing.T) {
+	rootDir := t.TempDir()
+	ensureGitProject(t, rootDir)
+
+	rootFile := filepath.Join(rootDir, "root.txt")
+	nestedDir := filepath.Join(rootDir, "internal")
+	nestedFile := filepath.Join(nestedDir, "service.txt")
+	writeFile(t, rootFile, "root v1")
+	writeFile(t, nestedFile, "service v1")
+
+	output := &capturingTextOutput{}
+	service := newStatusService(output)
+	changeTo(t, rootDir)
+
+	if err := service.Run(); err != nil {
+		t.Fatalf("expected init to succeed, got %v", err)
+	}
+
+	if err := service.StatusWithProfile(true); err != nil {
+		t.Fatalf("expected profile status to succeed, got %v", err)
+	}
+
+	outputText := strings.Join(output.lines, "\n")
+	if !strings.Contains(outputText, "📊 Summary") {
+		t.Fatalf("expected summary header in output, got %q", outputText)
+	}
+
+	if !strings.Contains(outputText, "files checked") {
+		t.Fatalf("expected files checked row in output, got %q", outputText)
+	}
+
+	if !strings.Contains(outputText, "root.txt") {
+		t.Fatalf("expected checked row for root file in output, got %q", outputText)
+	}
+
+	if !strings.Contains(outputText, "✓") {
+		t.Fatalf("expected updated marker in output, got %q", outputText)
+	}
+}
+
 func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
@@ -48,12 +88,14 @@ func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 	rootFile := filepath.Join(rootDir, "root.txt")
 	writeFile(t, rootFile, "root v1")
 
-	service := newStatusService(&capturingTextOutput{})
+	output := &capturingTextOutput{}
+	service := newStatusService(output)
 	changeTo(t, rootDir)
 
 	if err := service.Run(); err != nil {
 		t.Fatalf("expected init to succeed, got %v", err)
 	}
+	linesBeforeStatus := len(output.lines)
 
 	writeFile(t, rootFile, "root v2 — changed after indexing")
 
@@ -64,6 +106,10 @@ func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "stale index") {
 		t.Fatalf("expected stale index error, got %v", err)
+	}
+
+	if len(output.lines) != linesBeforeStatus {
+		t.Fatalf("expected simple status to avoid profile output, got %q", strings.Join(output.lines, "\n"))
 	}
 }
 
