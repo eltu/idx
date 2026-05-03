@@ -2,12 +2,13 @@
 
 ## Purpose
 
-Verify whether indexed files are up to date using the latest transaction log entry in each indexed directory.
+Check whether project indexes are current compared to the current filesystem state.
 
 ## Usage
 
 ```bash
 idx status
+idx status --profile
 ```
 
 ## Arguments
@@ -16,36 +17,55 @@ idx status
 
 ## Flags
 
-- None.
+| Flag | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `--profile` | bool | `false` | Show a detailed per-directory report and summary table |
 
 ## Behavior and Side Effects
 
-- Resolves the current Git project root.
-- Discovers all indexed directories under that project.
-- For each indexed directory:
-  - Reads `.idx/logs/tlog.idx`.
-  - Uses only the latest non-empty log line.
-  - Extracts `path`, `hash`, and `indexed_at` fields.
-  - Reads the current file modification time for `path`.
-  - Compares `indexed_at` and file modification time in UTC (truncated to second precision).
+- Resolves current directory and project Git root.
+- Loads ignore rules from the project root.
+- Discovers indexed directories under the project.
+- Discovers eligible directories (non-ignored) and keeps only directories that currently contain indexable files.
+- Fails if eligible directories with files exist but are not indexed.
+- For each indexed directory, checks whether reindexing is needed using current file state and checksum/index snapshot logic.
+- Marks a directory as stale when it requires reindexing.
+- With `--profile`, prints one panel per indexed directory plus a summary panel.
 - Read-only command; no writes are performed.
 
 ## Output
 
-- Success when every indexed directory passes validation:
+- Success:
   - `✅ Indices are up to date.`
+- With `--profile`:
+  - Per-directory sections with:
+    - `📂` directory label
+    - `✅ updated` or `❌ stale`
+    - File table with columns: `file`, `updated`, `modified_at`
+    - Optional note when file set changed since last indexing
+  - Summary section:
+    - `📊 Summary`
+    - `directories checked`
+    - `directories updated`
+    - `files checked`
+    - `files updated`
+    - `latest file modification`
 
 ## Errors
 
-- No indexes found under project root.
-- Missing `.idx/logs/tlog.idx` in an indexed directory.
-- Empty or malformed last transaction-log entry.
-- `indexed_at` is not a valid RFC3339 timestamp.
-- Referenced file path does not exist.
-- Timestamp mismatch between `indexed_at` and actual file modification time (`stale index record`).
+- No index found under project root:
+  - `no index found under project root "<root>": run idx init first`
+- Unindexed eligible directories found:
+  - `unindexed directories found: [...] — run idx sync to update`
+- Stale index detected:
+  - `stale index at "<directory>": run idx sync to update`
+- Current directory/Git root resolution failures.
+- Ignore matcher loading failures.
+- Directory listing or file-state read failures while checking status.
 
 ## Examples
 
 ```bash
 idx status
+idx status --profile
 ```
