@@ -9,14 +9,16 @@ import (
 )
 
 type fakeInitCommand struct {
-	runCalls        int
-	syncCalls       int
-	statusCalls     int
-	inspectCalls    int
-	watchCalls      int
-	watchShowFiles  bool
-	watchDebounce   time.Duration
-	lastInspectPath string
+	runCalls           int
+	syncCalls          int
+	statusCalls        int
+	statusProfileCalls int
+	lastStatusProfile  bool
+	inspectCalls       int
+	watchCalls         int
+	watchShowFiles     bool
+	watchDebounce      time.Duration
+	lastInspectPath    string
 }
 
 func (command *fakeInitCommand) Run() error {
@@ -31,6 +33,12 @@ func (command *fakeInitCommand) Sync() error {
 
 func (command *fakeInitCommand) Status() error {
 	command.statusCalls++
+	return nil
+}
+
+func (command *fakeInitCommand) StatusWithProfile(profile bool) error {
+	command.statusProfileCalls++
+	command.lastStatusProfile = profile
 	return nil
 }
 
@@ -151,6 +159,26 @@ func TestCommandRunnerRunExecutesStatusCommand(t *testing.T) {
 
 	if initCommand.statusCalls != 1 {
 		t.Fatalf("expected status=1, got status=%d", initCommand.statusCalls)
+	}
+}
+
+func TestCommandRunnerRunExecutesStatusCommandWithProfileFlag(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "status", "--profile"}, initCommand, destroyCommand, searchCommand, daemonCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if initCommand.statusProfileCalls != 1 {
+		t.Fatalf("expected status profile=1, got status profile=%d", initCommand.statusProfileCalls)
+	}
+
+	if !initCommand.lastStatusProfile {
+		t.Fatal("expected status profile flag true")
 	}
 }
 
