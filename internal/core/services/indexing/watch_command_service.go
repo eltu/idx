@@ -42,6 +42,10 @@ func (service InitCommandService) watchLoop(showUpdatedFiles bool, debounce time
 		return err
 	}
 
+	if err := service.syncAllDirectoriesBeforeWatch(projectRoot, matcher); err != nil {
+		return err
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to start file watcher for %q: got error %v, expected watcher initialization", projectRoot, err)
@@ -79,6 +83,25 @@ func (service InitCommandService) ensureRootIndex(projectRoot string, matcher po
 	}
 
 	return service.output.WriteLine("✅ Initial index created. Starting realtime monitoring.")
+}
+
+func (service InitCommandService) syncAllDirectoriesBeforeWatch(projectRoot string, matcher ports.IgnoreMatcher) error {
+	indexedDirectories, err := IndexedDirectories(service.projectTree, projectRoot)
+	if err != nil {
+		return err
+	}
+
+	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+
+	stale := staleIndexedDirectories(indexedDirectories, eligible)
+	if err := service.removeStaleDirectories(stale); err != nil {
+		return err
+	}
+
+	return service.syncEligibleDirectories(eligible, projectRoot, matcher)
 }
 
 func (service InitCommandService) addRecursiveWatches(watcher *fsnotify.Watcher, directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {

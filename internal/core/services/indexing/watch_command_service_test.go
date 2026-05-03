@@ -3,6 +3,7 @@ package indexing
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -494,3 +495,128 @@ func (t *internalWatchExistsProjectTree) ReadDir(_ string) ([]domain.DirectoryEn
 func (t *internalWatchExistsProjectTree) Exists(_ string) (bool, error)      { return true, nil }
 func (t *internalWatchExistsProjectTree) WriteFile(_ string, _ []byte) error { return nil }
 func (t *internalWatchExistsProjectTree) RemoveAll(_ string) error           { return nil }
+
+func TestSyncAllDirectoriesBeforeWatchSyncsEligibleAndRemovesStale(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	sourceDir := filepath.Join(root, "src")
+	ignoredDir := filepath.Join(root, "vendor")
+	rootFile := filepath.Join(root, "main.go")
+	sourceFile := filepath.Join(sourceDir, "service.go")
+
+	tree := newInternalProjectTree(root)
+	tree.existsMap[indexFilePath(root)] = true
+	tree.existsMap[indexFilePath(sourceDir)] = false
+	tree.existsMap[indexFilePath(ignoredDir)] = true
+	tree.readDirMap[root] = []domain.DirectoryEntry{
+		{Name: "src", Path: sourceDir, IsDir: true},
+		{Name: "vendor", Path: ignoredDir, IsDir: true},
+		{Name: "main.go", Path: rootFile, IsDir: false, Size: int64(len("package main")), ModTimeUnixNano: 1},
+	}
+	tree.readDirMap[sourceDir] = []domain.DirectoryEntry{
+		{Name: "service.go", Path: sourceFile, IsDir: false, Size: int64(len("package service")), ModTimeUnixNano: 2},
+	}
+	tree.readDirMap[ignoredDir] = []domain.DirectoryEntry{
+		{Name: "legacy.go", Path: filepath.Join(ignoredDir, "legacy.go"), IsDir: false},
+	}
+
+	matcher := watchStartupMatcher{ignoredPrefixes: []string{"vendor"}}
+	indexRepo := &watchStartupIndexRepo{}
+	checksumRepo := &watchStartupChecksumRepo{}
+
+	service := InitCommandService{
+		projectTree:    tree,
+		matcherFactory: internalMatcherFactory{matcher: matcher},
+		output:         internalOutput{},
+		fileReader: internalFileReader{files: map[string]string{
+			rootFile:   "package main",
+			sourceFile: "package service",
+		}},
+		indexer:      internalIndexer{},
+		indexRepo:    indexRepo,
+		checksumRepo: checksumRepo,
+		inspectUI:    internalInspectUIRunner{},
+	}
+
+	if err := service.syncAllDirectoriesBeforeWatch(root, matcher); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !containsPath(tree.removed, filepath.Join(ignoredDir, ".idx")) {
+		t.Fatalf("expected stale ignored directory index to be removed, removed=%v", tree.removed)
+	}
+
+	if !containsPath(indexRepo.savedDirectories, root) {
+		t.Fatalf("expected root directory to be synchronized, got %v", indexRepo.savedDirectories)
+	}
+
+	if !containsPath(indexRepo.savedDirectories, sourceDir) {
+		t.Fatalf("expected source directory to be synchronized, got %v", indexRepo.savedDirectories)
+	}
+
+	if containsPath(indexRepo.savedDirectories, ignoredDir) {
+		t.Fatalf("expected ignored directory to be skipped, got %v", indexRepo.savedDirectories)
+	}
+}
+
+type watchStartupMatcher struct {
+	ignoredPrefixes []string
+}
+
+func (matcher watchStartupMatcher) Matches(path string) (bool, error) {
+	for _, prefix := range matcher.ignoredPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+type watchStartupIndexRepo struct {
+	savedDirectories []string
+}
+
+func (repo *watchStartupIndexRepo) SaveIndex(directoryPath string, _ *domain.InvertedIndex) error {
+	repo.savedDirectories = append(repo.savedDirectories, directoryPath)
+	return nil
+}
+
+func (repo *watchStartupIndexRepo) LoadIndex(_ string) (*domain.InvertedIndex, error) {
+	return domain.NewInvertedIndex(), nil
+}
+
+type watchStartupChecksumRepo struct {
+	loadData map[string]map[string]string
+}
+
+func (repo *watchStartupChecksumRepo) Load(directoryPath string) (map[string]string, bool, error) {
+	if repo.loadData == nil {
+		return map[string]string{}, false, nil
+	}
+
+	checksums, exists := repo.loadData[directoryPath]
+	if !exists {
+		return map[string]string{}, false, nil
+	}
+
+	return checksums, true, nil
+}
+
+func (repo *watchStartupChecksumRepo) Save(directoryPath string, checksums map[string]string) error {
+	if repo.loadData == nil {
+		repo.loadData = map[string]map[string]string{}
+	}
+
+	repo.loadData[directoryPath] = checksums
+	return nil
+}
+
+func containsPath(paths []string, target string) bool {
+	for _, current := range paths {
+		if current == target {
+			return true
+		}
+	}
+
+	return false
+}
