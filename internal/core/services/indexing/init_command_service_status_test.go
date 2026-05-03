@@ -36,7 +36,7 @@ func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing
 		t.Fatal("expected status output line, got none")
 	}
 
-	if output.lines[len(output.lines)-1] != "✅ Indices are up to date." {
+	if output.lines[len(output.lines)-1] != "\n✅ Indices are up to date.\n" {
 		t.Fatalf("expected up-to-date message, got %q", output.lines[len(output.lines)-1])
 	}
 }

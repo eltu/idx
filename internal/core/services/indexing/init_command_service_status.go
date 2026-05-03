@@ -108,10 +108,10 @@ func (service InitCommandService) runStatus(profile bool) error {
 	}
 
 	if len(staleDirectories) > 0 {
-		return fmt.Errorf("stale index at %q: run idx sync to update", staleDirectories[0])
+		return fmt.Errorf("\nstale index at %q: run idx sync to update\n", staleDirectories[0])
 	}
 
-	return service.output.WriteLine("✅ Indices are up to date.")
+	return service.output.WriteLine("\n✅ Indices are up to date.\n")
 }
 
 func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, error) {
