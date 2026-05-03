@@ -56,8 +56,19 @@ Do not create benchmark target projects under `/tmp` or outside this repository.
 Rationale:
 - `idx` indexing and search in this workflow must discover files from inside the project workspace.
 
-Mandatory cleanup after benchmark completion:
-- Remove all generated files and folders under `sandbox/`.
+### Phase continuity within a tool session
+The three phases for each tool (build → feature → bugfix) are sequential and share the same codebase:
+- **build** creates the project from scratch.
+- **feature** adds functionality on top of the build artifacts.
+- **bugfix** fixes a problem in the project that already has the feature.
+
+Do **not** delete or reset the sandbox directory between phases of the same tool.
+The same directory must be carried forward so each phase starts from the state left by the previous one.
+
+Sandbox cleanup timing:
+- Clean the sandbox for a tool only **after** its bugfix phase is fully complete and metrics are recorded.
+- Never clean between phases (build → feature or feature → bugfix) of the same tool.
+- After all tool sessions (or after the last requested phase of the last tool), remove all generated files and folders under `sandbox/`.
 - Keep only intentional placeholders (for example `.gitkeep`), if present.
 - Confirm sandbox is empty (or placeholder-only) before finishing the skill.
 
@@ -92,8 +103,9 @@ Create 9 short-lived local branches, one per phase per tool:
 - benchmark/rg-bugfix
 
 Each branch contains only the changes for that phase and tool combination.
-Do not reuse implementation artifacts across branches.
-After the session metrics are recorded for a branch, delete the branch locally.
+Phases within the same tool are sequential: the feature branch extends the build, and the bugfix branch extends the feature.
+Do not reuse sandbox artifacts across different tools (idx sandbox is independent from grep sandbox).
+After all three phases for a tool are complete and metrics are recorded, delete those three branches locally.
 Branches exist only for statistical traceability during the session.
 
 ## idx Setup and Usage Reference
@@ -104,65 +116,61 @@ The AGENTS.md of this project forbids using grep or rg inside the project itself
 but the benchmark target project (student registration CLI) is a separate codebase
 where the session tool restriction applies — follow only the tool rule for that session.
 
-Build idx before starting any idx session:
+Use `go run` for all idx commands during the session.
+Do not use `./bin/idx` in this benchmark flow.
+Run every idx command from the repository root, never from inside the sandbox target directory.
+Do not use relative paths such as `../../cmd/idx/main.go` in any invocation.
+
+Set these absolute paths once per session:
 
 ```bash
-make build
+IDX_ROOT=/absolute/path/to/idx
+TARGET_ROOT=$IDX_ROOT/.claude/skills/benchmark-idx-vs-grep-rg/sandbox/<run-id>/<tool-phase>/studentreg
+cd "$IDX_ROOT"
 ```
 
-This produces the binary at `./bin/idx`.
-Use the binary for all idx commands during the session:
+Use the repository-root anchored command patterns below.
+Commands that must operate on the benchmark target project should use a subshell that changes to `TARGET_ROOT`,
+while still invoking `go run` with the absolute path to this repository's `main.go`:
 
 ```bash
-./bin/idx init
-./bin/idx search "<terms>"
-./bin/idx search "<terms>" --files-only
-./bin/idx search "<terms>" --path <path-filter>
-./bin/idx search --path <path-filter>
-./bin/idx search "<terms>" --format json --matches-only
-./bin/idx search "<terms>" --context <lines>
-./bin/idx sync
-./bin/idx status
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)
+go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>")
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --files-only)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --path <path-filter>)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search --path <path-filter>)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --format json --matches-only)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --context <lines>)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" sync)
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" status)
+go run cmd/idx/main.go daemon status
 ```
 
-Alternatively, run without building:
+Before testing idx and before starting the session timer, run both commands in the target project root:
 
 ```bash
-go run cmd/idx/main.go search "<terms>"
-go run cmd/idx/main.go search "<terms>" --files-only
-go run cmd/idx/main.go search "<terms>" --path <path-filter>
-go run cmd/idx/main.go search --path <path-filter>
-go run cmd/idx/main.go search "<terms>" --format json --matches-only
-go run cmd/idx/main.go search "<terms>" --context <lines>
-```
-
-idx must be initialized before searching. Run init once in the target project root:
-
-```bash
-./bin/idx init
-# or
-go run cmd/idx/main.go init
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)
+go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
 ```
 
 After filesystem changes, resync:
 
 ```bash
-./bin/idx sync
-# or
-go run cmd/idx/main.go sync
+(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" sync)
 ```
 
-Before starting each idx benchmark session, verify daemon state in the target project root:
+After starting the daemon, verify daemon state in the target project root:
 
 ```bash
-./bin/idx daemon status
+go run cmd/idx/main.go daemon status
 ```
 
-If daemon monitoring is not active for the project, initialize it before continuing:
+If daemon is not active yet for the current project, run daemon enable again and re-check status:
 
 ```bash
-./bin/idx daemon enable .
-./bin/idx daemon status
+go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
+go run cmd/idx/main.go daemon status
 ```
 
 Count a `tool_search_count` interaction for every `search` invocation.
@@ -210,6 +218,11 @@ Total sessions in full benchmark:
 - phase name
 - session tool
 - session start timestamp
+
+Pre-step before recording session start timestamp:
+- From the repository root, run `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)`.
+- From the repository root, run `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"`.
+- Only start timing after both commands complete.
 
 2. Implement the required phase changes
 - keep scope limited to the current phase
@@ -295,14 +308,20 @@ Do not count:
 - One target search tool per session.
 - Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
 - Benchmark target project lives under `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/`.
-- Every idx session runs daemon pre-check (`idx daemon status`) before starting implementation.
-- If daemon is not active for the project, initialize with `idx daemon enable .` before continuing idx session work.
+- Every idx session anchors the terminal in the repository root before invoking `go run`.
+- No idx session uses relative paths such as `../../cmd/idx/main.go` in any `go run` call.
+- Every idx session runs `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)` before testing idx.
+- Every idx session runs `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"` before starting session timing.
+- Every idx session validates daemon state with `go run cmd/idx/main.go daemon status`.
+- All idx session commands use `go run` from the repository root (no binary usage).
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Tests executed and status recorded for every session.
 - bcrypt usage validated in all three bugfix sessions.
-- Branch deleted after session metrics are captured.
-- Sandbox cleaned after benchmark completion.
+- Branches for a tool deleted only after all three phases of that tool are complete and metrics are recorded.
+- Sandbox directory for a tool deleted only after its bugfix phase is complete and metrics are recorded.
+- Sandbox never cleaned between phases of the same tool (build → feature → bugfix share artifacts).
+- Sandbox fully empty (or placeholder-only) confirmed before finishing the skill.
 
 ## Deliverables
 - Code delivered on each branch during its session.
@@ -329,13 +348,16 @@ Do not count:
   - Total tool_navigation_count per tool
   - Overall pass/fail rate per tool
 - Methodology note: for idx sessions, `tool_search_count` includes only `idx search` (or `go run cmd/idx/main.go search`) invocations.
-- Methodology note: for idx sessions, daemon state is checked before each session and initialized when missing.
+  - Methodology note: for idx sessions, all `go run` invocations are launched from the repository root and never use relative paths to `main.go`.
+  - Methodology note: for idx sessions, `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)` and `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"` are executed before timing starts, then daemon status is validated.
   - Qualitative observations and highlights
 
   If the file already exists, append or update the relevant sections without removing prior benchmark runs.
 
 - Post-run cleanup confirmation:
-  - `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/` is empty (or placeholder-only).
+  - Sandbox cleaned per-tool: each tool's sandbox directory is removed only after its bugfix phase completes.
+  - Never cleaned between phases of the same tool — build → feature → bugfix share the same sandbox.
+  - `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/` is empty (or placeholder-only) after all tool sessions finish.
 
 ## Completion Criteria
 This skill is complete when:
