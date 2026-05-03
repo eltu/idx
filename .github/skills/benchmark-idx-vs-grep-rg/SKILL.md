@@ -45,6 +45,22 @@ Optional implementation constraints:
 - storage format
 - CLI UX expectations
 
+## Mandatory Workspace (Sandbox)
+All benchmark implementation files must be created inside this project path:
+
+`./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/`
+
+Use a per-run working directory inside sandbox (for example `sandbox/run-003/studentreg`).
+Do not create benchmark target projects under `/tmp` or outside this repository.
+
+Rationale:
+- `idx` indexing and search in this workflow must discover files from inside the project workspace.
+
+Mandatory cleanup after benchmark completion:
+- Remove all generated files and folders under `sandbox/`.
+- Keep only intentional placeholders (for example `.gitkeep`), if present.
+- Confirm sandbox is empty (or placeholder-only) before finishing the skill.
+
 ## Benchmark Workload
 The same workload must be implemented in all three approaches.
 
@@ -136,6 +152,19 @@ After filesystem changes, resync:
 go run cmd/idx/main.go sync
 ```
 
+Before starting each idx benchmark session, verify daemon state in the target project root:
+
+```bash
+./bin/idx daemon status
+```
+
+If daemon monitoring is not active for the project, initialize it before continuing:
+
+```bash
+./bin/idx daemon enable .
+./bin/idx daemon status
+```
+
 Count a `tool_search_count` interaction for every `search` invocation.
 Count a `tool_navigation_count` interaction for every file opened as a direct result of a search hit.
 
@@ -148,6 +177,29 @@ For every phase in every branch:
 - grep branch: use grep only.
 - rg branch: use rg only.
 4. Capture timestamps and interaction counts during that session.
+
+For every new invocation of this skill (full or partial scope):
+1. Treat the execution as a first-time run.
+2. Ignore prior benchmark interaction context, prior chat-derived optimizations, and prior tool usage patterns.
+3. Recreate the benchmark flow from scratch instead of continuing from previous session state.
+4. Prioritize simulation fidelity over metric outcomes; metrics are directional signals, not optimization targets.
+5. Do not use previous run metrics to influence implementation decisions during the current run.
+
+## Agent Interactive Execution Mode (Mandatory)
+This benchmark must be executed in interactive agent mode, step by step.
+
+Required:
+- Execute commands and edits interactively, one step at a time, as part of the live session flow.
+- Keep per-step traceability so each interaction can be counted and audited.
+- Treat every command relevant to the session timeline as part of the simulation record.
+
+Forbidden:
+- Creating or using automation scripts (for example .sh files) to batch benchmark phases.
+- Running bundled command blocks that skip observable intermediate steps.
+- Replaying previously generated automation artifacts to fast-forward sessions.
+
+Invalidation rule:
+- If script-based or batched automation is used for a session, mark that session invalid and rerun it in interactive mode.
 
 Total sessions in full benchmark:
 - 9 sessions (3 branches x 3 phases)
@@ -208,7 +260,7 @@ Per-session schema must include both interaction counters:
 Count two categories of interactions separately.
 
 Search interactions (direct tool use):
-- idx session: each idx search command increments this counter
+- idx session: increment this counter only for `idx search` (or `go run cmd/idx/main.go search`) invocations
 - grep session: each grep command increments this counter
 - rg session: each rg command increments this counter
 
@@ -222,6 +274,7 @@ Record both counts per session:
 - tool_navigation_count
 
 Do not count:
+- idx commands other than search (`idx init`, `idx sync`, `idx status`, `idx daemon ...`)
 - git commands
 - test commands
 - formatter or lint commands
@@ -232,17 +285,24 @@ Do not count:
 - If a phase fails validation, mark run as fail and record root cause.
 - If scope argument is partial, execute only requested phases.
 - If any branch changes requirements, restart that phase in all branches.
+- For a new skill invocation, reset execution assumptions and avoid carrying over prior interaction memory to reduce benchmark bias.
+- If execution mode is not interactive agent mode, discard the run and restart in interactive mode.
 
 ## Quality Checks
 - Same workload and acceptance criteria across all branches.
 - Same phase order across all branches.
 - Fresh context before every phase.
 - One target search tool per session.
+- Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
+- Benchmark target project lives under `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/`.
+- Every idx session runs daemon pre-check (`idx daemon status`) before starting implementation.
+- If daemon is not active for the project, initialize with `idx daemon enable .` before continuing idx session work.
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Tests executed and status recorded for every session.
 - bcrypt usage validated in all three bugfix sessions.
 - Branch deleted after session metrics are captured.
+- Sandbox cleaned after benchmark completion.
 
 ## Deliverables
 - Code delivered on each branch during its session.
@@ -268,9 +328,14 @@ Do not count:
   - Total tool_search_count per tool
   - Total tool_navigation_count per tool
   - Overall pass/fail rate per tool
+- Methodology note: for idx sessions, `tool_search_count` includes only `idx search` (or `go run cmd/idx/main.go search`) invocations.
+- Methodology note: for idx sessions, daemon state is checked before each session and initialized when missing.
   - Qualitative observations and highlights
 
   If the file already exists, append or update the relevant sections without removing prior benchmark runs.
+
+- Post-run cleanup confirmation:
+  - `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/` is empty (or placeholder-only).
 
 ## Completion Criteria
 This skill is complete when:
