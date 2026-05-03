@@ -15,7 +15,7 @@ func (s *OSProcessSpawner) SpawnWatchProcess(projectPath string) (int, error) {
 	logger := zap.L()
 	logger.Info("spawning watch process", zap.String("projectPath", projectPath))
 
-	cmd := exec.Command("idx", "watch", "--debounce", "750ms")
+	cmd := exec.Command("idx", "watch", "--debounce", "1ms")
 	cmd.Dir = projectPath
 	cmd.Stdout = nil
 	cmd.Stderr = nil
