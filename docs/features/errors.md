@@ -27,17 +27,15 @@
 
 ## Status-specific validation
 
-- `missing transaction log at "...": expected an indexed directory with .idx/logs/tlog.idx`
-- `empty transaction log at "...": expected at least one entry with path/hash/indexed_at fields`
-- `invalid transaction log entry "..." in "...": expected fields path=<file> hash=<checksum> indexed_at=<RFC3339>`
-- `invalid indexed_at value "..." in "...": expected RFC3339 timestamp`
-- `stale index record for path "...": got tlog indexed_at "...", expected file modification time "..."`
+- `no index found under project root "...": run idx init first`
+- `unindexed directories found: [...] — run idx sync to update`
+- `stale index at "...": run idx sync to update`
 
 ## Watch and daemon errors
 
 - `invalid --debounce value ...: expected a duration greater than 0`
 - `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
-- `cannot run watch: daemon is already monitoring this project...`
+- `cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first`
 - `project "..." is already being monitored (PID: ...)`
 - `project "..." not being monitored`
 - `project "..." not being monitored: no projects active`
