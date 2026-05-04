@@ -85,6 +85,8 @@ jobs:
     name: Publish Release
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: release
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -93,9 +95,12 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: CHANGELOG.md
           files: dist/*
