@@ -46,15 +46,12 @@ Optional implementation constraints:
 - CLI UX expectations
 
 ## Mandatory Workspace (Sandbox)
-All benchmark implementation files must be created inside this project path:
+All benchmark implementation files must be created inside a temporary directory:
 
-`./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/`
+`/tmp/idx-benchmark/<run-id>/`
 
-Use a per-run working directory inside sandbox (for example `sandbox/run-003/studentreg`).
-Do not create benchmark target projects under `/tmp` or outside this repository.
-
-Rationale:
-- `idx` indexing and search in this workflow must discover files from inside the project workspace.
+Use a per-run working directory inside that path (for example `/tmp/idx-benchmark/run-003/studentreg`).
+Do not create benchmark target projects inside this repository.
 
 ### Phase continuity within a tool session
 The three phases for each tool (build → feature → bugfix) are sequential and share the same codebase:
@@ -68,9 +65,8 @@ The same directory must be carried forward so each phase starts from the state l
 Sandbox cleanup timing:
 - Clean the sandbox for a tool only **after** its bugfix phase is fully complete and metrics are recorded.
 - Never clean between phases (build → feature or feature → bugfix) of the same tool.
-- After all tool sessions (or after the last requested phase of the last tool), remove all generated files and folders under `sandbox/`.
-- Keep only intentional placeholders (for example `.gitkeep`), if present.
-- Confirm sandbox is empty (or placeholder-only) before finishing the skill.
+- After all tool sessions (or after the last requested phase of the last tool), remove all generated files and folders under `/tmp/idx-benchmark/`.
+- Confirm sandbox is empty (or removed) before finishing the skill.
 
 ## Benchmark Workload
 The same workload must be implemented in all three approaches.
@@ -111,66 +107,60 @@ Branches exist only for statistical traceability during the session.
 ## idx Setup and Usage Reference
 
 The benchmark sessions that use idx must follow the exact commands below.
-This project requires Go 1.26+ and a Git repository root.
 The AGENTS.md of this project forbids using grep or rg inside the project itself,
 but the benchmark target project (student registration CLI) is a separate codebase
 where the session tool restriction applies — follow only the tool rule for that session.
 
-Use `go run` for all idx commands during the session.
-Do not use `./bin/idx` in this benchmark flow.
-Run every idx command from the repository root, never from inside the sandbox target directory.
-Do not use relative paths such as `../../cmd/idx/main.go` in any invocation.
+The `idx` binary is installed at `~/.local/bin/idx` and available globally in the shell.
+Use the `idx` command directly for all idx operations during the session.
 
-Set these absolute paths once per session:
+Set this path once per session:
 
 ```bash
-IDX_ROOT=/absolute/path/to/idx
-TARGET_ROOT=$IDX_ROOT/.claude/skills/benchmark-idx-vs-grep-rg/sandbox/<run-id>/<tool-phase>/studentreg
-cd "$IDX_ROOT"
+TARGET_ROOT=/tmp/idx-benchmark/<run-id>/<tool-phase>/studentreg
 ```
 
-Use the repository-root anchored command patterns below.
-Commands that must operate on the benchmark target project should use a subshell that changes to `TARGET_ROOT`,
-while still invoking `go run` with the absolute path to this repository's `main.go`:
+Use the command patterns below. Commands that must operate on the benchmark target project
+use a subshell that changes to `TARGET_ROOT`:
 
 ```bash
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)
-go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>")
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --files-only)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --path <path-filter>)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search --path <path-filter>)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --format json --matches-only)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" search "<terms>" --context <lines>)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" sync)
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" status)
-go run cmd/idx/main.go daemon status
+(cd "$TARGET_ROOT" && idx init)
+idx daemon enable "$TARGET_ROOT"
+(cd "$TARGET_ROOT" && idx search "<terms>")
+(cd "$TARGET_ROOT" && idx search "<terms>" --files-only)
+(cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter>)
+(cd "$TARGET_ROOT" && idx search --path <path-filter>)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only)
+(cd "$TARGET_ROOT" && idx search "<terms>" --context <lines>)
+(cd "$TARGET_ROOT" && idx sync)
+(cd "$TARGET_ROOT" && idx status)
+idx daemon status
 ```
 
-Before testing idx and before starting the session timer, run both commands in the target project root:
+Before testing idx and before starting the session timer, run both commands:
 
 ```bash
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)
-go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
+(cd "$TARGET_ROOT" && idx init)
+idx daemon enable "$TARGET_ROOT"
 ```
 
 After filesystem changes, resync:
 
 ```bash
-(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" sync)
+(cd "$TARGET_ROOT" && idx sync)
 ```
 
-After starting the daemon, verify daemon state in the target project root:
+After starting the daemon, verify daemon state:
 
 ```bash
-go run cmd/idx/main.go daemon status
+idx daemon status
 ```
 
 If daemon is not active yet for the current project, run daemon enable again and re-check status:
 
 ```bash
-go run cmd/idx/main.go daemon enable "$TARGET_ROOT"
-go run cmd/idx/main.go daemon status
+idx daemon enable "$TARGET_ROOT"
+idx daemon status
 ```
 
 Count a `tool_search_count` interaction for every `search` invocation.
@@ -220,8 +210,8 @@ Total sessions in full benchmark:
 - session start timestamp
 
 Pre-step before recording session start timestamp:
-- From the repository root, run `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)`.
-- From the repository root, run `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"`.
+- Run `(cd "$TARGET_ROOT" && idx init)`.
+- Run `idx daemon enable "$TARGET_ROOT"`.
 - Only start timing after both commands complete.
 
 2. Implement the required phase changes
@@ -273,7 +263,7 @@ Per-session schema must include both interaction counters:
 Count two categories of interactions separately.
 
 Search interactions (direct tool use):
-- idx session: increment this counter only for `idx search` (or `go run cmd/idx/main.go search`) invocations
+- idx session: increment this counter only for `idx search` invocations
 - grep session: each grep command increments this counter
 - rg session: each rg command increments this counter
 
@@ -287,7 +277,7 @@ Record both counts per session:
 - tool_navigation_count
 
 Do not count:
-- idx commands other than search (`idx init`, `idx sync`, `idx status`, `idx daemon ...`)
+- idx commands other than search (`idx init`, `idx sync`, `idx status`, `idx daemon ...`, `idx version`)
 - git commands
 - test commands
 - formatter or lint commands
@@ -307,13 +297,11 @@ Do not count:
 - Fresh context before every phase.
 - One target search tool per session.
 - Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
-- Benchmark target project lives under `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/`.
-- Every idx session anchors the terminal in the repository root before invoking `go run`.
-- No idx session uses relative paths such as `../../cmd/idx/main.go` in any `go run` call.
-- Every idx session runs `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)` before testing idx.
-- Every idx session runs `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"` before starting session timing.
-- Every idx session validates daemon state with `go run cmd/idx/main.go daemon status`.
-- All idx session commands use `go run` from the repository root (no binary usage).
+- Benchmark target project lives under `/tmp/idx-benchmark/`.
+- Every idx session runs `(cd "$TARGET_ROOT" && idx init)` before testing idx.
+- Every idx session runs `idx daemon enable "$TARGET_ROOT"` before starting session timing.
+- Every idx session validates daemon state with `idx daemon status`.
+- All idx session commands use the `idx` binary available in the shell (`~/.local/bin/idx`).
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Tests executed and status recorded for every session.
@@ -347,9 +335,8 @@ Do not count:
   - Total tool_search_count per tool
   - Total tool_navigation_count per tool
   - Overall pass/fail rate per tool
-- Methodology note: for idx sessions, `tool_search_count` includes only `idx search` (or `go run cmd/idx/main.go search`) invocations.
-  - Methodology note: for idx sessions, all `go run` invocations are launched from the repository root and never use relative paths to `main.go`.
-  - Methodology note: for idx sessions, `(cd "$TARGET_ROOT" && go run "$IDX_ROOT/cmd/idx/main.go" init)` and `go run cmd/idx/main.go daemon enable "$TARGET_ROOT"` are executed before timing starts, then daemon status is validated.
+- Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations.
+  - Methodology note: for idx sessions, `(cd "$TARGET_ROOT" && idx init)` and `idx daemon enable "$TARGET_ROOT"` are executed before timing starts, then daemon status is validated with `idx daemon status`.
   - Qualitative observations and highlights
 
   If the file already exists, append or update the relevant sections without removing prior benchmark runs.
@@ -357,7 +344,7 @@ Do not count:
 - Post-run cleanup confirmation:
   - Sandbox cleaned per-tool: each tool's sandbox directory is removed only after its bugfix phase completes.
   - Never cleaned between phases of the same tool — build → feature → bugfix share the same sandbox.
-  - `./.claude/skills/benchmark-idx-vs-grep-rg/sandbox/` is empty (or placeholder-only) after all tool sessions finish.
+  - `/tmp/idx-benchmark/` is removed after all tool sessions finish.
 
 ## Completion Criteria
 This skill is complete when:
