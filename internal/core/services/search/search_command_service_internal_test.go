@@ -38,6 +38,10 @@ func TestNormalizedSearchOptions(t *testing.T) {
 	if len(options.PathQueries) != 2 {
 		t.Fatalf("expected deduplicated path queries, got %v", options.PathQueries)
 	}
+
+	if options.Operator != ports.SearchOperatorAND {
+		t.Fatalf("expected default AND operator, got %q", options.Operator)
+	}
 }
 
 func TestSearchResultOptionHelpers(t *testing.T) {

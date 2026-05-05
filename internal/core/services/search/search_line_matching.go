@@ -73,6 +73,31 @@ func includedContextIndexes(matchedIndexes map[int]struct{}, contextSize int, li
 	return includedIndexes
 }
 
+// maxTermsOnLine returns the maximum number of distinct query terms that
+// co-occur on any single matched line. Only direct match lines (isMatch=true)
+// are considered. This value is used as a tiebreaker in ranking: a file where
+// all terms appear on the same line (e.g. "err := root.Execute()") is more
+// relevant than one where terms are scattered across different lines.
+func maxTermsOnLine(lines []matchedLine, terms []string) int {
+	max := 0
+	for _, line := range lines {
+		if !line.isMatch {
+			continue
+		}
+		count := 0
+		lower := strings.ToLower(line.content)
+		for _, term := range terms {
+			if lineContainsTerm(lower, term) {
+				count++
+			}
+		}
+		if count > max {
+			max = count
+		}
+	}
+	return max
+}
+
 // lineContainsAnyTerm returns true when the line contains at least one term as a whole word token.
 // Whole-word is defined by the same character class as the tokenizer: [a-zA-Z0-9_].
 func lineContainsAnyTerm(line string, terms []string) bool {

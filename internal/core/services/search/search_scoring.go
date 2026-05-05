@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"idx/internal/core/domain"
+	"idx/internal/core/ports"
 )
 
 func sortResults(results []searchResult) {
@@ -15,10 +16,15 @@ func sortResults(results []searchResult) {
 				break
 			}
 			if left.score == right.score {
-				leftPath := filepath.Join(left.directoryPath, left.fileName)
-				rightPath := filepath.Join(right.directoryPath, right.fileName)
-				if leftPath <= rightPath {
+				if left.termConcentration > right.termConcentration {
 					break
+				}
+				if left.termConcentration == right.termConcentration {
+					leftPath := filepath.Join(left.directoryPath, left.fileName)
+					rightPath := filepath.Join(right.directoryPath, right.fileName)
+					if leftPath <= rightPath {
+						break
+					}
 				}
 			}
 			results[j-1], results[j] = results[j], results[j-1]
@@ -60,8 +66,14 @@ func scoreRange(scores map[string]float64) (float64, float64) {
 	return minScore, maxScore
 }
 
-func scoreDocuments(index *domain.InvertedIndex, terms []string) map[string]float64 {
-	matchingDocuments := documentsContainingAllTerms(index, terms)
+func scoreDocuments(index *domain.InvertedIndex, terms []string, operator string) map[string]float64 {
+	var matchingDocuments map[string]struct{}
+	if operator == ports.SearchOperatorOR {
+		matchingDocuments = documentsContainingAnyTerm(index, terms)
+	} else {
+		matchingDocuments = documentsContainingAllTerms(index, terms)
+	}
+
 	if len(matchingDocuments) == 0 {
 		return map[string]float64{}
 	}
@@ -78,12 +90,40 @@ func scoreDocuments(index *domain.InvertedIndex, terms []string) map[string]floa
 
 	applyProximityBonus(scores, index, terms, matchingDocuments)
 
+	if operator == ports.SearchOperatorOR {
+		applyTermCoverageMultiplier(scores, index, terms, matchingDocuments)
+	}
+
 	return scores
 }
 
 func applyProximityBonus(scores map[string]float64, index *domain.InvertedIndex, terms []string, matchingDocuments map[string]struct{}) {
 	for filePath := range matchingDocuments {
 		scores[filePath] += proximityBonusForDocument(index, filePath, terms)
+	}
+}
+
+// applyTermCoverageMultiplier scales each document's score by the fraction of
+// query terms it contains. This ensures that a document matching all queried
+// terms is ranked above one that matches only a subset, regardless of raw BM25
+// magnitude. Only applied for OR queries where partial matches are allowed.
+func applyTermCoverageMultiplier(scores map[string]float64, index *domain.InvertedIndex, terms []string, matchingDocuments map[string]struct{}) {
+	if len(terms) == 0 {
+		return
+	}
+
+	for filePath := range matchingDocuments {
+		matched := 0
+		for _, term := range terms {
+			if termStats := index.Terms[term]; termStats != nil {
+				if _, exists := termStats.Docs[filePath]; exists {
+					matched++
+				}
+			}
+		}
+
+		coverage := float64(matched) / float64(len(terms))
+		scores[filePath] *= coverage
 	}
 }
 
@@ -112,8 +152,16 @@ func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, ter
 }
 
 func minimumDistanceForTermPair(index *domain.InvertedIndex, filePath string, leftTerm string, rightTerm string) (int, bool) {
+	if index.Terms[leftTerm] == nil || index.Terms[rightTerm] == nil {
+		return 0, false
+	}
+
 	leftDocTerm := index.Terms[leftTerm].Docs[filePath]
 	rightDocTerm := index.Terms[rightTerm].Docs[filePath]
+	if leftDocTerm == nil || rightDocTerm == nil {
+		return 0, false
+	}
+
 	if len(leftDocTerm.Positions) == 0 || len(rightDocTerm.Positions) == 0 {
 		return 0, false
 	}
@@ -161,6 +209,22 @@ func documentsContainingAllTerms(index *domain.InvertedIndex, terms []string) ma
 		}
 
 		filterDocumentsByTerm(matchingDocuments, termStats)
+	}
+
+	return matchingDocuments
+}
+
+func documentsContainingAnyTerm(index *domain.InvertedIndex, terms []string) map[string]struct{} {
+	matchingDocuments := make(map[string]struct{})
+	for _, term := range terms {
+		termStats := index.Terms[term]
+		if termStats == nil {
+			continue
+		}
+
+		for filePath := range termStats.Docs {
+			matchingDocuments[filePath] = struct{}{}
+		}
 	}
 
 	return matchingDocuments

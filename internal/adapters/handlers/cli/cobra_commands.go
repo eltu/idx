@@ -135,6 +135,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	var pathQueries []string
 	var from int
 	var size int
+	var operator string
 
 	var searchCommand *cobra.Command
 	searchCommand = &cobra.Command{
@@ -149,12 +150,16 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 				return err
 			}
 
+			if err := validateSearchOperator(operator); err != nil {
+				return err
+			}
+
 			query := strings.Join(args, " ")
 			if err := validateSearchInput(query, pathQueries, runner.arguments); err != nil {
 				return err
 			}
 
-			options := buildSearchOptions(format, contextLines, prettyJSON, explain, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size)
+			options := buildSearchOptions(format, contextLines, prettyJSON, explain, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size, operator)
 			return runner.searchCommand.RunWithOptions(query, options)
 		},
 	}
@@ -170,6 +175,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	searchCommand.Flags().StringArrayVar(&pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
 	searchCommand.Flags().IntVar(&from, "from", 0, "Skip the first N ranked files")
 	searchCommand.Flags().IntVar(&size, "size", 0, "Limit results to top N files")
+	searchCommand.Flags().StringVar(&operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
 
 	return searchCommand
 }
@@ -206,6 +212,14 @@ func validateSearchFormat(format string, prettyJSON bool) error {
 	return nil
 }
 
+func validateSearchOperator(operator string) error {
+	if operator != ports.SearchOperatorAND && operator != ports.SearchOperatorOR {
+		return fmt.Errorf("unsupported --operator value %q: expected one of [%s %s]", operator, ports.SearchOperatorAND, ports.SearchOperatorOR)
+	}
+
+	return nil
+}
+
 func validateSearchInput(query string, pathQueries []string, arguments []string) error {
 	if query == "" && len(pathQueries) == 0 {
 		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", arguments)
@@ -225,6 +239,7 @@ func buildSearchOptions(
 	pathQueries []string,
 	from int,
 	size int,
+	operator string,
 ) ports.SearchOptions {
 	options := ports.SearchOptions{
 		Format:      format,
@@ -236,6 +251,7 @@ func buildSearchOptions(
 		PathQueries: pathQueries,
 		From:        from,
 		Size:        size,
+		Operator:    operator,
 	}
 
 	if len(pathQueries) > 0 {
