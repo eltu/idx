@@ -25,12 +25,19 @@ type searchableCommand interface {
 	RunWithOptions(query string, options ports.SearchOptions) error
 }
 
+// BuildInfo holds version and build date injected at compile time via -ldflags.
+type BuildInfo struct {
+	Version   string
+	BuildDate string
+}
+
 type CommandRunner struct {
 	arguments      []string
 	indexCommand   indexableCommand
 	destroyCommand runnableCommand
 	searchCommand  searchableCommand
 	daemonService  daemonableCommand
+	buildInfo      BuildInfo
 }
 
 // daemonableCommand defines methods for daemon control.
@@ -50,6 +57,13 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 		searchCommand:  searchCommand,
 		daemonService:  daemonService,
 	}
+}
+
+// WithBuildInfo attaches version and build date to the runner for the version command.
+// Example: runner = runner.WithBuildInfo(cli.BuildInfo{Version: "v1.0.0", BuildDate: "2026-05-05"}).
+func (runner CommandRunner) WithBuildInfo(info BuildInfo) CommandRunner {
+	runner.buildInfo = info
+	return runner
 }
 
 // Run dispatches the CLI command based on the first argument.
@@ -85,7 +99,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "help", "--help", "-h":
+	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

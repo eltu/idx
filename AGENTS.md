@@ -1,10 +1,11 @@
 ## Project Guidelines
 
 - Never use `grep` or `rg` to search within the project. Use the project's own search solution.
-- To search: `go run cmd/idx/main.go search "[TERM_TO_SEARCH]"`
-- For a simple output that only shows file names, use `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --files-only`
-- To filter by path without affecting the BM25 ranking of the content, use `go run cmd/idx/main.go search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
-- For metadata-only searches, use `go run cmd/idx/main.go search --path [PATH_FILTER]`
+- The `idx` command is available in the shell and resolves to the compiled binary at `bin/idx` via `~/.local/bin/idx`.
+- To search: `idx search "[TERM_TO_SEARCH]"`
+- For a simple output that only shows file names, use `idx search "[TERM_TO_SEARCH]" --files-only`
+- To filter by path without affecting the BM25 ranking of the content, use `idx search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
+- For metadata-only searches, use `idx search --path [PATH_FILTER]`
 - If you need more information, prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters return valid JSON containing the matching file, line number, and the full matching line.
 - When more context is needed, add the `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
 - To broaden results when searching for multiple terms, use `--operator OR` (default is `AND`, which requires all terms to be present).

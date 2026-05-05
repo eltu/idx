@@ -23,6 +23,12 @@ import (
 
 var exitProcess = os.Exit
 
+// version and buildDate are injected at build time via -ldflags.
+var (
+	version   = "dev"
+	buildDate = "unknown"
+)
+
 func main() {
 	logger, err := newLogger()
 	if err != nil {
@@ -183,7 +189,8 @@ func run(arguments []string, output io.Writer) error {
 
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
-	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService)
+	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
+		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate})
 
 	return runner.Run()
 }
