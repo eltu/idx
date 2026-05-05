@@ -18,7 +18,11 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
+		Version: runner.buildInfo.Version,
 	}
+
+	// Customize --version / -v output to include build date.
+	root.SetVersionTemplate(fmt.Sprintf("idx %s (built %s)\n", runner.buildInfo.Version, runner.buildInfo.BuildDate))
 
 	root.AddCommand(runner.newSyncCommand())
 	root.AddCommand(runner.newInitCommand())
@@ -28,6 +32,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	root.AddCommand(runner.newDestroyCommand())
 	root.AddCommand(runner.newSearchCommand())
 	root.AddCommand(runner.newDaemonCommand())
+	root.AddCommand(runner.newVersionCommand())
 
 	return root
 }

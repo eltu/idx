@@ -3,6 +3,9 @@ BUILD_DIR  := bin
 CMD_MAIN   := ./cmd/idx
 ALL_PKGS   := ./...
 CYCLO_LIMIT := 15
+VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS    := -X main.version=$(VERSION) -X main.buildDate=$(BUILD_DATE)
 
 .PHONY: all build fmt lint test complexity clean check bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci
 
@@ -12,7 +15,7 @@ all: fmt lint test build
 ## Build the main binary
 build:
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY) $(CMD_MAIN)
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(CMD_MAIN)
 
 ## Apply gofmt to all Go source files
 fmt:
