@@ -51,6 +51,11 @@ type searchResult struct {
 	fileName      string
 	matchedLines  []matchedLine
 	score         float64
+	// termConcentration is the maximum number of distinct query terms that
+	// co-occur on a single matched line. Used as a tiebreaker when BM25 scores
+	// are equal: a line containing all terms (e.g. "err := root.Execute()")
+	// ranks above files where the same terms appear on separate lines.
+	termConcentration int
 }
 
 type matchedLine struct {
@@ -288,7 +293,7 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 		return nil, err
 	}
 
-	scores := scoreDocuments(index, terms)
+	scores := scoreDocuments(index, terms, options.Operator)
 	metadataMatches := metadataMatchedDocuments(index, options)
 	scores = filteredScores(scores, metadataMatches, len(terms) == 0)
 	normalizeScores(scores)
@@ -303,7 +308,13 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 			}
 		}
 
-		results = append(results, searchResult{directoryPath: directoryPath, fileName: fileName, matchedLines: lines, score: score})
+		results = append(results, searchResult{
+			directoryPath:     directoryPath,
+			fileName:          fileName,
+			matchedLines:      lines,
+			score:             score,
+			termConcentration: maxTermsOnLine(lines, terms),
+		})
 	}
 
 	return results, nil

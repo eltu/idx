@@ -27,6 +27,7 @@ idx search [query terms] [flags]
 | `--path` | string array | `[]` | Repeatable metadata-path filter |
 | `--from` | int | `0` | Pagination offset, must be `>= 0` |
 | `--size` | int | unset (`0`) | If set, must be `> 0` |
+| `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
 
 Compatibility alias:
 
@@ -38,6 +39,8 @@ Compatibility alias:
 - Tokenizes and deduplicates query terms.
 - Supports metadata-only search when query is empty and `--path` is set.
 - Applies BM25 + normalization for ranking.
+- `--operator AND` (default): a document must contain **all** query terms to be ranked.
+- `--operator OR`: a document must contain **at least one** query term; broadens recall at the cost of precision. Proximity bonus is skipped for terms absent from a given document.
 - Applies output filters in this order: `files-only` or `matches-only`, then pagination (`from`, `size`).
 - `--files-only` has priority over `--matches-only`.
 - Uses in-memory cache for ranked results (TTL: 1 minute) and renews TTL on cache hits.
@@ -69,6 +72,8 @@ idx search --path internal/core
 idx search auth token --from 10 --size 5
 idx search auth token --files-only
 idx search auth token --matches-only
+idx search auth token --operator OR
+idx search auth token --operator AND
 ```
 
 ## Errors
@@ -80,4 +85,5 @@ idx search auth token --matches-only
 	- `invalid --context value ... expected a non-negative integer`
 	- `invalid --from value ... expected a non-negative integer`
 	- `invalid --size value ... expected a positive integer`
+- Unsupported operator: `unsupported --operator value ... expected one of [AND OR]`
 - Index/file access errors when loading indexes or source files.

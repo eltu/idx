@@ -7,6 +7,7 @@
 - For metadata-only searches, use `go run cmd/idx/main.go search --path [PATH_FILTER]`
 - If you need more information, prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters return valid JSON containing the matching file, line number, and the full matching line.
 - When more context is needed, add the `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
+- To broaden results when searching for multiple terms, use `--operator OR` (default is `AND`, which requires all terms to be present).
 ## Code style
 
 - Functions: 4-20 lines. Split if longer.

@@ -5,6 +5,13 @@ const (
 	SearchOutputJSON = "json"
 )
 
+const (
+	// SearchOperatorAND requires all query terms to be present in a document (default).
+	SearchOperatorAND = "AND"
+	// SearchOperatorOR requires at least one query term to be present in a document.
+	SearchOperatorOR = "OR"
+)
+
 // SearchOptions controls optional output behaviour of the search command.
 type SearchOptions struct {
 	Format      string
@@ -17,4 +24,5 @@ type SearchOptions struct {
 	PathQueries []string
 	From        int
 	Size        int
+	Operator    string
 }

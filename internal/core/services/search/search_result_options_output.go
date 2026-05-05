@@ -49,6 +49,10 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
 	normalized.PathQueries = normalizedFilterQueries(normalized.PathQueries, normalized.PathQuery)
 
+	if normalized.Operator == "" {
+		normalized.Operator = ports.SearchOperatorAND
+	}
+
 	return normalized
 }
 
