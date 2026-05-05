@@ -90,6 +90,7 @@
 - ADR 0005: Real-time watch mode syncs the index incrementally on file system events.
 - ADR 0006: Daemon management system to run watch mode as a background process.
 - ADR 0007: Inspect TUI is injected via the InspectUIRunner port to decouple UI from core service.
+- ADR 0008: Search boolean operator (AND/OR) with term-coverage multiplier and term-concentration tiebreaker.
 
 ## Formatting
 
