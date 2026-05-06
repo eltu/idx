@@ -14,6 +14,8 @@ import (
 	"idx/internal/core/ports"
 )
 
+const daemonChildEnvVar = "IDX_DAEMON_CHILD"
+
 type InitCommandService struct {
 	projectTree    ports.ProjectTree
 	matcherFactory ports.IgnoreMatcherFactory
@@ -360,15 +362,52 @@ func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Dur
 		return fmt.Errorf("failed to run watch command: got invalid debounce %s, expected duration greater than 0", debounce)
 	}
 
-	// Check if daemon is running for this project
-	if service.daemonRepo != nil {
-		state, _ := service.daemonRepo.ReadState()
-		if state != nil && len(state.Projects) > 0 {
-			return fmt.Errorf("cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first")
-		}
+	if service.watchStartedByDaemon() {
+		return service.watchLoop(showUpdatedFiles, debounce)
+	}
+
+	monitored, err := service.currentProjectAlreadyMonitored()
+	if err != nil {
+		return err
+	}
+	if monitored {
+		return fmt.Errorf("cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first")
 	}
 
 	return service.watchLoop(showUpdatedFiles, debounce)
+}
+
+func (service InitCommandService) watchStartedByDaemon() bool {
+	return os.Getenv(daemonChildEnvVar) == "1"
+}
+
+func (service InitCommandService) currentProjectAlreadyMonitored() (bool, error) {
+	if service.daemonRepo == nil {
+		return false, nil
+	}
+
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return false, err
+	}
+
+	state, _ := service.daemonRepo.ReadState()
+	if state == nil {
+		return false, nil
+	}
+
+	for _, project := range state.Projects {
+		if project.Enabled && project.Path == projectRoot {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (service InitCommandService) validateDependencies() error {

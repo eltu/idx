@@ -17,6 +17,7 @@ func (s *OSProcessSpawner) SpawnWatchProcess(projectPath string) (int, error) {
 
 	cmd := exec.Command("idx", "watch", "--debounce", "1ms")
 	cmd.Dir = projectPath
+	cmd.Env = append(cmd.Environ(), "IDX_DAEMON_CHILD=1")
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 

@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"idx/internal/core/domain"
@@ -17,6 +19,7 @@ type DaemonService struct {
 	output         ports.TextOutput
 	initCommand    ports.InitCommandInterface
 	processSpawner ports.ProcessSpawner
+	processExists  func(int) bool
 }
 
 // NewDaemonService creates a new instance of the daemon service.
@@ -27,13 +30,45 @@ func NewDaemonService(
 	initCommand ports.InitCommandInterface,
 	processSpawner ports.ProcessSpawner,
 ) *DaemonService {
+	return NewDaemonServiceWithProcessChecker(daemonRepo, projectTree, output, initCommand, processSpawner, processRunning)
+}
+
+// NewDaemonServiceWithProcessChecker creates a new instance with injectable
+// process liveness checks for deterministic tests.
+func NewDaemonServiceWithProcessChecker(
+	daemonRepo ports.DaemonRepository,
+	projectTree ports.ProjectTree,
+	output ports.TextOutput,
+	initCommand ports.InitCommandInterface,
+	processSpawner ports.ProcessSpawner,
+	processExists func(int) bool,
+) *DaemonService {
+	if processExists == nil {
+		processExists = processRunning
+	}
+
 	return &DaemonService{
 		daemonRepo:     daemonRepo,
 		projectTree:    projectTree,
 		output:         output,
 		initCommand:    initCommand,
 		processSpawner: processSpawner,
+		processExists:  processExists,
 	}
+}
+
+func processRunning(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	err = proc.Signal(syscall.Signal(0))
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // Enable activates the watch for a project. If the index does not exist, auto-init is executed.
@@ -104,8 +139,7 @@ func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.Daem
 
 	for _, proj := range state.Projects {
 		if proj.Path == absPath && proj.Enabled {
-			// Check if PID is still alive
-			if _, err := os.FindProcess(proj.PID); err == nil {
+			if s.processExists(proj.PID) {
 				return fmt.Errorf("project %q is already being monitored (PID: %d)", absPath, proj.PID)
 			}
 		}
@@ -116,7 +150,7 @@ func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.Daem
 
 // ensureIndexExists checks whether the index exists; if not, runs auto-init.
 func (s *DaemonService) ensureIndexExists(absPath string) error {
-	indexPath := filepath.Join(absPath, ".idx", "index.gob")
+	indexPath := filepath.Join(absPath, ".idx", "index.idx")
 	if _, err := os.Stat(indexPath); err != nil {
 		if err := s.output.WriteLine("ℹ️  Index not found. Creating initial index..."); err != nil {
 			return err
@@ -183,11 +217,8 @@ func (s *DaemonService) Status() error {
 
 	for _, proj := range state.Projects {
 		status := "❌ stopped"
-		if proj.Enabled {
-			// Check if PID still exists
-			if _, err := os.FindProcess(proj.PID); err == nil {
-				status = "✅ running"
-			}
+		if proj.Enabled && s.processExists(proj.PID) {
+			status = "✅ running"
 		}
 
 		line := fmt.Sprintf("  %s %q (PID: %d, since %s)",

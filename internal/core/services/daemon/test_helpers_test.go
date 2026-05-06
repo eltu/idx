@@ -14,15 +14,16 @@ import (
 )
 
 type daemonTestEnv struct {
-	t            *testing.T
-	repo         *mocks.MockDaemonRepository
-	tree         *mocks.MockProjectTree
-	output       *mocks.MockTextOutput
-	initCommand  *mocks.MockInitCommandInterface
-	spawner      *mocks.MockProcessSpawner
-	state        *domain.DaemonState
-	lines        []string
-	nextSpawnPID int
+	t             *testing.T
+	repo          *mocks.MockDaemonRepository
+	tree          *mocks.MockProjectTree
+	output        *mocks.MockTextOutput
+	initCommand   *mocks.MockInitCommandInterface
+	spawner       *mocks.MockProcessSpawner
+	state         *domain.DaemonState
+	lines         []string
+	nextSpawnPID  int
+	processExists func(int) bool
 }
 
 func newDaemonTestEnv(t *testing.T, initialState *domain.DaemonState) *daemonTestEnv {
@@ -40,6 +41,9 @@ func newDaemonTestEnv(t *testing.T, initialState *domain.DaemonState) *daemonTes
 		spawner:      mocks.NewMockProcessSpawner(controller),
 		state:        cloneDaemonState(initialState),
 		nextSpawnPID: 12345,
+		processExists: func(pid int) bool {
+			return pid > 0
+		},
 	}
 
 	env.repo.EXPECT().ReadState().DoAndReturn(func() (*domain.DaemonState, error) {
@@ -76,7 +80,7 @@ func newDaemonTestEnv(t *testing.T, initialState *domain.DaemonState) *daemonTes
 
 func (env *daemonTestEnv) service() *daemon.DaemonService {
 	env.t.Helper()
-	return daemon.NewDaemonService(env.repo, env.tree, env.output, env.initCommand, env.spawner)
+	return daemon.NewDaemonServiceWithProcessChecker(env.repo, env.tree, env.output, env.initCommand, env.spawner, env.processExists)
 }
 
 func (env *daemonTestEnv) expectSpawn(projectPath string) int {
@@ -116,6 +120,7 @@ func createIndexFile(t *testing.T, projectDir string) {
 	}
 
 	indexPath := filepath.Join(indexDir, "index.gob")
+	indexPath = filepath.Join(indexDir, "index.idx")
 	if err := os.WriteFile(indexPath, []byte("fake index"), 0o600); err != nil {
 		t.Fatalf("failed to create index file: %v", err)
 	}

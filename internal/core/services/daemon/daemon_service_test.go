@@ -3,6 +3,7 @@ package daemon_test
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -143,6 +144,29 @@ func TestDaemonServiceStatusListsMonitoredProjects(t *testing.T) {
 	if env.lines[0] != "📊 Monitored Projects:" {
 		t.Fatalf("expected monitored projects header, got %q", env.lines[0])
 	}
+	if !strings.Contains(env.lines[1], "✅ running") {
+		t.Fatalf("expected running project line, got %q", env.lines[1])
+	}
+}
+
+func TestDaemonServiceStatusMarksProjectStoppedWhenPIDIsNotAlive(t *testing.T) {
+	projectDir := t.TempDir()
+	env := newDaemonTestEnv(t, &domain.DaemonState{
+		Projects: []domain.MonitoredProject{monitoredProject(projectDir, 12345)},
+	})
+	env.processExists = func(int) bool { return false }
+
+	err := env.service().Status()
+	if err != nil {
+		t.Fatalf("expected status to succeed, got %v", err)
+	}
+
+	if len(env.lines) < 2 {
+		t.Fatalf("expected header and one project line, got %#v", env.lines)
+	}
+	if !strings.Contains(env.lines[1], "❌ stopped") {
+		t.Fatalf("expected stopped project line, got %q", env.lines[1])
+	}
 }
 
 func TestDaemonServiceEnableMultipleProjects(t *testing.T) {
@@ -234,5 +258,22 @@ func TestDaemonServiceStatusWithDisabledProject(t *testing.T) {
 	err := env.service().Status()
 	if err != nil {
 		t.Fatalf("expected status to succeed for disabled project, got %v", err)
+	}
+}
+
+func TestDaemonServiceEnableUsesExistingIndexIDXFile(t *testing.T) {
+	projectDir := t.TempDir()
+	createIndexFile(t, projectDir)
+
+	env := newDaemonTestEnv(t, nil)
+	env.expectSpawn(projectDir)
+
+	err := env.service().Enable(projectDir)
+	if err != nil {
+		t.Fatalf("expected enable to succeed, got %v", err)
+	}
+
+	if len(env.lines) > 0 && env.lines[0] == "ℹ️  Index not found. Creating initial index..." {
+		t.Fatalf("expected existing .idx/index.idx to skip auto-init, got lines %#v", env.lines)
 	}
 }

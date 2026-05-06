@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -741,6 +742,33 @@ func TestWatchReturnsErrorWhenDaemonAlreadyMonitoring(t *testing.T) {
 	err := service.Watch(false, time.Second)
 	if err == nil {
 		t.Fatal("expected error when daemon is already monitoring")
+	}
+}
+
+func TestWatchSkipsDaemonBlockWhenStartedByDaemon(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.daemonRepo = internalDaemonRepo{state: &domain.DaemonState{
+		Projects: []domain.MonitoredProject{{Path: root, Enabled: true, PID: 1}},
+	}}
+	t.Setenv(daemonChildEnvVar, "1")
+
+	err := service.Watch(false, time.Second)
+	if err != nil && strings.Contains(err.Error(), "cannot run watch: daemon is already monitoring this project") {
+		t.Fatalf("expected daemon child watch to bypass daemon self-check, got %v", err)
+	}
+}
+
+func TestWatchIgnoresOtherMonitoredProjects(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "repo")
+	service := newValidInternalService(root)
+	service.daemonRepo = internalDaemonRepo{state: &domain.DaemonState{
+		Projects: []domain.MonitoredProject{{Path: filepath.Join(root, "other"), Enabled: true, PID: 1}},
+	}}
+
+	err := service.Watch(false, time.Second)
+	if err != nil && strings.Contains(err.Error(), "cannot run watch: daemon is already monitoring this project") {
+		t.Fatalf("expected unrelated monitored project to not block watch, got %v", err)
 	}
 }
 
