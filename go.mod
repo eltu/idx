@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/mock v0.6.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
