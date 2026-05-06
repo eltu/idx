@@ -18,6 +18,9 @@ func cacheKeyFor(query string, options ports.SearchOptions) string {
 		fmt.Sprintf("mo:%v", options.MatchesOnly),
 		fmt.Sprintf("fo:%v", options.FilesOnly),
 		fmt.Sprintf("pq:%s", strings.Join(options.PathQueries, ":")),
+		fmt.Sprintf("op:%s", options.Operator),
+		fmt.Sprintf("rel-en:%v", options.RelaxationEnabled),
+		fmt.Sprintf("rel-min:%d", options.RelaxationMinExclusive),
 	}
 	keyStr := strings.Join(keyParts, "|")
 	hash := md5.Sum([]byte(keyStr))
@@ -51,6 +54,10 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 
 	if normalized.Operator == "" {
 		normalized.Operator = ports.SearchOperatorAND
+	}
+
+	if normalized.RelaxationMinExclusive < 0 {
+		normalized.RelaxationMinExclusive = 0
 	}
 
 	return normalized

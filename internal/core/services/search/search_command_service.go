@@ -51,6 +51,7 @@ type searchResult struct {
 	fileName      string
 	matchedLines  []matchedLine
 	score         float64
+	matchedTerms  int
 	// termConcentration is the maximum number of distinct query terms that
 	// co-occur on a single matched line. Used as a tiebreaker when BM25 scores
 	// are equal: a line containing all terms (e.g. "err := root.Execute()")
@@ -295,16 +296,95 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 
 	scores := scoreDocuments(index, terms, options.Operator)
 	metadataMatches := metadataMatchedDocuments(index, options)
+	if shouldRelaxSearch(terms, options) {
+		return service.relaxedDirectoryResults(index, directoryPath, terms, options, metadataMatches)
+	}
+
 	scores = filteredScores(scores, metadataMatches, len(terms) == 0)
 	normalizeScores(scores)
 
-	return service.buildSearchResults(directoryPath, terms, options.Context, scores)
+	return service.buildSearchResults(directoryPath, terms, options.Context, scores, 0)
 }
 
-func (service SearchCommandService) buildSearchResults(directoryPath string, terms []string, contextSize int, scores map[string]float64) ([]searchResult, error) {
+func shouldRelaxSearch(terms []string, options ports.SearchOptions) bool {
+	if !options.RelaxationEnabled {
+		return false
+	}
+
+	if options.Operator != ports.SearchOperatorAND {
+		return false
+	}
+
+	if len(terms) <= 3 {
+		return false
+	}
+
+	return len(terms) > options.RelaxationMinExclusive
+}
+
+func (service SearchCommandService) relaxedDirectoryResults(index *domain.InvertedIndex, directoryPath string, terms []string, options ports.SearchOptions, metadataMatches map[string]struct{}) ([]searchResult, error) {
+	combined := make(map[string]searchResult)
+	candidates := relaxationCandidates(terms, options.RelaxationMinExclusive)
+	for _, candidateTerms := range candidates {
+		candidateScores := scoreDocuments(index, candidateTerms, ports.SearchOperatorAND)
+		candidateScores = filteredScores(candidateScores, metadataMatches, false)
+		normalizeScores(candidateScores)
+
+		candidateResults, err := service.buildSearchResults(directoryPath, candidateTerms, options.Context, candidateScores, len(candidateTerms))
+		if err != nil {
+			return nil, err
+		}
+
+		mergeRelaxedResults(combined, candidateResults)
+	}
+
+	return mapResults(combined), nil
+}
+
+func relaxationCandidates(terms []string, minExclusive int) [][]string {
+	if minExclusive < 0 {
+		minExclusive = 0
+	}
+
+	candidates := make([][]string, 0, len(terms))
+	for size := len(terms); size > minExclusive; size-- {
+		candidates = append(candidates, terms[:size])
+	}
+
+	return candidates
+}
+
+func mergeRelaxedResults(combined map[string]searchResult, partial []searchResult) {
+	for _, result := range partial {
+		key := filepath.Join(result.directoryPath, result.fileName)
+		existing, exists := combined[key]
+		if !exists || relaxedResultBetter(result, existing) {
+			combined[key] = result
+		}
+	}
+}
+
+func relaxedResultBetter(candidate searchResult, current searchResult) bool {
+	if candidate.matchedTerms != current.matchedTerms {
+		return candidate.matchedTerms > current.matchedTerms
+	}
+
+	return candidate.score > current.score
+}
+
+func mapResults(combined map[string]searchResult) []searchResult {
+	results := make([]searchResult, 0, len(combined))
+	for _, result := range combined {
+		results = append(results, result)
+	}
+
+	return results
+}
+
+func (service SearchCommandService) buildSearchResults(directoryPath string, terms []string, contextSize int, scores map[string]float64, matchedTerms int) ([]searchResult, error) {
 	results := make([]searchResult, 0, len(scores))
 	for fileName, score := range scores {
-		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score)
+		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score, matchedTerms)
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +393,7 @@ func (service SearchCommandService) buildSearchResults(directoryPath string, ter
 	return results, nil
 }
 
-func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64) (searchResult, error) {
+func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64, matchedTerms int) (searchResult, error) {
 	lines, err := service.resultMatchedLines(directoryPath, fileName, terms, contextSize)
 	if err != nil {
 		return searchResult{}, err
@@ -324,6 +404,7 @@ func (service SearchCommandService) buildSearchResult(directoryPath string, file
 		fileName:          fileName,
 		matchedLines:      lines,
 		score:             score,
+		matchedTerms:      matchedTerms,
 		termConcentration: maxTermsOnLine(lines, terms),
 	}, nil
 }

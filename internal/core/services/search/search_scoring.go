@@ -20,6 +20,10 @@ func sortResults(results []searchResult) {
 }
 
 func orderedSearchResult(left searchResult, right searchResult) bool {
+	if left.matchedTerms != right.matchedTerms {
+		return left.matchedTerms > right.matchedTerms
+	}
+
 	if left.score != right.score {
 		return left.score > right.score
 	}

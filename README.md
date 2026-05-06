@@ -15,6 +15,7 @@ Fast code and text search CLI for Git repositories, powered by BM25 and per-dire
 make build
 ./bin/idx init
 ./bin/idx search "auth token"
+./bin/idx search "func abc x y int 10" --operator AND --relaxation '>2'
 ```
 
 Or run directly:
@@ -27,7 +28,7 @@ go run cmd/idx/main.go <command>
 
 - `idx init`: create indexes recursively
 - `idx sync`: resync existing indexes
-- `idx search <terms>`: search indexed content
+- `idx search <terms>`: search indexed content, with `--operator AND|OR` and AND relaxation via `--relaxation '>N'`
 - `idx watch`: realtime sync in active terminal session
 - `idx daemon enable|disable|status`: background monitoring
 - `idx inspect <path>`: inspect index content

@@ -20,3 +20,4 @@ Detailed end-user command reference, organized by command.
 2. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
 3. Verify index freshness with `idx status`.
 4. Use `idx search` during development.
+5. For exploratory multi-term queries, start with `--operator OR` or use `--operator AND --relaxation '>N'` when you want strict ranking with controlled fallback.

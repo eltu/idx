@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -157,10 +158,13 @@ type searchCommandConfig struct {
 	from              int
 	size              int
 	operator          string
+	relaxation        string
+	relaxationMin     int
+	relaxationEnabled bool
 }
 
 func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args []string, config *searchCommandConfig) error {
-	if err := validateSearchConfig(*config, searchCommand.Flags().Changed("size")); err != nil {
+	if err := validateSearchConfig(config, searchCommand.Flags().Changed("size")); err != nil {
 		return err
 	}
 
@@ -185,9 +189,10 @@ func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandCon
 	searchCommand.Flags().IntVar(&config.from, "from", 0, "Skip the first N ranked files")
 	searchCommand.Flags().IntVar(&config.size, "size", 0, "Limit results to top N files")
 	searchCommand.Flags().StringVar(&config.operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
+	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", "", "Relax AND query with trailing-term fallback. Format: >N")
 }
 
-func validateSearchConfig(config searchCommandConfig, sizeChanged bool) error {
+func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {
 	if err := validateSearchFlagValues(config.contextLines, config.from, config.size, sizeChanged); err != nil {
 		return err
 	}
@@ -196,7 +201,11 @@ func validateSearchConfig(config searchCommandConfig, sizeChanged bool) error {
 		return err
 	}
 
-	return validateSearchOperator(config.operator)
+	if err := validateSearchOperator(config.operator); err != nil {
+		return err
+	}
+
+	return validateSearchRelaxation(config)
 }
 
 func validateSearchFlagValues(contextLines int, from int, size int, sizeChanged bool) error {
@@ -239,6 +248,33 @@ func validateSearchOperator(operator string) error {
 	return nil
 }
 
+func validateSearchRelaxation(config *searchCommandConfig) error {
+	config.relaxationEnabled = false
+	config.relaxationMin = 0
+
+	if strings.TrimSpace(config.relaxation) == "" {
+		return nil
+	}
+
+	if config.operator != ports.SearchOperatorAND {
+		return fmt.Errorf("invalid --relaxation with --operator %q: expected %q", config.operator, ports.SearchOperatorAND)
+	}
+
+	value := strings.TrimSpace(config.relaxation)
+	if !strings.HasPrefix(value, ">") || len(value) == 1 {
+		return fmt.Errorf("invalid --relaxation value %q: expected format >N where N is a non-negative integer", config.relaxation)
+	}
+
+	parsed, err := strconv.Atoi(value[1:])
+	if err != nil || parsed < 0 {
+		return fmt.Errorf("invalid --relaxation value %q: expected format >N where N is a non-negative integer", config.relaxation)
+	}
+
+	config.relaxationEnabled = true
+	config.relaxationMin = parsed
+	return nil
+}
+
 func validateSearchInput(query string, pathQueries []string, arguments []string) error {
 	if query == "" && len(pathQueries) == 0 {
 		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", arguments)
@@ -249,16 +285,18 @@ func validateSearchInput(query string, pathQueries []string, arguments []string)
 
 func (config searchCommandConfig) options() ports.SearchOptions {
 	options := ports.SearchOptions{
-		Format:      config.format,
-		Context:     config.contextLines,
-		PrettyJSON:  config.prettyJSON,
-		Explain:     config.explain,
-		MatchesOnly: config.matchesOnly || config.legacyMatchesOnly,
-		FilesOnly:   config.filesOnly,
-		PathQueries: config.pathQueries,
-		From:        config.from,
-		Size:        config.size,
-		Operator:    config.operator,
+		Format:                 config.format,
+		Context:                config.contextLines,
+		PrettyJSON:             config.prettyJSON,
+		Explain:                config.explain,
+		MatchesOnly:            config.matchesOnly || config.legacyMatchesOnly,
+		FilesOnly:              config.filesOnly,
+		PathQueries:            config.pathQueries,
+		From:                   config.from,
+		Size:                   config.size,
+		Operator:               config.operator,
+		RelaxationEnabled:      config.relaxationEnabled,
+		RelaxationMinExclusive: config.relaxationMin,
 	}
 
 	if len(config.pathQueries) > 0 {

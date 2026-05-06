@@ -327,6 +327,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--path", "cmd/idx",
 		"--from", "1",
 		"--size", "5",
+		"--relaxation", ">1",
 	}, initCommand, destroyCommand, searchCommand, daemonCommand)
 
 	if err := runner.Run(); err != nil {
@@ -363,6 +364,10 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 
 	if searchCommand.lastOptions.PathQuery != "internal/core" {
 		t.Fatalf("expected first path as PathQuery, got %q", searchCommand.lastOptions.PathQuery)
+	}
+
+	if !searchCommand.lastOptions.RelaxationEnabled || searchCommand.lastOptions.RelaxationMinExclusive != 1 {
+		t.Fatalf("expected relaxation >1, got enabled=%v min=%d", searchCommand.lastOptions.RelaxationEnabled, searchCommand.lastOptions.RelaxationMinExclusive)
 	}
 }
 

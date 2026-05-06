@@ -14,15 +14,17 @@ const (
 
 // SearchOptions controls optional output behaviour of the search command.
 type SearchOptions struct {
-	Format      string
-	Context     int
-	PrettyJSON  bool
-	Explain     bool
-	MatchesOnly bool
-	FilesOnly   bool
-	PathQuery   string
-	PathQueries []string
-	From        int
-	Size        int
-	Operator    string
+	Format                 string
+	Context                int
+	PrettyJSON             bool
+	Explain                bool
+	MatchesOnly            bool
+	FilesOnly              bool
+	PathQuery              string
+	PathQueries            []string
+	From                   int
+	Size                   int
+	Operator               string
+	RelaxationEnabled      bool
+	RelaxationMinExclusive int
 }

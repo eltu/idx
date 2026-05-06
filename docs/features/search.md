@@ -28,6 +28,7 @@ idx search [query terms] [flags]
 | `--from` | int | `0` | Pagination offset, must be `>= 0` |
 | `--size` | int | unset (`0`) | If set, must be `> 0` |
 | `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
+| `--relaxation` | string | unset | Only with `--operator AND`. Format `>N`; for queries with more than 3 terms, performs trailing-term relaxation down to more than `N` terms |
 
 Compatibility alias:
 
@@ -40,6 +41,7 @@ Compatibility alias:
 - Supports metadata-only search when query is empty and `--path` is set.
 - Applies BM25 + normalization for ranking.
 - `--operator AND` (default): a document must contain **all** query terms to be ranked.
+- `--operator AND` + `--relaxation >N`: for queries with more than 3 terms, evaluates decreasing term prefixes (removing tokens from right to left) while keeping at least `N+1` terms, then ranks results prioritizing the largest matched term count.
 - `--operator OR`: a document must contain **at least one** query term; broadens recall at the cost of precision. Proximity bonus is skipped for terms absent from a given document.
 - Applies output filters in this order: `files-only` or `matches-only`, then pagination (`from`, `size`).
 - `--files-only` has priority over `--matches-only`.
@@ -74,6 +76,7 @@ idx search auth token --files-only
 idx search auth token --matches-only
 idx search auth token --operator OR
 idx search auth token --operator AND
+idx search func abc x y int 10 --operator AND --relaxation '>2'
 ```
 
 ## Errors
@@ -86,4 +89,7 @@ idx search auth token --operator AND
 	- `invalid --from value ... expected a non-negative integer`
 	- `invalid --size value ... expected a positive integer`
 - Unsupported operator: `unsupported --operator value ... expected one of [AND OR]`
+- Invalid relaxation format/operator combination:
+	- `invalid --relaxation value ... expected format >N where N is a non-negative integer`
+	- `invalid --relaxation with --operator ... expected AND`
 - Index/file access errors when loading indexes or source files.

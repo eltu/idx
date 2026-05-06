@@ -16,6 +16,9 @@
 - `invalid --context value ...: expected a non-negative integer`
 - `invalid --from value ...: expected a non-negative integer`
 - `invalid --size value ...: expected a positive integer`
+- `unsupported --operator value "...": expected one of [AND OR]`
+- `invalid --relaxation value "...": expected format >N where N is a non-negative integer`
+- `invalid --relaxation with --operator "...": expected "AND"`
 
 ## Index lifecycle and state errors
 
