@@ -3,7 +3,7 @@ package indexing
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"idx/internal/core/domain"
 )
@@ -213,7 +213,7 @@ func TestInspectBackspaceInDirectorySearchTrimsCursor(t *testing.T) {
 		},
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.directorySearchQuery != "doc" {
 		t.Fatalf("expected 'doc' after backspace, got %q", updatedModel.directorySearchQuery)
@@ -229,7 +229,7 @@ func TestInspectBackspaceInLogSearchTrimsCursor(t *testing.T) {
 		filteredLogs:   []inspectLogRow{{path: "/repo", indexedAt: "2026-05-01T00:00:00Z", hash: "abc"}},
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.logSearchQuery != "rep" {
 		t.Fatalf("expected 'rep' after backspace, got %q", updatedModel.logSearchQuery)

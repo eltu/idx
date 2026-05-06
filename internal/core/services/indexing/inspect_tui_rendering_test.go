@@ -14,7 +14,7 @@ func TestViewReturnsNonEmptyInDirectoriesMode(t *testing.T) {
 	model.height = 24
 	model.width = 80
 
-	view := model.View()
+	view := model.View().Content
 	if view == "" {
 		t.Fatal("expected non-empty view in directories mode")
 	}
@@ -36,7 +36,7 @@ func TestViewReturnsNonEmptyInDocumentsMode(t *testing.T) {
 	model.filteredDocuments = append([]inspectDocumentRow(nil), model.documents...)
 	model.documentSelected = 0
 
-	view := model.View()
+	view := model.View().Content
 	if view == "" {
 		t.Fatal("expected non-empty view in documents mode")
 	}
@@ -55,7 +55,7 @@ func TestViewReturnsNonEmptyInLogsMode(t *testing.T) {
 	model.logs = []inspectLogRow{{indexedAt: "2026-05-01T00:00:00Z", path: "/repo", hash: "abc"}}
 	model.filteredLogs = model.logs
 
-	view := model.View()
+	view := model.View().Content
 	if view == "" {
 		t.Fatal("expected non-empty view in logs mode")
 	}
@@ -70,7 +70,7 @@ func TestViewReturnsNonEmptyInJSONMode(t *testing.T) {
 	model.width = 80
 	model.jsonLines = []string{`{"key": "value"}`, `}`}
 
-	view := model.View()
+	view := model.View().Content
 	if view == "" {
 		t.Fatal("expected non-empty view in JSON mode")
 	}
@@ -80,7 +80,7 @@ func TestViewReturnsQuitMessageWhenQuitting(t *testing.T) {
 	model := newInspectModel(domain.NewInvertedIndex())
 	model.quitting = true
 
-	view := model.View()
+	view := model.View().Content
 	if view == "" {
 		t.Fatal("expected non-empty quit view")
 	}

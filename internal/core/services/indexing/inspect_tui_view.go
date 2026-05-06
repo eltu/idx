@@ -3,30 +3,32 @@ package indexing
 import (
 	"fmt"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
-func (model inspectModel) View() string {
+func (model inspectModel) View() tea.View {
 	if model.quitting {
-		return "\n" + inspectQuitMessageStyle.Render("Leaving inspect mode...") + "\n"
+		return tea.NewView("\n" + inspectQuitMessageStyle.Render("Leaving inspect mode...") + "\n")
 	}
 
 	if model.mode == inspectViewModeJSON {
-		return inspectJSONView(model)
+		return tea.NewView(inspectJSONView(model))
 	}
 
 	if len(model.directories) == 0 {
-		return "\n" + inspectEmptyStateStyle.Render("No indexed documents available.") + "\n" + inspectHelpStyle.Render("Press q to quit.") + "\n"
+		return tea.NewView("\n" + inspectEmptyStateStyle.Render("No indexed documents available.") + "\n" + inspectHelpStyle.Render("Press q to quit.") + "\n")
 	}
 
 	if model.mode == inspectViewModeDocuments {
-		return inspectDocumentsView(model)
+		return tea.NewView(inspectDocumentsView(model))
 	}
 
 	if model.mode == inspectViewModeLogs {
-		return inspectLogsView(model)
+		return tea.NewView(inspectLogsView(model))
 	}
 
-	return inspectDirectoriesView(model)
+	return tea.NewView(inspectDirectoriesView(model))
 }
 
 func inspectDirectoriesView(model inspectModel) string {

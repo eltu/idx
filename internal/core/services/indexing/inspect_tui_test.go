@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"idx/internal/core/domain"
 )
@@ -65,13 +65,13 @@ func TestInspectEnterOpensDirectoryThenJSONAndEscReturnsToDocuments(t *testing.T
 		t.Fatalf("expected directories mode initially, got %v", model.mode)
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	documentsModel := updated.(inspectModel)
 	if documentsModel.mode != inspectViewModeDocuments {
 		t.Fatalf("expected documents mode after opening directory, got %v", documentsModel.mode)
 	}
 
-	updated, _ = documentsModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = documentsModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	jsonModel := updated.(inspectModel)
 
 	if jsonModel.mode != inspectViewModeJSON {
@@ -82,7 +82,7 @@ func TestInspectEnterOpensDirectoryThenJSONAndEscReturnsToDocuments(t *testing.T
 		t.Fatal("expected JSON lines to be populated")
 	}
 
-	updated, _ = jsonModel.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ = jsonModel.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	documentsModel = updated.(inspectModel)
 	if documentsModel.mode != inspectViewModeDocuments {
 		t.Fatalf("expected documents mode after esc from JSON, got %v", documentsModel.mode)
@@ -156,7 +156,7 @@ func TestInspectListPgDownMovesByPage(t *testing.T) {
 		mode:                inspectViewModeDirectories,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	directoriesModel := updated.(inspectModel)
 
 	if directoriesModel.directorySelected != 4 {
@@ -174,7 +174,7 @@ func TestInspectListPgUpMovesByPage(t *testing.T) {
 		mode:              inspectViewModeDocuments,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	documentsModel := updated.(inspectModel)
 
 	if documentsModel.documentSelected != 6 {
@@ -195,13 +195,13 @@ func TestInspectDirectorySlashSearchFiltersRows(t *testing.T) {
 		mode: inspectViewModeDirectories,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "/"})
 	updatedModel := updated.(inspectModel)
 	if !updatedModel.directorySearchMode {
 		t.Fatal("expected directory search mode to be enabled after slash")
 	}
 
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d', 'o', 'c'}})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "doc"})
 	updatedModel = updated.(inspectModel)
 	if len(updatedModel.filteredDirectories) != 1 {
 		t.Fatalf("expected one filtered directory, got %d", len(updatedModel.filteredDirectories))
@@ -224,15 +224,15 @@ func TestInspectDocumentSlashSearchEscIgnoredAndEnterFinishes(t *testing.T) {
 		mode: inspectViewModeDocuments,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "/"})
 	updatedModel := updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s', 'e', 'a', 'r', 'c', 'h'}})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "search"})
 	updatedModel = updated.(inspectModel)
 	if len(updatedModel.filteredDocuments) != 1 {
 		t.Fatalf("expected one filtered document, got %d", len(updatedModel.filteredDocuments))
 	}
 
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	updatedModel = updated.(inspectModel)
 	if !updatedModel.documentSearchMode {
 		t.Fatal("expected document search mode to remain enabled after esc")
@@ -241,7 +241,7 @@ func TestInspectDocumentSlashSearchEscIgnoredAndEnterFinishes(t *testing.T) {
 		t.Fatalf("expected filter to remain after esc, got %d results", len(updatedModel.filteredDocuments))
 	}
 
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 	if updatedModel.documentSearchMode {
 		t.Fatal("expected document search mode disabled after enter")
@@ -259,7 +259,7 @@ func TestInspectDocumentsEscReturnsToDirectories(t *testing.T) {
 		},
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.mode != inspectViewModeDirectories {
 		t.Fatalf("expected directories mode after esc from documents, got %v", updatedModel.mode)
@@ -274,7 +274,7 @@ func TestInspectLogsEscDoesNotLeaveMode(t *testing.T) {
 		logSelected:  0,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.mode != inspectViewModeLogs {
 		t.Fatalf("expected logs mode to remain after esc, got %v", updatedModel.mode)
@@ -284,11 +284,11 @@ func TestInspectLogsEscDoesNotLeaveMode(t *testing.T) {
 func TestInspectCommandModeTabAutocompleteSingleMatch(t *testing.T) {
 	model := inspectModel{mode: inspectViewModeDirectories}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("tl")})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "tl"})
 	updatedModel = updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	updatedModel = updated.(inspectModel)
 
 	if updatedModel.commandQuery != "tlog" {
@@ -302,7 +302,7 @@ func TestInspectJSONModeAllowsCommandInput(t *testing.T) {
 		jsonLines: []string{"{}"},
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.commandMode != inspectCommandModeCommand {
 		t.Fatal("expected command mode to be enabled from JSON mode")
@@ -312,15 +312,15 @@ func TestInspectJSONModeAllowsCommandInput(t *testing.T) {
 func TestInspectCommandModeSwitchesToLogsNavigator(t *testing.T) {
 	model := newInspectModel(domain.NewInvertedIndex())
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.commandMode != inspectCommandModeCommand {
 		t.Fatal("expected command mode enabled after colon")
 	}
 
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("tlog")})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "tlog"})
 	updatedModel = updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
 	if updatedModel.mode != inspectViewModeLogs {
@@ -336,7 +336,7 @@ func TestInspectLogsEnterDoesNothing(t *testing.T) {
 		logSelected:  0,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.mode != inspectViewModeLogs {
 		t.Fatalf("expected logs mode to remain after enter, got %v", updatedModel.mode)
@@ -346,11 +346,11 @@ func TestInspectLogsEnterDoesNothing(t *testing.T) {
 func TestInspectCommandModeSwitchesToIndexNavigator(t *testing.T) {
 	model := inspectModel{mode: inspectViewModeLogs}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("index")})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "index"})
 	updatedModel = updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
 	if updatedModel.mode != inspectViewModeDirectories {
@@ -361,11 +361,11 @@ func TestInspectCommandModeSwitchesToIndexNavigator(t *testing.T) {
 func TestInspectCommandModeUnknownCommandSetsError(t *testing.T) {
 	model := newInspectModel(domain.NewInvertedIndex())
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("invalid")})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "invalid"})
 	updatedModel = updated.(inspectModel)
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
 	if updatedModel.commandError == "" {
@@ -393,13 +393,13 @@ func TestInspectLogsHorizontalNavigationWithArrows(t *testing.T) {
 		filteredLogs: []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/a/very/long/path", hash: "1234567890abcdef", summary: "summary"}},
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	updatedModel := updated.(inspectModel)
 	if updatedModel.logColumnOffset <= 0 {
 		t.Fatalf("expected positive column offset after right key, got %d", updatedModel.logColumnOffset)
 	}
 
-	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	updatedModel = updated.(inspectModel)
 	if updatedModel.logColumnOffset != 0 {
 		t.Fatalf("expected zero column offset after left key, got %d", updatedModel.logColumnOffset)
