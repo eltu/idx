@@ -79,23 +79,30 @@ func includedContextIndexes(matchedIndexes map[int]struct{}, contextSize int, li
 // all terms appear on the same line (e.g. "err := root.Execute()") is more
 // relevant than one where terms are scattered across different lines.
 func maxTermsOnLine(lines []matchedLine, terms []string) int {
-	max := 0
+	maxTerms := 0
 	for _, line := range lines {
-		if !line.isMatch {
-			continue
-		}
-		count := 0
-		lower := strings.ToLower(line.content)
-		for _, term := range terms {
-			if lineContainsTerm(lower, term) {
-				count++
-			}
-		}
-		if count > max {
-			max = count
+		termCount := matchedTermCountOnLine(line, terms)
+		if termCount > maxTerms {
+			maxTerms = termCount
 		}
 	}
-	return max
+	return maxTerms
+}
+
+func matchedTermCountOnLine(line matchedLine, terms []string) int {
+	if !line.isMatch {
+		return 0
+	}
+
+	lowerLine := strings.ToLower(line.content)
+	count := 0
+	for _, term := range terms {
+		if lineContainsTerm(lowerLine, term) {
+			count++
+		}
+	}
+
+	return count
 }
 
 // lineContainsAnyTerm returns true when the line contains at least one term as a whole word token.

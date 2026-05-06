@@ -11,25 +11,28 @@ import (
 func sortResults(results []searchResult) {
 	for i := 1; i < len(results); i++ {
 		for j := i; j > 0; j-- {
-			left, right := results[j-1], results[j]
-			if left.score > right.score {
+			if orderedSearchResult(results[j-1], results[j]) {
 				break
-			}
-			if left.score == right.score {
-				if left.termConcentration > right.termConcentration {
-					break
-				}
-				if left.termConcentration == right.termConcentration {
-					leftPath := filepath.Join(left.directoryPath, left.fileName)
-					rightPath := filepath.Join(right.directoryPath, right.fileName)
-					if leftPath <= rightPath {
-						break
-					}
-				}
 			}
 			results[j-1], results[j] = results[j], results[j-1]
 		}
 	}
+}
+
+func orderedSearchResult(left searchResult, right searchResult) bool {
+	if left.score != right.score {
+		return left.score > right.score
+	}
+
+	if left.termConcentration != right.termConcentration {
+		return left.termConcentration > right.termConcentration
+	}
+
+	return searchResultPath(left) <= searchResultPath(right)
+}
+
+func searchResultPath(result searchResult) string {
+	return filepath.Join(result.directoryPath, result.fileName)
 }
 
 // normalizeScores scales all scores in-place to [0, 1] using min-max.
@@ -113,18 +116,33 @@ func applyTermCoverageMultiplier(scores map[string]float64, index *domain.Invert
 	}
 
 	for filePath := range matchingDocuments {
-		matched := 0
-		for _, term := range terms {
-			if termStats := index.Terms[term]; termStats != nil {
-				if _, exists := termStats.Docs[filePath]; exists {
-					matched++
-				}
-			}
-		}
-
-		coverage := float64(matched) / float64(len(terms))
-		scores[filePath] *= coverage
+		scores[filePath] *= termCoverage(index, filePath, terms)
 	}
+}
+
+func termCoverage(index *domain.InvertedIndex, filePath string, terms []string) float64 {
+	matchedTerms := matchedTermCount(index, filePath, terms)
+	return float64(matchedTerms) / float64(len(terms))
+}
+
+func matchedTermCount(index *domain.InvertedIndex, filePath string, terms []string) int {
+	count := 0
+	for _, term := range terms {
+		if documentContainsTerm(index, filePath, term) {
+			count++
+		}
+	}
+	return count
+}
+
+func documentContainsTerm(index *domain.InvertedIndex, filePath string, term string) bool {
+	termStats := index.Terms[term]
+	if termStats == nil {
+		return false
+	}
+
+	_, exists := termStats.Docs[filePath]
+	return exists
 }
 
 func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, terms []string) float64 {

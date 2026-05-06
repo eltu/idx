@@ -297,27 +297,43 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 	metadataMatches := metadataMatchedDocuments(index, options)
 	scores = filteredScores(scores, metadataMatches, len(terms) == 0)
 	normalizeScores(scores)
+
+	return service.buildSearchResults(directoryPath, terms, options.Context, scores)
+}
+
+func (service SearchCommandService) buildSearchResults(directoryPath string, terms []string, contextSize int, scores map[string]float64) ([]searchResult, error) {
 	results := make([]searchResult, 0, len(scores))
 	for fileName, score := range scores {
-		lines := []matchedLine{}
-		if len(terms) > 0 {
-			var err error
-			lines, err = service.allMatchingLines(directoryPath, fileName, terms, options.Context)
-			if err != nil {
-				return nil, err
-			}
+		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score)
+		if err != nil {
+			return nil, err
 		}
+		results = append(results, result)
+	}
+	return results, nil
+}
 
-		results = append(results, searchResult{
-			directoryPath:     directoryPath,
-			fileName:          fileName,
-			matchedLines:      lines,
-			score:             score,
-			termConcentration: maxTermsOnLine(lines, terms),
-		})
+func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64) (searchResult, error) {
+	lines, err := service.resultMatchedLines(directoryPath, fileName, terms, contextSize)
+	if err != nil {
+		return searchResult{}, err
 	}
 
-	return results, nil
+	return searchResult{
+		directoryPath:     directoryPath,
+		fileName:          fileName,
+		matchedLines:      lines,
+		score:             score,
+		termConcentration: maxTermsOnLine(lines, terms),
+	}, nil
+}
+
+func (service SearchCommandService) resultMatchedLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
+	if len(terms) == 0 {
+		return []matchedLine{}, nil
+	}
+
+	return service.allMatchingLines(directoryPath, fileName, terms, contextSize)
 }
 
 func (service SearchCommandService) allMatchingLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
