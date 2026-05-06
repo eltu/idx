@@ -130,59 +130,73 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 }
 
 func (runner CommandRunner) newSearchCommand() *cobra.Command {
-	var format string
-	var contextLines int
-	var prettyJSON bool
-	var explain bool
-	var matchesOnly bool
-	var legacyMatchesOnly bool
-	var filesOnly bool
-	var pathQueries []string
-	var from int
-	var size int
-	var operator string
-
+	config := &searchCommandConfig{}
 	var searchCommand *cobra.Command
 	searchCommand = &cobra.Command{
 		Use:   "search [query terms]",
 		Short: "Search indexed content",
 		RunE: func(_ *cobra.Command, args []string) error {
-			if err := validateSearchFlagValues(contextLines, from, size, searchCommand.Flags().Changed("size")); err != nil {
-				return err
-			}
-
-			if err := validateSearchFormat(format, prettyJSON); err != nil {
-				return err
-			}
-
-			if err := validateSearchOperator(operator); err != nil {
-				return err
-			}
-
-			query := strings.Join(args, " ")
-			if err := validateSearchInput(query, pathQueries, runner.arguments); err != nil {
-				return err
-			}
-
-			options := buildSearchOptions(format, contextLines, prettyJSON, explain, matchesOnly, legacyMatchesOnly, filesOnly, pathQueries, from, size, operator)
-			return runner.searchCommand.RunWithOptions(query, options)
+			return runner.runSearchCommand(searchCommand, args, config)
 		},
 	}
 
-	searchCommand.Flags().StringVar(&format, "format", ports.SearchOutputText, "Output format: text|json")
-	searchCommand.Flags().IntVar(&contextLines, "context", 0, "Number of context lines around matches")
-	searchCommand.Flags().BoolVar(&prettyJSON, "json-pretty", false, "Pretty-print JSON output")
-	searchCommand.Flags().BoolVar(&explain, "explain", false, "Include ranking metadata such as score")
-	searchCommand.Flags().BoolVar(&matchesOnly, "matches-only", false, "Show only directly matched lines")
-	searchCommand.Flags().BoolVar(&legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
-	searchCommand.Flags().MarkHidden("macthes-only")
-	searchCommand.Flags().BoolVar(&filesOnly, "files-only", false, "Show only matched file paths")
-	searchCommand.Flags().StringArrayVar(&pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
-	searchCommand.Flags().IntVar(&from, "from", 0, "Skip the first N ranked files")
-	searchCommand.Flags().IntVar(&size, "size", 0, "Limit results to top N files")
-	searchCommand.Flags().StringVar(&operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
+	configureSearchFlags(searchCommand, config)
 
 	return searchCommand
+}
+
+type searchCommandConfig struct {
+	format            string
+	contextLines      int
+	prettyJSON        bool
+	explain           bool
+	matchesOnly       bool
+	legacyMatchesOnly bool
+	filesOnly         bool
+	pathQueries       []string
+	from              int
+	size              int
+	operator          string
+}
+
+func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args []string, config *searchCommandConfig) error {
+	if err := validateSearchConfig(*config, searchCommand.Flags().Changed("size")); err != nil {
+		return err
+	}
+
+	query := strings.Join(args, " ")
+	if err := validateSearchInput(query, config.pathQueries, runner.arguments); err != nil {
+		return err
+	}
+
+	return runner.searchCommand.RunWithOptions(query, config.options())
+}
+
+func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
+	searchCommand.Flags().StringVar(&config.format, "format", ports.SearchOutputText, "Output format: text|json")
+	searchCommand.Flags().IntVar(&config.contextLines, "context", 0, "Number of context lines around matches")
+	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "Pretty-print JSON output")
+	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
+	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
+	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
+	searchCommand.Flags().MarkHidden("macthes-only")
+	searchCommand.Flags().BoolVar(&config.filesOnly, "files-only", false, "Show only matched file paths")
+	searchCommand.Flags().StringArrayVar(&config.pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
+	searchCommand.Flags().IntVar(&config.from, "from", 0, "Skip the first N ranked files")
+	searchCommand.Flags().IntVar(&config.size, "size", 0, "Limit results to top N files")
+	searchCommand.Flags().StringVar(&config.operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
+}
+
+func validateSearchConfig(config searchCommandConfig, sizeChanged bool) error {
+	if err := validateSearchFlagValues(config.contextLines, config.from, config.size, sizeChanged); err != nil {
+		return err
+	}
+
+	if err := validateSearchFormat(config.format, config.prettyJSON); err != nil {
+		return err
+	}
+
+	return validateSearchOperator(config.operator)
 }
 
 func validateSearchFlagValues(contextLines int, from int, size int, sizeChanged bool) error {
@@ -233,34 +247,22 @@ func validateSearchInput(query string, pathQueries []string, arguments []string)
 	return nil
 }
 
-func buildSearchOptions(
-	format string,
-	contextLines int,
-	prettyJSON bool,
-	explain bool,
-	matchesOnly bool,
-	legacyMatchesOnly bool,
-	filesOnly bool,
-	pathQueries []string,
-	from int,
-	size int,
-	operator string,
-) ports.SearchOptions {
+func (config searchCommandConfig) options() ports.SearchOptions {
 	options := ports.SearchOptions{
-		Format:      format,
-		Context:     contextLines,
-		PrettyJSON:  prettyJSON,
-		Explain:     explain,
-		MatchesOnly: matchesOnly || legacyMatchesOnly,
-		FilesOnly:   filesOnly,
-		PathQueries: pathQueries,
-		From:        from,
-		Size:        size,
-		Operator:    operator,
+		Format:      config.format,
+		Context:     config.contextLines,
+		PrettyJSON:  config.prettyJSON,
+		Explain:     config.explain,
+		MatchesOnly: config.matchesOnly || config.legacyMatchesOnly,
+		FilesOnly:   config.filesOnly,
+		PathQueries: config.pathQueries,
+		From:        config.from,
+		Size:        config.size,
+		Operator:    config.operator,
 	}
 
-	if len(pathQueries) > 0 {
-		options.PathQuery = pathQueries[0]
+	if len(config.pathQueries) > 0 {
+		options.PathQuery = config.pathQueries[0]
 	}
 
 	return options
