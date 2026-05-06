@@ -315,7 +315,7 @@ func shouldRelaxSearch(terms []string, options ports.SearchOptions) bool {
 		return false
 	}
 
-	if len(terms) <= 3 {
+	if len(terms) <= 1 {
 		return false
 	}
 
@@ -342,18 +342,13 @@ func (service SearchCommandService) relaxedDirectoryResults(index *domain.Invert
 }
 
 func relaxationCandidates(terms []string, minExclusive int) [][]string {
-	if minExclusive < 0 {
-		minExclusive = 0
-	}
-
 	candidates := make([][]string, 0, len(terms))
-	for size := len(terms); size > minExclusive; size-- {
+	for size := len(terms); size >= 1; size-- {
 		candidates = append(candidates, terms[:size])
 	}
 
 	return candidates
 }
-
 func mergeRelaxedResults(combined map[string]searchResult, partial []searchResult) {
 	for _, result := range partial {
 		key := filepath.Join(result.directoryPath, result.fileName)

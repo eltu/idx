@@ -28,7 +28,7 @@ idx search [query terms] [flags]
 | `--from` | int | `0` | Pagination offset, must be `>= 0` |
 | `--size` | int | unset (`0`) | If set, must be `> 0` |
 | `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
-| `--relaxation` | string | unset | Only with `--operator AND`. Format `>N`; for queries with more than 3 terms, performs trailing-term relaxation down to more than `N` terms |
+| `--relaxation` | string | unset | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
 
 Compatibility alias:
 
@@ -41,7 +41,7 @@ Compatibility alias:
 - Supports metadata-only search when query is empty and `--path` is set.
 - Applies BM25 + normalization for ranking.
 - `--operator AND` (default): a document must contain **all** query terms to be ranked.
-- `--operator AND` + `--relaxation >N`: for queries with more than 3 terms, evaluates decreasing term prefixes (removing tokens from right to left) while keeping at least `N+1` terms, then ranks results prioritizing the largest matched term count.
+- `--operator AND` + `--relaxation >N`: activates only when the query has more than `N` terms, then evaluates decreasing term prefixes (removing tokens from right to left) down to a single term, ranking results by largest matched term count first.
 - `--operator OR`: a document must contain **at least one** query term; broadens recall at the cost of precision. Proximity bonus is skipped for terms absent from a given document.
 - Applies output filters in this order: `files-only` or `matches-only`, then pagination (`from`, `size`).
 - `--files-only` has priority over `--matches-only`.

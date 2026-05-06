@@ -223,3 +223,71 @@ func TestSearchCommandServiceANDRelaxationRanksByMatchedTokenCount(t *testing.T)
 		t.Fatalf("expected higher term coverage order [full.go, relaxed.go], got [%q, %q]", first, second)
 	}
 }
+
+func TestSearchCommandServiceANDRelaxationDropsSecondTokenWhenThresholdIsGreaterThanOne(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
+		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
+		filepath.Join(rootDir, "minimal.go"): "func abc x",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("func xpto", ports.SearchOptions{Format: ports.SearchOutputJSON, Operator: ports.SearchOperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 1})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if response["count"] == float64(0) {
+		t.Fatal("expected relaxation >1 to keep first token and return func matches")
+	}
+}
+
+func TestSearchCommandServiceANDRelaxationThresholdIsDynamic(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
+		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
+		filepath.Join(rootDir, "minimal.go"): "func abc x",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("func xpto", ports.SearchOptions{Format: ports.SearchOutputJSON, Operator: ports.SearchOperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if response["count"] != float64(0) {
+		t.Fatalf("expected no relaxed results for 2-term query with >2 threshold, got %v", response["count"])
+	}
+
+	output.lines = nil
+	err = service.RunWithOptions("func abc xpto", ports.SearchOptions{Format: ports.SearchOutputJSON, Operator: ports.SearchOperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
+		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
+	}
+
+	if response["count"] == float64(0) {
+		t.Fatal("expected 3-term query with >2 threshold to relax and return results")
+	}
+}
