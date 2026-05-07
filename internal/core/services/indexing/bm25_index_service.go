@@ -30,9 +30,10 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 		tokensByDoc[document.Name] = tokens
 		index.AddDocument(document.Name, document.Path, len(tokens))
 		index.AddPathTerms(document.Name, document.Path)
+		index.AddFileNameTerms(document.Name, document.Name)
 	}
 
-	// Second pass: build term index
+	// Second pass: build term index from content
 	for docName, tokens := range tokensByDoc {
 		frequencies, positions := domain.CountTokenFrequencies(tokens)
 
@@ -41,7 +42,24 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 		}
 	}
 
-	// Third pass: calculate IDF scores
+	// Third pass: index filename tokens into BM25 Terms for retrieval.
+	// Only adds terms not already present in content so content-based scores
+	// are not distorted. Documents whose name contains a term will be found
+	// even when that term never appears in their content.
+	for _, document := range documents {
+		fileNameTokens := domain.TokenizeFileName(document.Name)
+		fileNameFreqs, fileNamePositions := domain.CountTokenFrequencies(fileNameTokens)
+		for term, freq := range fileNameFreqs {
+			if termStats := index.Terms[term]; termStats != nil {
+				if _, alreadyIndexed := termStats.Docs[document.Name]; alreadyIndexed {
+					continue
+				}
+			}
+			index.AddTerm(term, document.Name, freq, fileNamePositions[term])
+		}
+	}
+
+	// Fourth pass: calculate IDF scores
 	index.CalculateAverageDocLen()
 	index.CalculateIDF()
 

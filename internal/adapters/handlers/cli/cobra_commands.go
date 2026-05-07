@@ -125,9 +125,43 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 		Use:   "destroy",
 		Short: "Destroy index metadata",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := runner.disableDaemonForDestroy(); err != nil {
+				return err
+			}
+
 			return runner.destroyCommand.Run()
 		},
 	}
+}
+
+func (runner CommandRunner) disableDaemonForDestroy() error {
+	err := runner.daemonService.Disable(".")
+	if err == nil {
+		return nil
+	}
+
+	if isIgnorableDestroyDaemonDisableError(err) {
+		return nil
+	}
+
+	return err
+}
+
+func isIgnorableDestroyDaemonDisableError(err error) bool {
+	message := err.Error()
+	if strings.Contains(message, "daemon not initialized") {
+		return true
+	}
+
+	if strings.Contains(message, "not being monitored") {
+		return true
+	}
+
+	if strings.Contains(message, "no projects active") {
+		return true
+	}
+
+	return false
 }
 
 func (runner CommandRunner) newSearchCommand() *cobra.Command {

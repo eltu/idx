@@ -180,27 +180,33 @@ func (s *DaemonService) Disable(projectPath string) error {
 		return fmt.Errorf("project %q not being monitored: no projects active", absPath)
 	}
 
-	for i, proj := range state.Projects {
-		if proj.Path == absPath {
-			// Kill the process by PID
-			if proj.Enabled && proj.PID > 0 {
-				proc, err := os.FindProcess(proj.PID)
-				if err == nil {
-					_ = proc.Kill()
-				}
-			}
+	filtered := make([]domain.MonitoredProject, 0, len(state.Projects))
+	removedCount := 0
+	for _, project := range state.Projects {
+		if project.Path != absPath {
+			filtered = append(filtered, project)
+			continue
+		}
 
-			// Remove from state
-			state.Projects = append(state.Projects[:i], state.Projects[i+1:]...)
-			if err := s.daemonRepo.SaveState(state); err != nil {
-				return fmt.Errorf("failed to remove project from daemon state: got error %v, expected writable state file", err)
+		removedCount++
+		if project.Enabled && project.PID > 0 {
+			proc, findErr := os.FindProcess(project.PID)
+			if findErr == nil {
+				_ = proc.Kill()
 			}
-
-			return s.output.WriteLine(fmt.Sprintf("✅ Watch disabled for %q", absPath))
 		}
 	}
 
-	return fmt.Errorf("project %q not being monitored", absPath)
+	if removedCount == 0 {
+		return fmt.Errorf("project %q not being monitored", absPath)
+	}
+
+	state.Projects = filtered
+	if err := s.daemonRepo.SaveState(state); err != nil {
+		return fmt.Errorf("failed to remove project from daemon state: got error %v, expected writable state file", err)
+	}
+
+	return s.output.WriteLine(fmt.Sprintf("✅ Watch disabled for %q", absPath))
 }
 
 // Status shows all monitored projects and their status.

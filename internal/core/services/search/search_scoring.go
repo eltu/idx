@@ -3,6 +3,7 @@ package search
 import (
 	"math"
 	"path/filepath"
+	"strings"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -275,4 +276,67 @@ func addTermScores(scores map[string]float64, index *domain.InvertedIndex, termS
 
 		scores[filePath] += domain.BM25Score(docTerm.TF, termStats.IDF, docStats.Length, index.AverageDocLength, bm25K1, bm25B)
 	}
+}
+
+// fileNameMatchBonus returns an additive score bonus when any query term
+// partially matches a token extracted from the file name. Tokens are split on
+// '_', '.', and CamelCase word boundaries so that e.g. "main" matches both
+// "main.go" and "MainService.go", and "search" matches "search_scoring.go".
+// The bonus is applied after BM25 normalisation so it must be expressed in
+// the same [0, 1] scale:
+//   - 1.0 for an exact file-name stem or exact token match (e.g. "main" →
+//     stem "main" in "main.go", or token "main" in "main_test.go")
+//   - 0.5 for a substring match within a token (e.g. "search" ⊂ "searches")
+//
+// Example: fileNameMatchBonus([]string{"main"}, "main_test.go") → 1.0
+func fileNameMatchBonus(terms []string, fileName string) float64 {
+	stem := fileNameStem(fileName)
+	tokens := fileNameTokens(fileName)
+
+	bonus := 0.0
+	for _, term := range terms {
+		lower := strings.ToLower(term)
+		if strings.ToLower(stem) == lower {
+			return 1.0
+		}
+
+		for _, token := range tokens {
+			tokenLower := strings.ToLower(token)
+			if tokenLower == lower {
+				// Exact token match ranks the same as an exact stem match.
+				return 1.0
+			}
+
+			if strings.Contains(tokenLower, lower) {
+				if bonus < 0.5 {
+					bonus = 0.5
+				}
+			}
+		}
+	}
+
+	return bonus
+}
+
+// fileNameStem returns the file name without its extension (e.g. "main" from "main.go").
+func fileNameStem(fileName string) string {
+	base := filepath.Base(fileName)
+	ext := filepath.Ext(base)
+	if ext == "" {
+		return base
+	}
+
+	return base[:len(base)-len(ext)]
+}
+
+// fileNameTokens splits a file name into lower-level tokens by delegating to
+// domain.TokenizeFileName, which handles '_', '.', '-', and CamelCase splits.
+func fileNameTokens(fileName string) []string {
+	domainTokens := domain.TokenizeFileName(filepath.Base(fileName))
+	tokens := make([]string, 0, len(domainTokens))
+	for _, t := range domainTokens {
+		tokens = append(tokens, t.Token)
+	}
+
+	return tokens
 }

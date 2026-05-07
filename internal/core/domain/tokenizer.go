@@ -2,6 +2,7 @@ package domain
 
 import (
 	"strings"
+	"unicode"
 )
 
 // TokenWithPosition represents a term and its position in text.
@@ -91,6 +92,54 @@ func isNumericHyphen(text string, index int) bool {
 
 func isDigit(char byte) bool {
 	return char >= '0' && char <= '9'
+}
+
+// TokenizeFileName extracts tokens from a file name, splitting on '_', '.', '-',
+// and CamelCase word boundaries. Returns lowercase tokens.
+// Positions are set to 0 because filename tokens are not content positions.
+//
+// Examples:
+//
+//	TokenizeFileName("main_test.go")     → [{main,0},{test,0},{go,0}]
+//	TokenizeFileName("InvertedIndex.go") → [{inverted,0},{index,0},{go,0}]
+//	TokenizeFileName("bm25_score.go")    → [{bm25,0},{score,0},{go,0}]
+func TokenizeFileName(fileName string) []TokenWithPosition {
+	parts := strings.FieldsFunc(fileName, func(r rune) bool {
+		return r == '_' || r == '.' || r == '-' || r == '/'
+	})
+
+	tokens := make([]TokenWithPosition, 0, len(parts)*2)
+	for _, part := range parts {
+		for _, word := range splitCamelCaseWords([]rune(part)) {
+			lower := strings.ToLower(word)
+			if lower != "" {
+				tokens = append(tokens, TokenWithPosition{Token: lower, Position: 0})
+			}
+		}
+	}
+
+	return tokens
+}
+
+// splitCamelCaseWords splits a rune slice on CamelCase boundaries.
+// "InvertedIndex" → ["Inverted", "Index"]
+// "bm25Score"     → ["bm25", "Score"]
+func splitCamelCaseWords(runes []rune) []string {
+	if len(runes) == 0 {
+		return nil
+	}
+
+	words := []string{}
+	start := 0
+	for i := 1; i < len(runes); i++ {
+		if unicode.IsUpper(runes[i]) && unicode.IsLower(runes[i-1]) {
+			words = append(words, string(runes[start:i]))
+			start = i
+		}
+	}
+
+	words = append(words, string(runes[start:]))
+	return words
 }
 
 // CountTokenFrequencies returns a map of token->count and token->positions.

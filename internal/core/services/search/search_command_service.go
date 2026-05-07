@@ -398,7 +398,7 @@ func (service SearchCommandService) buildSearchResult(directoryPath string, file
 		directoryPath:     directoryPath,
 		fileName:          fileName,
 		matchedLines:      lines,
-		score:             score,
+		score:             score + fileNameMatchBonus(terms, fileName),
 		matchedTerms:      matchedTerms,
 		termConcentration: maxTermsOnLine(lines, terms),
 	}, nil

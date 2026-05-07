@@ -86,3 +86,46 @@ func TestTokenizeTextTracksTokenPositions(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenizeFileNameSnakeCase(t *testing.T) {
+	tokens := tokenStrings(TokenizeFileName("main_test.go"))
+	assertTokensEqual(t, tokens, []string{"main", "test", "go"})
+}
+
+func TestTokenizeFileNameCamelCase(t *testing.T) {
+	tokens := tokenStrings(TokenizeFileName("InvertedIndex.go"))
+	assertTokensEqual(t, tokens, []string{"inverted", "index", "go"})
+}
+
+func TestTokenizeFileNameMixed(t *testing.T) {
+	tokens := tokenStrings(TokenizeFileName("bm25_score.go"))
+	assertTokensEqual(t, tokens, []string{"bm25", "score", "go"})
+}
+
+func TestTokenizeFileNameStem(t *testing.T) {
+	// No extension — still splits on underscore.
+	tokens := tokenStrings(TokenizeFileName("search_service"))
+	assertTokensEqual(t, tokens, []string{"search", "service"})
+}
+
+func tokenStrings(twp []TokenWithPosition) []string {
+	out := make([]string, len(twp))
+	for i, t := range twp {
+		out[i] = t.Token
+	}
+
+	return out
+}
+
+func assertTokensEqual(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("expected tokens %v, got %v", want, got)
+	}
+
+	for i, tok := range got {
+		if tok != want[i] {
+			t.Fatalf("expected token[%d]=%q, got %q (full: %v)", i, want[i], tok, got)
+		}
+	}
+}

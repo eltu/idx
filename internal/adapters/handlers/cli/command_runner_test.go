@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -81,6 +82,8 @@ type fakeDaemonCommand struct {
 	enableCalls  int
 	disableCalls int
 	statusCalls  int
+	disableErr   error
+	lastPath     string
 }
 
 func (command *fakeDaemonCommand) Enable(string) error {
@@ -88,9 +91,10 @@ func (command *fakeDaemonCommand) Enable(string) error {
 	return nil
 }
 
-func (command *fakeDaemonCommand) Disable(string) error {
+func (command *fakeDaemonCommand) Disable(path string) error {
 	command.disableCalls++
-	return nil
+	command.lastPath = path
+	return command.disableErr
 }
 
 func (command *fakeDaemonCommand) Status() error {
@@ -215,6 +219,47 @@ func TestCommandRunnerRunExecutesDestroyCommand(t *testing.T) {
 
 	if destroyCommand.runCalls != 1 {
 		t.Fatalf("expected 1 destroy call, got %d", destroyCommand.runCalls)
+	}
+
+	if daemonCommand.disableCalls != 1 {
+		t.Fatalf("expected 1 daemon disable call, got %d", daemonCommand.disableCalls)
+	}
+
+	if daemonCommand.lastPath != "." {
+		t.Fatalf("expected daemon disable path %q, got %q", ".", daemonCommand.lastPath)
+	}
+}
+
+func TestCommandRunnerRunDestroyIgnoresDaemonNotMonitoredError(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{disableErr: errors.New("project \"/repo\" not being monitored")}
+	runner := cli.NewCommandRunner([]string{"idx", "destroy"}, initCommand, destroyCommand, searchCommand, daemonCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if destroyCommand.runCalls != 1 {
+		t.Fatalf("expected 1 destroy call, got %d", destroyCommand.runCalls)
+	}
+}
+
+func TestCommandRunnerRunDestroyReturnsDaemonDisableError(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{disableErr: errors.New("failed to access daemon state: permission denied")}
+	runner := cli.NewCommandRunner([]string{"idx", "destroy"}, initCommand, destroyCommand, searchCommand, daemonCommand)
+
+	err := runner.Run()
+	if err == nil {
+		t.Fatal("expected daemon disable error, got nil")
+	}
+
+	if destroyCommand.runCalls != 0 {
+		t.Fatalf("expected destroy not to run on daemon disable failure, got %d", destroyCommand.runCalls)
 	}
 }
 

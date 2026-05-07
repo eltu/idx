@@ -105,6 +105,32 @@ func TestDaemonServiceDisableRemovesProject(t *testing.T) {
 	}
 }
 
+func TestDaemonServiceDisableRemovesDuplicateProjectEntries(t *testing.T) {
+	projectDir := t.TempDir()
+	initialState := &domain.DaemonState{
+		Projects: []domain.MonitoredProject{
+			monitoredProject(projectDir, 11111),
+			monitoredProject(projectDir, 22222),
+			monitoredProject(t.TempDir(), 33333),
+		},
+	}
+
+	env := newDaemonTestEnv(t, initialState)
+
+	err := env.service().Disable(projectDir)
+	if err != nil {
+		t.Fatalf("expected disable to succeed, got %v", err)
+	}
+
+	if len(env.state.Projects) != 1 {
+		t.Fatalf("expected only one unrelated project to remain, got %d", len(env.state.Projects))
+	}
+
+	if env.state.Projects[0].Path == projectDir {
+		t.Fatalf("expected all duplicate entries for %q to be removed", projectDir)
+	}
+}
+
 func TestDaemonServiceDisableReturnsErrorWhenProjectNotMonitored(t *testing.T) {
 	env := newDaemonTestEnv(t, &domain.DaemonState{Projects: []domain.MonitoredProject{}})
 
