@@ -1,6 +1,6 @@
 # idx vs grep Benchmark Report
 
-Date: 2026-04-27  
+Date: 2026-05-06  
 Repository: idx (self-benchmark in this repo)
 
 ## Scope
@@ -26,19 +26,19 @@ go test ./internal/core/services/search -run '^$' -bench '^BenchmarkSearchVsGrep
 
 | Corpus | Method | ns/op (avg) | ms/op | B/op | allocs/op |
 |---|---:|---:|---:|---:|---:|
-| files-500 | service | 30,795 | 0.031 | 17,150 | 569 |
-| files-500 | cli | 5,711,457 | 5.71 | 11,747 | 43 |
-| files-500 | grep | 13,790,078 | 13.79 | 15,987 | 88 |
-| files-2000 | service | 123,636 | 0.124 | 68,965 | 2,260 |
-| files-2000 | cli | 13,894,524 | 13.89 | 11,944 | 43 |
-| files-2000 | grep | 51,318,395 | 51.32 | 16,624 | 88 |
+| files-500 | service | 28,625 | 0.029 | 15,166 | 486 |
+| files-500 | cli | 8,379,099 | 8.38 | 14,555 | 43 |
+| files-500 | grep | 14,750,834 | 14.75 | 18,229 | 80 |
+| files-2000 | service | 115,375 | 0.115 | 60,562 | 1,910 |
+| files-2000 | cli | 18,603,417 | 18.60 | 14,784 | 43 |
+| files-2000 | grep | 55,202,165 | 55.20 | 18,796 | 80 |
 
 ## Key comparisons
 
 ### idx CLI vs grep
 
-- `files-500`: `idx` is approximately `2.41x` faster than `grep`
-- `files-2000`: `idx` is approximately `3.69x` faster than `grep`
+- `files-500`: `idx` is approximately `1.76x` faster than `grep`
+- `files-2000`: `idx` is approximately `2.97x` faster than `grep`
 
 ### Allocations and memory
 
