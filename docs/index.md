@@ -18,6 +18,8 @@ Fast code and text search CLI for Git repositories, powered by BM25 and per-dire
 
 Unlike `grep` or `ripgrep`, `idx` ranks results by relevance: files whose content (and names) better match your query appear first. It handles multi-term AND / OR queries, CamelCase and snake_case file names, proximity bonuses, and filename-aware recall so that `search_scoring.go` is always returned when you search `scoring`.
 
+It also supports metadata filters for both path and file extension, so you can constrain results to scopes such as `internal/core` or only `.go` files.
+
 ---
 
 ## Quick start
@@ -67,6 +69,12 @@ idx search func abc x y int --operator AND --relaxation '>2'
 
 # Filter by path
 idx search auth --path internal/core
+
+# Filter by extension
+idx search auth --ext go
+
+# Combine path + extension filters
+idx search auth --path internal/core --ext .go
 
 # Structured output
 idx search auth token --format json --json-pretty --explain
@@ -125,6 +133,7 @@ Results are ranked by a combination of:
 | [ADR 0009](adr/0009-filename-partial-match-bonus-for-ranking.md) | Filename partial-match bonus for relevance ranking |
 | [ADR 0010](adr/0010-index-filename-tokens-in-bm25-corpus-for-recall.md) | Filename tokens indexed in BM25 corpus for recall |
 | [ADR 0011](adr/0011-destroy-disables-daemon-before-removing-indices.md) | `idx destroy` disables daemon before removing indexes |
+| [ADR 0012](adr/0012-add-search-extension-metadata-filter.md) | `idx search` adds indexed metadata filter by file extension (`--ext`) |
 
 ---
 
@@ -137,7 +146,7 @@ Results are ranked by a combination of:
 
 ## Benchmarks
 
-- [idx vs grep vs rg](benchmarks/idx-vs-grep.md)
+- [idx vs grep benchmark](benchmarks/idx-vs-grep.md)
 
 ---
 
