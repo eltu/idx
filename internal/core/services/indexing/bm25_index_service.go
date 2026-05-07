@@ -1,6 +1,9 @@
 package indexing
 
 import (
+	"path/filepath"
+	"strings"
+
 	"idx/internal/core/domain"
 )
 
@@ -31,6 +34,7 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 		index.AddDocument(document.Name, document.Path, len(tokens))
 		index.AddPathTerms(document.Name, document.Path)
 		index.AddFileNameTerms(document.Name, document.Name)
+		index.AddExtensionTerms(document.Name, normalizedExtension(filepath.Ext(document.Name)))
 	}
 
 	// Second pass: build term index from content
@@ -64,4 +68,13 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 	index.CalculateIDF()
 
 	return index, nil
+}
+
+func normalizedExtension(extension string) string {
+	trimmed := strings.TrimSpace(extension)
+	if trimmed == "" {
+		return ""
+	}
+
+	return strings.TrimPrefix(strings.ToLower(trimmed), ".")
 }

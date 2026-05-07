@@ -11,13 +11,15 @@ import (
 
 func TestNormalizedSearchOptions(t *testing.T) {
 	options := normalizedSearchOptions(ports.SearchOptions{
-		Format:      "",
-		Context:     -1,
-		PrettyJSON:  true,
-		PathQuery:   "  internal/core  ",
-		PathQueries: []string{"", "internal/core", "internal/core", " docs "},
-		From:        -3,
-		Size:        -2,
+		Format:           "",
+		Context:          -1,
+		PrettyJSON:       true,
+		PathQuery:        "  internal/core  ",
+		PathQueries:      []string{"", "internal/core", "internal/core", " docs "},
+		ExtensionQuery:   " .GO ",
+		ExtensionQueries: []string{"", ".GO", "go", " md "},
+		From:             -3,
+		Size:             -2,
 	})
 
 	if options.Format != ports.SearchOutputText {
@@ -37,6 +39,12 @@ func TestNormalizedSearchOptions(t *testing.T) {
 	}
 	if len(options.PathQueries) != 2 {
 		t.Fatalf("expected deduplicated path queries, got %v", options.PathQueries)
+	}
+	if len(options.ExtensionQueries) != 2 {
+		t.Fatalf("expected normalized extension queries, got %v", options.ExtensionQueries)
+	}
+	if options.ExtensionQueries[0] != "go" || options.ExtensionQueries[1] != "md" {
+		t.Fatalf("expected extensions [go md], got %v", options.ExtensionQueries)
 	}
 
 	if options.Operator != ports.SearchOperatorAND {

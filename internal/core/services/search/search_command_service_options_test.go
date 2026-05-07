@@ -298,6 +298,28 @@ func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *t
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsSupportsExtensionFilter(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "AGENTS.md"): "idx"}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("idx", ports.SearchOptions{ExtensionQuery: "md"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) < 2 {
+		t.Fatalf("expected result output lines, got %v", output.lines)
+	}
+
+	if stripANSICodes(output.lines[1]) != "./AGENTS.md" {
+		t.Fatalf("expected extension-filtered result ./AGENTS.md, got %q", output.lines[1])
+	}
+}
+
 func TestSearchCommandServiceRunWithOptionsExplainShowsScoreInTextOutput(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)

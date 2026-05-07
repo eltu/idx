@@ -370,6 +370,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--files-only",
 		"--path", "internal/core",
 		"--path", "cmd/idx",
+		"--ext", "go",
 		"--from", "1",
 		"--size", "5",
 		"--relaxation", ">1",
@@ -407,6 +408,10 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		t.Fatalf("expected two path filters, got %v", searchCommand.lastOptions.PathQueries)
 	}
 
+	if len(searchCommand.lastOptions.ExtensionQueries) != 1 || searchCommand.lastOptions.ExtensionQueries[0] != "go" {
+		t.Fatalf("expected extension filter [go], got %v", searchCommand.lastOptions.ExtensionQueries)
+	}
+
 	if searchCommand.lastOptions.PathQuery != "internal/core" {
 		t.Fatalf("expected first path as PathQuery, got %q", searchCommand.lastOptions.PathQuery)
 	}
@@ -433,6 +438,26 @@ func TestCommandRunnerRunAcceptsMetadataOnlySearch(t *testing.T) {
 
 	if len(searchCommand.lastOptions.PathQueries) != 1 || searchCommand.lastOptions.PathQueries[0] != "internal/core" {
 		t.Fatalf("expected path filter [internal/core], got %v", searchCommand.lastOptions.PathQueries)
+	}
+}
+
+func TestCommandRunnerRunAcceptsMetadataOnlyExtensionSearch(t *testing.T) {
+	initCommand := &fakeInitCommand{}
+	destroyCommand := &fakeDestroyCommand{}
+	searchCommand := &fakeSearchCommand{}
+	daemonCommand := &fakeDaemonCommand{}
+	runner := cli.NewCommandRunner([]string{"idx", "search", "--ext", ".go"}, initCommand, destroyCommand, searchCommand, daemonCommand)
+
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if searchCommand.lastQuery != "" {
+		t.Fatalf("expected empty query, got %q", searchCommand.lastQuery)
+	}
+
+	if len(searchCommand.lastOptions.ExtensionQueries) != 1 || searchCommand.lastOptions.ExtensionQueries[0] != ".go" {
+		t.Fatalf("expected extension filter [.go], got %v", searchCommand.lastOptions.ExtensionQueries)
 	}
 }
 

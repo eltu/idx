@@ -146,6 +146,7 @@ func searchableIndex() *domain.InvertedIndex {
 			"readme.md": {TF: 2},
 		},
 	}
+	addExtensionsForAllDocuments(index)
 
 	return index
 }
@@ -174,6 +175,7 @@ func searchableIndexWithPartialMatch() *domain.InvertedIndex {
 			"AGENTS.md": {TF: 1},
 		},
 	}
+	addExtensionsForAllDocuments(index)
 
 	return index
 }
@@ -200,6 +202,7 @@ func searchableIndexWithProximity() *domain.InvertedIndex {
 			"far.txt":  {TF: 1, Positions: []int{100}},
 		},
 	}
+	addExtensionsForAllDocuments(index)
 
 	return index
 }
@@ -212,6 +215,7 @@ func searchableIndexForRelativePath() *domain.InvertedIndex {
 	index.AverageDocLength = 5
 	index.Terms["module"] = &domain.TermStats{IDF: 1.0, Docs: map[string]*domain.DocTermStats{"go.mod": {TF: 1, Positions: []int{1}}}}
 	index.Terms["idx"] = &domain.TermStats{IDF: 1.0, Docs: map[string]*domain.DocTermStats{"go.mod": {TF: 1, Positions: []int{2}}}}
+	addExtensionsForAllDocuments(index)
 	return index
 }
 
@@ -223,6 +227,7 @@ func searchableIndexWithSingleResult(fileName string, moduleIDF float64, idxIDF 
 	index.AverageDocLength = 5
 	index.Terms["module"] = &domain.TermStats{IDF: moduleIDF, Docs: map[string]*domain.DocTermStats{fileName: {TF: 1, Positions: modulePositions}}}
 	index.Terms["idx"] = &domain.TermStats{IDF: idxIDF, Docs: map[string]*domain.DocTermStats{fileName: {TF: 1, Positions: idxPositions}}}
+	addExtensionsForAllDocuments(index)
 	return index
 }
 
@@ -233,6 +238,7 @@ func searchableIndexWithMetadataFilters(rootDir string) *domain.InvertedIndex {
 	index.PathTerms = map[string]map[string]bool{}
 	index.AddPathTerms("guide.md", filepath.Join(rootDir, "guide.md"))
 	index.AddPathTerms("readme.md", filepath.Join(rootDir, "readme.md"))
+	addExtensionsForAllDocuments(index)
 	return index
 }
 
@@ -241,9 +247,16 @@ func searchableIndexForMetadataPath(directoryPath string, fileName string) *doma
 	filePath := filepath.Join(directoryPath, fileName)
 	index.Documents[fileName] = &domain.DocStats{Name: fileName, Path: filePath, Length: 1}
 	index.AddPathTerms(fileName, filePath)
+	index.AddExtensionTerms(fileName, strings.TrimPrefix(filepath.Ext(filePath), "."))
 	index.DocumentCount = 1
 	index.AverageDocLength = 1
 	return index
+}
+
+func addExtensionsForAllDocuments(index *domain.InvertedIndex) {
+	for docName, document := range index.Documents {
+		index.AddExtensionTerms(docName, strings.TrimPrefix(filepath.Ext(document.Path), "."))
+	}
 }
 
 // fakeProjectTree implements ports.ProjectTree for testing.

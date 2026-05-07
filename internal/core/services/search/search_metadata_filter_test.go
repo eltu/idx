@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"idx/internal/core/domain"
+	"idx/internal/core/ports"
 )
 
 func TestWildcardMatchPatterns(t *testing.T) {
@@ -81,11 +82,39 @@ func TestApplyMetadataFilterFallsBackToDocumentPathMatch(t *testing.T) {
 		"doc2": {Path: "docs/readme.md"},
 	}
 
-	matched := applyMetadataFilter(current, termIndex, documents, []string{"internal core"})
+	matched := applyMetadataFilter(current, termIndex, documents, []string{"internal core"}, pathMetadataValue)
 	if len(matched) != 1 {
 		t.Fatalf("expected one fallback match, got %v", matched)
 	}
 	if _, ok := matched["doc1"]; !ok {
 		t.Fatalf("expected doc1 fallback match, got %v", matched)
+	}
+}
+
+func TestMetadataMatchedDocumentsFiltersByExtension(t *testing.T) {
+	index := domain.NewInvertedIndex()
+	index.Documents["main.go"] = &domain.DocStats{Name: "main.go", Path: "cmd/main.go", Length: 3}
+	index.Documents["README.md"] = &domain.DocStats{Name: "README.md", Path: "README.md", Length: 3}
+	index.AddPathTerms("main.go", "cmd/main.go")
+	index.AddPathTerms("README.md", "README.md")
+	index.AddExtensionTerms("main.go", "go")
+	index.AddExtensionTerms("README.md", "md")
+
+	matched := metadataMatchedDocuments(index, ports.SearchOptions{ExtensionQuery: "go"})
+	if len(matched) != 1 {
+		t.Fatalf("expected one .go document, got %v", matched)
+	}
+	if _, ok := matched["main.go"]; !ok {
+		t.Fatalf("expected main.go to match extension filter, got %v", matched)
+	}
+}
+
+func TestEffectiveExtensionPatternsNormalizesDotAndCase(t *testing.T) {
+	patterns := effectiveExtensionPatterns([]string{".GO", " md "}, "")
+	if len(patterns) != 2 {
+		t.Fatalf("expected 2 normalized patterns, got %v", patterns)
+	}
+	if patterns[0] != "go" || patterns[1] != "md" {
+		t.Fatalf("expected normalized extensions [go md], got %v", patterns)
 	}
 }

@@ -10,6 +10,7 @@ type InvertedIndex struct {
 	Terms            map[string]*TermStats      `json:"terms"`
 	FileNameTerms    map[string]map[string]bool `json:"fileNameTerms"`
 	PathTerms        map[string]map[string]bool `json:"pathTerms"`
+	ExtensionTerms   map[string]map[string]bool `json:"extensionTerms"`
 	Documents        map[string]*DocStats       `json:"documents"`
 }
 
@@ -40,6 +41,7 @@ func NewInvertedIndex() *InvertedIndex {
 		Terms:            make(map[string]*TermStats),
 		FileNameTerms:    make(map[string]map[string]bool),
 		PathTerms:        make(map[string]map[string]bool),
+		ExtensionTerms:   make(map[string]map[string]bool),
 		Documents:        make(map[string]*DocStats),
 	}
 }
@@ -58,6 +60,11 @@ func (idx *InvertedIndex) AddFileNameTerms(docName string, fileName string) {
 // AddPathTerms indexes path tokens for filter-only lookups.
 func (idx *InvertedIndex) AddPathTerms(docName string, docPath string) {
 	addMetadataTerms(idx.PathTerms, docName, docPath)
+}
+
+// AddExtensionTerms indexes extension tokens for filter-only lookups.
+func (idx *InvertedIndex) AddExtensionTerms(docName string, extension string) {
+	addMetadataTerms(idx.ExtensionTerms, docName, extension)
 }
 
 // AddTerm adds a term occurrence to a document in the index.

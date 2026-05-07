@@ -13,6 +13,7 @@ func TestInvertedIndexDocumentAndTermLifecycle(t *testing.T) {
 	index.AddTerm("go", "b.txt", 1, []int{2})
 	index.AddFileNameTerms("a.txt", "a.txt")
 	index.AddPathTerms("a.txt", "repo/docs/a.txt")
+	index.AddExtensionTerms("a.txt", "txt")
 	index.CalculateAverageDocLen()
 	index.CalculateIDF()
 
@@ -33,6 +34,9 @@ func TestInvertedIndexDocumentAndTermLifecycle(t *testing.T) {
 	}
 	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["docs"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] {
 		t.Fatal("expected path segment tokens to be indexed")
+	}
+	if !index.ExtensionTerms["txt"]["a.txt"] {
+		t.Fatal("expected extension token to be indexed")
 	}
 }
 

@@ -22,6 +22,8 @@ type SearchOptions struct {
 	FilesOnly              bool
 	PathQuery              string
 	PathQueries            []string
+	ExtensionQuery         string
+	ExtensionQueries       []string
 	From                   int
 	Size                   int
 	Operator               string

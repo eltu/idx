@@ -32,6 +32,9 @@ func TestBM25IndexServiceBuildIndexBuildsDocumentsTermsAndPathMetadata(t *testin
 	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] || !index.PathTerms["sub"]["b.txt"] || !index.PathTerms["b.txt"]["b.txt"] {
 		t.Fatal("expected path metadata segment tokens to be indexed")
 	}
+	if !index.ExtensionTerms["txt"]["a.txt"] || !index.ExtensionTerms["txt"]["b.txt"] {
+		t.Fatal("expected extension metadata tokens to be indexed")
+	}
 }
 
 func TestBM25IndexServiceBuildIndexWithEmptyDocuments(t *testing.T) {

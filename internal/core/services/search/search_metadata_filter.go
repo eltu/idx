@@ -1,6 +1,7 @@
 package search
 
 import (
+	"path/filepath"
 	"strings"
 
 	"idx/internal/core/domain"
@@ -9,11 +10,14 @@ import (
 
 func metadataMatchedDocuments(index *domain.InvertedIndex, options ports.SearchOptions) map[string]struct{} {
 	matched := allIndexedDocuments(index)
-	patterns := effectiveMetadataPatterns(options.PathQueries, options.PathQuery)
-	return applyMetadataFilter(matched, index.PathTerms, index.Documents, patterns)
+	pathPatterns := effectiveMetadataPatterns(options.PathQueries, options.PathQuery)
+	matched = applyMetadataFilter(matched, index.PathTerms, index.Documents, pathPatterns, pathMetadataValue)
+
+	extensionPatterns := effectiveExtensionPatterns(options.ExtensionQueries, options.ExtensionQuery)
+	return applyMetadataFilter(matched, index.ExtensionTerms, index.Documents, extensionPatterns, extensionMetadataValue)
 }
 
-func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string) map[string]struct{} {
+func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[string]bool, documents map[string]*domain.DocStats, patterns []string, metadataValue metadataValueResolver) map[string]struct{} {
 	if len(patterns) == 0 {
 		return current
 	}
@@ -23,8 +27,10 @@ func applyMetadataFilter(current map[string]struct{}, termIndex map[string]map[s
 		return indexed
 	}
 
-	return fallbackMetadataPatternMatch(current, documents, patterns)
+	return fallbackMetadataPatternMatch(current, documents, patterns, metadataValue)
 }
+
+type metadataValueResolver func(document *domain.DocStats) string
 
 func cloneDocSet(current map[string]struct{}) map[string]struct{} {
 	clone := make(map[string]struct{}, len(current))
@@ -35,7 +41,7 @@ func cloneDocSet(current map[string]struct{}) map[string]struct{} {
 	return clone
 }
 
-func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[string]*domain.DocStats, patterns []string) map[string]struct{} {
+func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[string]*domain.DocStats, patterns []string, metadataValue metadataValueResolver) map[string]struct{} {
 	matched := make(map[string]struct{})
 	for docName := range current {
 		document := documents[docName]
@@ -43,7 +49,7 @@ func fallbackMetadataPatternMatch(current map[string]struct{}, documents map[str
 			continue
 		}
 
-		if metadataValueMatchesAnyPattern(document.Path, patterns) {
+		if metadataValueMatchesAnyPattern(metadataValue(document), patterns) {
 			matched[docName] = struct{}{}
 		}
 	}
@@ -98,6 +104,47 @@ func effectiveMetadataPatterns(patterns []string, fallback string) []string {
 	}
 
 	return []string{trimmed}
+}
+
+func effectiveExtensionPatterns(patterns []string, fallback string) []string {
+	normalized := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		if extension := normalizeExtensionPattern(pattern); extension != "" {
+			normalized = append(normalized, extension)
+		}
+	}
+
+	if len(normalized) > 0 {
+		return normalized
+	}
+
+	extension := normalizeExtensionPattern(fallback)
+	if extension == "" {
+		return []string{}
+	}
+
+	return []string{extension}
+}
+
+func normalizeExtensionPattern(value string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(trimmed, ".") {
+		return strings.TrimPrefix(trimmed, ".")
+	}
+
+	return trimmed
+}
+
+func pathMetadataValue(document *domain.DocStats) string {
+	return document.Path
+}
+
+func extensionMetadataValue(document *domain.DocStats) string {
+	return normalizeExtensionPattern(filepath.Ext(document.Path))
 }
 
 func allIndexedDocuments(index *domain.InvertedIndex) map[string]struct{} {

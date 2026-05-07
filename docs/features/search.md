@@ -12,7 +12,7 @@ idx search [query terms] [flags]
 
 ## Arguments
 
-- `query terms` (optional only when at least one `--path` is provided).
+- `query terms` (optional only when at least one `--path` or `--ext` is provided).
 
 ## Flags
 
@@ -25,6 +25,7 @@ idx search [query terms] [flags]
 | `--matches-only` | bool | `false` | Keeps only matching lines |
 | `--files-only` | bool | `false` | Returns only file paths |
 | `--path` | string array | `[]` | Repeatable metadata-path filter |
+| `--ext` | string array | `[]` | Repeatable file-extension filter (`go` or `.go`) |
 | `--from` | int | `0` | Pagination offset, must be `>= 0` |
 | `--size` | int | unset (`0`) | If set, must be `> 0` |
 | `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
@@ -38,7 +39,7 @@ Compatibility alias:
 
 - Resolves project root and searches all indexed directories.
 - Tokenizes and deduplicates query terms.
-- Supports metadata-only search when query is empty and `--path` is set.
+- Supports metadata-only search when query is empty and at least one metadata filter is set (`--path` and/or `--ext`).
 - Applies BM25 + normalization for ranking.
 - `--operator AND` (default): a document must contain **all** query terms to be ranked.
 - `--operator AND` + `--relaxation >N`: activates only when the query has more than `N` terms, then evaluates decreasing term prefixes (removing tokens from right to left) down to a single term, ranking results by largest matched term count first.
@@ -71,6 +72,8 @@ idx search auth token --explain
 idx search auth token --format json --explain
 idx search auth token --context 2
 idx search --path internal/core
+idx search --ext go
+idx search --path internal/core --ext go
 idx search auth token --from 10 --size 5
 idx search auth token --files-only
 idx search auth token --matches-only

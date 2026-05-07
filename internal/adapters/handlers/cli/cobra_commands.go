@@ -189,6 +189,7 @@ type searchCommandConfig struct {
 	legacyMatchesOnly bool
 	filesOnly         bool
 	pathQueries       []string
+	extensionQueries  []string
 	from              int
 	size              int
 	operator          string
@@ -203,7 +204,7 @@ func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args 
 	}
 
 	query := strings.Join(args, " ")
-	if err := validateSearchInput(query, config.pathQueries, runner.arguments); err != nil {
+	if err := validateSearchInput(query, config.pathQueries, config.extensionQueries, runner.arguments); err != nil {
 		return err
 	}
 
@@ -220,6 +221,7 @@ func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandCon
 	searchCommand.Flags().MarkHidden("macthes-only")
 	searchCommand.Flags().BoolVar(&config.filesOnly, "files-only", false, "Show only matched file paths")
 	searchCommand.Flags().StringArrayVar(&config.pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
+	searchCommand.Flags().StringArrayVar(&config.extensionQueries, "ext", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
 	searchCommand.Flags().IntVar(&config.from, "from", 0, "Skip the first N ranked files")
 	searchCommand.Flags().IntVar(&config.size, "size", 0, "Limit results to top N files")
 	searchCommand.Flags().StringVar(&config.operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
@@ -309,8 +311,8 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 	return nil
 }
 
-func validateSearchInput(query string, pathQueries []string, arguments []string) error {
-	if query == "" && len(pathQueries) == 0 {
+func validateSearchInput(query string, pathQueries []string, extensionQueries []string, arguments []string) error {
+	if query == "" && len(pathQueries) == 0 && len(extensionQueries) == 0 {
 		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", arguments)
 	}
 
@@ -326,6 +328,7 @@ func (config searchCommandConfig) options() ports.SearchOptions {
 		MatchesOnly:            config.matchesOnly || config.legacyMatchesOnly,
 		FilesOnly:              config.filesOnly,
 		PathQueries:            config.pathQueries,
+		ExtensionQueries:       config.extensionQueries,
 		From:                   config.from,
 		Size:                   config.size,
 		Operator:               config.operator,
@@ -335,6 +338,10 @@ func (config searchCommandConfig) options() ports.SearchOptions {
 
 	if len(config.pathQueries) > 0 {
 		options.PathQuery = config.pathQueries[0]
+	}
+
+	if len(config.extensionQueries) > 0 {
+		options.ExtensionQuery = config.extensionQueries[0]
 	}
 
 	return options

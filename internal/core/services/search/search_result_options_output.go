@@ -18,6 +18,7 @@ func cacheKeyFor(query string, options ports.SearchOptions) string {
 		fmt.Sprintf("mo:%v", options.MatchesOnly),
 		fmt.Sprintf("fo:%v", options.FilesOnly),
 		fmt.Sprintf("pq:%s", strings.Join(options.PathQueries, ":")),
+		fmt.Sprintf("eq:%s", strings.Join(options.ExtensionQueries, ":")),
 		fmt.Sprintf("op:%s", options.Operator),
 		fmt.Sprintf("rel-en:%v", options.RelaxationEnabled),
 		fmt.Sprintf("rel-min:%d", options.RelaxationMinExclusive),
@@ -51,6 +52,8 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 
 	normalized.PathQuery = strings.TrimSpace(normalized.PathQuery)
 	normalized.PathQueries = normalizedFilterQueries(normalized.PathQueries, normalized.PathQuery)
+	normalized.ExtensionQuery = normalizeExtensionValue(normalized.ExtensionQuery)
+	normalized.ExtensionQueries = normalizedExtensionQueries(normalized.ExtensionQueries, normalized.ExtensionQuery)
 
 	if normalized.Operator == "" {
 		normalized.Operator = ports.SearchOperatorAND
@@ -61,6 +64,40 @@ func normalizedSearchOptions(options ports.SearchOptions) ports.SearchOptions {
 	}
 
 	return normalized
+}
+
+func normalizedExtensionQueries(queries []string, fallback string) []string {
+	normalized := normalizedFilterQueries(queries, fallback)
+	extensions := make([]string, 0, len(normalized))
+	seen := make(map[string]struct{})
+	for _, query := range normalized {
+		extension := normalizeExtensionValue(query)
+		if extension == "" {
+			continue
+		}
+
+		if _, exists := seen[extension]; exists {
+			continue
+		}
+
+		seen[extension] = struct{}{}
+		extensions = append(extensions, extension)
+	}
+
+	return extensions
+}
+
+func normalizeExtensionValue(value string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(trimmed, ".") {
+		return strings.TrimPrefix(trimmed, ".")
+	}
+
+	return trimmed
 }
 
 func normalizedFilterQueries(queries []string, fallback string) []string {
