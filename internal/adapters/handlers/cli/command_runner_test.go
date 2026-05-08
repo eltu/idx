@@ -366,6 +366,7 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 		"--context", "2",
 		"--json-pretty",
 		"--explain",
+		"--agent-compact",
 		"--matches-only",
 		"--files-only",
 		"--path", "internal/core",
@@ -394,6 +395,10 @@ func TestCommandRunnerRunExecutesSearchWithNativeCobraFlags(t *testing.T) {
 
 	if !searchCommand.lastOptions.Explain {
 		t.Fatal("expected Explain true when --explain is provided")
+	}
+
+	if !searchCommand.lastOptions.AgentCompact {
+		t.Fatal("expected AgentCompact true when --agent-compact is provided")
 	}
 
 	if searchCommand.lastOptions.Context != 2 || searchCommand.lastOptions.Size != 5 {

@@ -197,6 +197,7 @@ type searchCommandConfig struct {
 	contextLines      int
 	prettyJSON        bool
 	explain           bool
+	agentCompact      bool
 	matchesOnly       bool
 	legacyMatchesOnly bool
 	filesOnly         bool
@@ -228,6 +229,7 @@ func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandCon
 	searchCommand.Flags().IntVar(&config.contextLines, "context", 0, "Number of context lines around matches")
 	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "Pretty-print JSON output")
 	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
+	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "Use compact text output optimized for agents (fewer tokens)")
 	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
 	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
 	searchCommand.Flags().MarkHidden("macthes-only")
@@ -337,6 +339,7 @@ func (config searchCommandConfig) options() ports.SearchOptions {
 		Context:                config.contextLines,
 		PrettyJSON:             config.prettyJSON,
 		Explain:                config.explain,
+		AgentCompact:           config.agentCompact,
 		MatchesOnly:            config.matchesOnly || config.legacyMatchesOnly,
 		FilesOnly:              config.filesOnly,
 		PathQueries:            config.pathQueries,

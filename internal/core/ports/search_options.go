@@ -18,6 +18,7 @@ type SearchOptions struct {
 	Context                int
 	PrettyJSON             bool
 	Explain                bool
+	AgentCompact           bool
 	MatchesOnly            bool
 	FilesOnly              bool
 	PathQuery              string

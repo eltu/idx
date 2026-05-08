@@ -248,8 +248,10 @@ func (service SearchCommandService) writeSearchResults(results []searchResult, p
 		return service.writeResultsJSON(results, projectRoot, options, totalMatches)
 	}
 
-	if err := service.writeResultsHeader(len(results), totalMatches, options); err != nil {
-		return err
+	if !options.AgentCompact {
+		if err := service.writeResultsHeader(len(results), totalMatches, options); err != nil {
+			return err
+		}
 	}
 
 	return service.writeResults(results, projectRoot, terms, true, options)
@@ -297,6 +299,10 @@ func (service SearchCommandService) writeFilesOnlyResults(results []searchResult
 }
 
 func (service SearchCommandService) writeDetailedResults(results []searchResult, projectRoot string, terms []string, useANSI bool, options ports.SearchOptions) error {
+	if options.AgentCompact {
+		useANSI = false
+	}
+
 	for _, result := range results {
 		if err := service.writeResultBlock(result, projectRoot, terms, useANSI, options); err != nil {
 			return err
@@ -320,22 +326,38 @@ func (service SearchCommandService) writeResultBlock(result searchResult, projec
 		return err
 	}
 
-	if err := service.writeMatchedLines(result.matchedLines, terms, useANSI); err != nil {
+	if err := service.writeMatchedLinesWithOptions(result.matchedLines, terms, useANSI, options); err != nil {
 		return err
+	}
+
+	if options.AgentCompact {
+		return nil
 	}
 
 	return service.output.WriteLine("")
 }
 
 func (service SearchCommandService) writeMatchedLines(lines []matchedLine, terms []string, useANSI bool) error {
+	return service.writeMatchedLinesWithOptions(lines, terms, useANSI, ports.SearchOptions{})
+}
+
+func (service SearchCommandService) writeMatchedLinesWithOptions(lines []matchedLine, terms []string, useANSI bool, options ports.SearchOptions) error {
 	for index, line := range lines {
 		entry := formattedMatchedLine(index, len(lines), line, terms, useANSI)
+		if options.AgentCompact {
+			entry = formattedMatchedLineCompact(line)
+		}
 		if err := service.output.WriteLine(entry); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func formattedMatchedLineCompact(line matchedLine) string {
+	lineContent := strings.TrimSpace(line.content)
+	return fmt.Sprintf("%s: %s", coloredLineNumber(line.lineNumber, false), lineContent)
 }
 
 func formattedMatchedLine(index int, total int, line matchedLine, terms []string, useANSI bool) string {

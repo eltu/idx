@@ -124,26 +124,26 @@ TARGET_ROOT=/tmp/idx-benchmark/<run-id>/<tool-phase>/studentreg
 Use the command patterns below. Commands that must operate on the benchmark target project
 use a subshell that changes to `TARGET_ROOT`:
 
+All `idx search` invocations in benchmark sessions **must** include `--agent-compact`
+to reduce context/token usage consistently across idx scenarios.
+`--format json` is **not required** for idx benchmark runs; prefer default text output with `--agent-compact`.
+For idx **feature** and **bugfix** phases, use an `--operator OR` query as the first attempt to minimize `tool_search_count`.
+Open a second idx search only if the first OR query returns no useful hits for implementation.
+
 ```bash
-idx daemon enable "$TARGET_ROOT"
-(cd "$TARGET_ROOT" && idx search "<terms>")
-(cd "$TARGET_ROOT" && idx search "<terms>" --files-only)
-(cd "$TARGET_ROOT" && idx search "<terms>" --matches-only)
-(cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter>)
-(cd "$TARGET_ROOT" && idx search --path <path-filter>)
-(cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension>)
-(cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension>)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --json-pretty)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --files-only)
-(cd "$TARGET_ROOT" && idx search "<terms>" --explain)
-(cd "$TARGET_ROOT" && idx search "<terms>" --context <lines>)
-(cd "$TARGET_ROOT" && idx search "<terms>" --from <offset> --size <limit>)
-(cd "$TARGET_ROOT" && idx search "<terms>" --operator OR)
-(cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N')
-(cd "$TARGET_ROOT" && idx sync)
-(cd "$TARGET_ROOT" && idx status)
+(cd "$TARGET_ROOT" && idx search "<terms>" --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --files-only --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --matches-only --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter> --agent-compact)
+(cd "$TARGET_ROOT" && idx search --path <path-filter> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension> --agent-compact)
+(cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --explain --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --context <lines> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --from <offset> --size <limit> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator OR --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N' --agent-compact)
+(cd "$TARGET_ROOT" && idx sync --quiet)
 ```
 
 Before testing idx and before starting the session timer, run the single pre-step:
@@ -164,6 +164,7 @@ After filesystem changes, resync:
 
 Count a `tool_search_count` interaction for every `search` invocation.
 Count a `tool_navigation_count` interaction for every file opened as a direct result of a search hit.
+For idx sessions, this counting rule applies to `idx search` calls that include `--agent-compact`.
 
 ## Session Isolation Rules
 Scenario definition for this skill:
@@ -301,6 +302,8 @@ Do not count:
 - If any branch changes requirements, restart that phase in all branches.
 - For a new skill invocation, reset execution assumptions and avoid carrying over prior interaction memory to reduce benchmark bias.
 - If execution mode is not interactive agent mode, discard the run and restart in interactive mode.
+- For idx feature/bugfix phases, the first search must be `idx search "<termA> <termB>" --operator OR --agent-compact`.
+- If a second idx search is needed after the OR-first attempt, record the reason in session notes (e.g., "OR-first had no useful hits").
 
 ## Quality Checks
 - Same workload and acceptance criteria across all branches.
@@ -309,8 +312,10 @@ Do not count:
 - One target search tool per session.
 - Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
 - Benchmark target project lives under `/tmp/idx-benchmark/`.
-- Every idx session runs `idx daemon enable "$TARGET_ROOT"` as the sole pre-step before starting session timing (idempotent: handles init and daemon start in one command).
+- Every idx session runs `idx daemon enable "$TARGET_ROOT" --quiet` as the sole pre-step before starting session timing (idempotent: handles init and daemon start in one command).
 - All idx session commands use the `idx` binary available in the shell (`~/.local/bin/idx`).
+- All idx session `search` commands include `--agent-compact` to minimize context usage.
+- In idx feature/bugfix sessions, first-search strategy uses `--operator OR`; extra idx searches are justified in notes.
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Context reset performed for every scenario before measurement starts.
@@ -350,7 +355,9 @@ Do not count:
   - Total context_total_tokens per tool
   - Overall pass/fail rate per tool
 - Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations.
-  - Methodology note: for idx sessions, `idx daemon enable "$TARGET_ROOT"` is the sole pre-step (idempotent: handles init + daemon start). No separate `idx init` or `idx daemon status` call is made before timing.
+  - Methodology note: for idx sessions, `idx daemon enable "$TARGET_ROOT" --quiet` is the sole pre-step (idempotent: handles init + daemon start). No separate `idx init` or `idx daemon status` call is made before timing.
+  - Methodology note: for idx sessions, every `idx search` invocation includes `--agent-compact` to enforce compact output and reduce token/context overhead.
+  - Methodology note: for idx feature/bugfix sessions, first query uses `--operator OR`; additional idx searches are allowed only with documented reason.
   - Methodology note: each scenario starts from a fresh context; context token counters must be measured only after this reset and never carried across scenarios.
   - Qualitative observations and highlights
 

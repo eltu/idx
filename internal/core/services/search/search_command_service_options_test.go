@@ -189,6 +189,32 @@ func TestSearchCommandServiceDisplaysMatchCountWithPaginationInTextFormat(t *tes
 	}
 }
 
+func TestSearchCommandServiceRunWithOptionsAgentCompactOutputsTokenEfficientText(t *testing.T) {
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	output := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*domain.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
+	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "   module idx   "}}
+	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+
+	err := service.RunWithOptions("module idx", ports.SearchOptions{Format: ports.SearchOutputText, MatchesOnly: true, AgentCompact: true})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(output.lines) != 2 {
+		t.Fatalf("expected compact output with 2 lines, got %d: %v", len(output.lines), output.lines)
+	}
+
+	if output.lines[0] != "./go.mod" {
+		t.Fatalf("expected compact path header, got %q", output.lines[0])
+	}
+
+	if output.lines[1] != "1: module idx" {
+		t.Fatalf("expected trimmed compact line, got %q", output.lines[1])
+	}
+}
+
 func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
