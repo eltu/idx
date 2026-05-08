@@ -38,6 +38,7 @@ type CommandRunner struct {
 	searchCommand  searchableCommand
 	daemonService  daemonableCommand
 	buildInfo      BuildInfo
+	quietToggle    interface{ SetQuiet(bool) }
 }
 
 // daemonableCommand defines methods for daemon control.
@@ -63,6 +64,14 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Example: runner = runner.WithBuildInfo(cli.BuildInfo{Version: "v1.0.0", BuildDate: "2026-05-05"}).
 func (runner CommandRunner) WithBuildInfo(info BuildInfo) CommandRunner {
 	runner.buildInfo = info
+	return runner
+}
+
+// WithQuietToggle wires a quietable writer so the --quiet persistent flag can
+// suppress informational output at runtime without changing the output stream.
+// Example: runner = runner.WithQuietToggle(writer).
+func (runner CommandRunner) WithQuietToggle(t interface{ SetQuiet(bool) }) CommandRunner {
+	runner.quietToggle = t
 	return runner
 }
 

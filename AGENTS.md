@@ -1,14 +1,4 @@
-## Project Guidelines
 
-- Never use `grep` or `rg` to search within the project. Use the project's own search solution.
-- The `idx` command is available in the shell and resolves to the compiled binary at `bin/idx` via `~/.local/bin/idx`.
-- To search: `idx search "[TERM_TO_SEARCH]"`
-- For a simple output that only shows file names, use `idx search "[TERM_TO_SEARCH]" --files-only`
-- To filter by path without affecting the BM25 ranking of the content, use `idx search "[TERM_TO_SEARCH]" --path [PATH_FILTER]"`
-- For metadata-only searches, use `idx search --path [PATH_FILTER]`
-- If you need more information, prefer the output of the `--format json` parameter and the `--matches-only` flag for structured results. These two parameters return valid JSON containing the matching file, line number, and the full matching line.
-- When more context is needed, add the `--context [NUMBER_OF_LINES]]` flag (see README for all available parameters).
-- To broaden results when searching for multiple terms, use `--operator OR` (default is `AND`, which requires all terms to be present).
 ## Code style
 
 - Functions: 4-20 lines. Split if longer.
@@ -91,6 +81,10 @@
 - ADR 0006: Daemon management system to run watch mode as a background process.
 - ADR 0007: Inspect TUI is injected via the InspectUIRunner port to decouple UI from core service.
 - ADR 0008: Search boolean operator (AND/OR) with term-coverage multiplier and term-concentration tiebreaker.
+- ADR 0009: Filename partial-match bonus for relevance ranking.
+- ADR 0010: Filename tokens are indexed in BM25 corpus for recall.
+- ADR 0011: Destroy disables daemon before removing indices.
+- ADR 0012: Search supports indexed metadata filtering by file extension (`--ext`).
 
 ## Formatting
 

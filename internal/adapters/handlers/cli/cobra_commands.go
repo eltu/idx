@@ -12,6 +12,8 @@ import (
 )
 
 func (runner CommandRunner) newRootCommand() *cobra.Command {
+	var quiet bool
+
 	root := &cobra.Command{
 		Use:           "idx",
 		SilenceUsage:  true,
@@ -20,10 +22,20 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 			DisableDefaultCmd: true,
 		},
 		Version: runner.buildInfo.Version,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			if quiet && runner.quietToggle != nil {
+				runner.quietToggle.SetQuiet(true)
+			}
+		},
 	}
 
 	// Customize --version / -v output to include build date.
 	root.SetVersionTemplate(fmt.Sprintf("idx %s (built %s)\n", runner.buildInfo.Version, runner.buildInfo.BuildDate))
+
+	// --quiet suppresses informational messages so automated/scripted callers
+	// (e.g. benchmark pre-steps) do not pollute the agent context window.
+	// Errors are always written to stderr via the returned error value.
+	root.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress informational output (errors are still written to stderr)")
 
 	root.AddCommand(runner.newSyncCommand())
 	root.AddCommand(runner.newInitCommand())

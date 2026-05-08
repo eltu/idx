@@ -72,6 +72,7 @@ func processRunning(pid int) bool {
 }
 
 // Enable activates the watch for a project. If the index does not exist, auto-init is executed.
+// Idempotent: returns nil silently when the project is already being monitored with a live process.
 // Returns an error only if it fails to initialize the project or start the watch.
 func (s *DaemonService) Enable(projectPath string) error {
 	// 1. Validate and resolve absolute path
@@ -80,10 +81,10 @@ func (s *DaemonService) Enable(projectPath string) error {
 		return err
 	}
 
-	// 2. Check if already enabled
+	// 2. If already monitored with a running process, succeed silently (idempotent).
 	state, _ := s.daemonRepo.ReadState()
-	if err := s.checkAlreadyMonitored(absPath, state); err != nil {
-		return err
+	if s.isAlreadyMonitored(absPath, state) {
+		return nil
 	}
 
 	// 3. Validate index existence; if missing, run auto-init
@@ -131,21 +132,19 @@ func (s *DaemonService) validateProjectPath(projectPath string) (string, error) 
 	return absPath, nil
 }
 
-// checkAlreadyMonitored checks whether the project is already being monitored.
-func (s *DaemonService) checkAlreadyMonitored(absPath string, state *domain.DaemonState) error {
+// isAlreadyMonitored reports whether the project path has a live monitoring process.
+func (s *DaemonService) isAlreadyMonitored(absPath string, state *domain.DaemonState) bool {
 	if state == nil {
-		return nil
+		return false
 	}
 
 	for _, proj := range state.Projects {
-		if proj.Path == absPath && proj.Enabled {
-			if s.processExists(proj.PID) {
-				return fmt.Errorf("project %q is already being monitored (PID: %d)", absPath, proj.PID)
-			}
+		if proj.Path == absPath && proj.Enabled && s.processExists(proj.PID) {
+			return true
 		}
 	}
 
-	return nil
+	return false
 }
 
 // ensureIndexExists checks whether the index exists; if not, runs auto-init.

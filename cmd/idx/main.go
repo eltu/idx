@@ -190,7 +190,8 @@ func run(arguments []string, output io.Writer) error {
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
-		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate})
+		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
+		WithQuietToggle(writer)
 
 	return runner.Run()
 }

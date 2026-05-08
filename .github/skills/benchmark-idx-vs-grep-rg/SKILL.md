@@ -17,6 +17,7 @@ For each approach, the benchmark measures:
 - start and end time per session
 - total session duration
 - count of interactions that used the session's target tool
+- context consumed per scenario (from reset baseline)
 - delivery correctness across three phases
 
 The benchmark outputs a final comparison report with metrics and observations.
@@ -124,49 +125,50 @@ Use the command patterns below. Commands that must operate on the benchmark targ
 use a subshell that changes to `TARGET_ROOT`:
 
 ```bash
-(cd "$TARGET_ROOT" && idx init)
 idx daemon enable "$TARGET_ROOT"
 (cd "$TARGET_ROOT" && idx search "<terms>")
 (cd "$TARGET_ROOT" && idx search "<terms>" --files-only)
+(cd "$TARGET_ROOT" && idx search "<terms>" --matches-only)
 (cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter>)
 (cd "$TARGET_ROOT" && idx search --path <path-filter>)
+(cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension>)
+(cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension>)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --json-pretty)
 (cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --files-only)
+(cd "$TARGET_ROOT" && idx search "<terms>" --explain)
 (cd "$TARGET_ROOT" && idx search "<terms>" --context <lines>)
+(cd "$TARGET_ROOT" && idx search "<terms>" --from <offset> --size <limit>)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator OR)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N')
 (cd "$TARGET_ROOT" && idx sync)
 (cd "$TARGET_ROOT" && idx status)
-idx daemon status
 ```
 
-Before testing idx and before starting the session timer, run both commands:
+Before testing idx and before starting the session timer, run the single pre-step:
 
 ```bash
-(cd "$TARGET_ROOT" && idx init)
-idx daemon enable "$TARGET_ROOT"
+idx daemon enable "$TARGET_ROOT" --quiet
 ```
+
+`daemon enable` is idempotent: it auto-inits the index when missing and exits 0 if the daemon is already running.
+`--quiet` suppresses informational confirmations from entering the agent context window (errors still go to stderr).
+No separate `idx init` or `idx daemon status` call is needed.
 
 After filesystem changes, resync:
 
 ```bash
-(cd "$TARGET_ROOT" && idx sync)
-```
-
-After starting the daemon, verify daemon state:
-
-```bash
-idx daemon status
-```
-
-If daemon is not active yet for the current project, run daemon enable again and re-check status:
-
-```bash
-idx daemon enable "$TARGET_ROOT"
-idx daemon status
+(cd "$TARGET_ROOT" && idx sync --quiet)
 ```
 
 Count a `tool_search_count` interaction for every `search` invocation.
 Count a `tool_navigation_count` interaction for every file opened as a direct result of a search hit.
 
 ## Session Isolation Rules
+Scenario definition for this skill:
+- One scenario = one tool + one phase session (for example: idx-build, grep-feature, rg-bugfix).
+
 For every phase in every branch:
 1. Start a fresh conversation context before beginning the phase.
 2. Do not reuse previous chat history for that phase.
@@ -174,7 +176,8 @@ For every phase in every branch:
 - idx branch: use idx search commands only.
 - grep branch: use grep only.
 - rg branch: use rg only.
-4. Capture timestamps and interaction counts during that session.
+4. Capture timestamps, interaction counts, and context consumption during that session.
+5. If context was not reset before the scenario, invalidate the scenario and rerun it with a fresh context.
 
 For every new invocation of this skill (full or partial scope):
 1. Treat the execution as a first-time run.
@@ -210,9 +213,8 @@ Total sessions in full benchmark:
 - session start timestamp
 
 Pre-step before recording session start timestamp:
-- Run `(cd "$TARGET_ROOT" && idx init)`.
-- Run `idx daemon enable "$TARGET_ROOT"`.
-- Only start timing after both commands complete.
+- Run `idx daemon enable "$TARGET_ROOT" --quiet` (idempotent: auto-inits if needed, exits 0 when already monitoring; `--quiet` keeps confirmations out of context).
+- Only start timing after the command completes.
 
 2. Implement the required phase changes
 - keep scope limited to the current phase
@@ -226,6 +228,7 @@ Pre-step before recording session start timestamp:
 - session end timestamp
 - session duration
 - number of interactions using the session tool
+- context usage metrics for the scenario (prompt/input, completion/output, and total when available)
 - result status (pass/fail)
 
 ## Metrics Logging Format
@@ -239,6 +242,9 @@ Use one row per session with this schema:
 - duration_seconds
 - tool_search_count
 - tool_navigation_count
+- context_input_tokens
+- context_output_tokens
+- context_total_tokens
 - tests_passed
 - notes
 
@@ -258,6 +264,11 @@ Recommended run_id format:
 Per-session schema must include both interaction counters:
 - tool_search_count (direct search command invocations)
 - tool_navigation_count (file reads/jumps triggered by search results)
+
+Per-session schema must include context counters per scenario:
+- context_input_tokens
+- context_output_tokens
+- context_total_tokens
 
 ## Tool Interaction Counting Rules
 Count two categories of interactions separately.
@@ -298,12 +309,12 @@ Do not count:
 - One target search tool per session.
 - Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
 - Benchmark target project lives under `/tmp/idx-benchmark/`.
-- Every idx session runs `(cd "$TARGET_ROOT" && idx init)` before testing idx.
-- Every idx session runs `idx daemon enable "$TARGET_ROOT"` before starting session timing.
-- Every idx session validates daemon state with `idx daemon status`.
+- Every idx session runs `idx daemon enable "$TARGET_ROOT"` as the sole pre-step before starting session timing (idempotent: handles init and daemon start in one command).
 - All idx session commands use the `idx` binary available in the shell (`~/.local/bin/idx`).
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
+- Context reset performed for every scenario before measurement starts.
+- Context token metrics (input/output/total) recorded for every session.
 - Tests executed and status recorded for every session.
 - bcrypt usage validated in all three bugfix sessions.
 - Branches for a tool deleted only after all three phases of that tool are complete and metrics are recorded.
@@ -322,7 +333,7 @@ Do not count:
   The file must contain the following sections:
 
   ### Build phase comparison (idx vs grep vs rg)
-  Table with columns: tool, duration_seconds, tool_search_count, tool_navigation_count, tests_passed, notes
+  Table with columns: tool, duration_seconds, tool_search_count, tool_navigation_count, context_total_tokens, tests_passed, notes
 
   ### Feature phase comparison (idx vs grep vs rg)
   Same table structure as build phase.
@@ -334,9 +345,13 @@ Do not count:
   - Total duration per tool (sum across all phases)
   - Total tool_search_count per tool
   - Total tool_navigation_count per tool
+  - Total context_input_tokens per tool
+  - Total context_output_tokens per tool
+  - Total context_total_tokens per tool
   - Overall pass/fail rate per tool
 - Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations.
-  - Methodology note: for idx sessions, `(cd "$TARGET_ROOT" && idx init)` and `idx daemon enable "$TARGET_ROOT"` are executed before timing starts, then daemon status is validated with `idx daemon status`.
+  - Methodology note: for idx sessions, `idx daemon enable "$TARGET_ROOT"` is the sole pre-step (idempotent: handles init + daemon start). No separate `idx init` or `idx daemon status` call is made before timing.
+  - Methodology note: each scenario starts from a fresh context; context token counters must be measured only after this reset and never carried across scenarios.
   - Qualitative observations and highlights
 
   If the file already exists, append or update the relevant sections without removing prior benchmark runs.

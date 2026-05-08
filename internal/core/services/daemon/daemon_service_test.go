@@ -62,7 +62,7 @@ func TestDaemonServiceEnableReturnsErrorWhenPathDoesNotExist(t *testing.T) {
 	}
 }
 
-func TestDaemonServiceEnableReturnsErrorWhenProjectAlreadyMonitored(t *testing.T) {
+func TestDaemonServiceEnableIdempotentWhenProjectAlreadyMonitored(t *testing.T) {
 	projectDir := t.TempDir()
 	initialState := &domain.DaemonState{
 		Projects: []domain.MonitoredProject{monitoredProject(projectDir, 1234)},
@@ -71,8 +71,8 @@ func TestDaemonServiceEnableReturnsErrorWhenProjectAlreadyMonitored(t *testing.T
 	env := newDaemonTestEnv(t, initialState)
 
 	err := env.service().Enable(projectDir)
-	if err == nil {
-		t.Fatal("expected error for already monitored project, got nil")
+	if err != nil {
+		t.Fatalf("expected nil for already monitored project (idempotent), got %v", err)
 	}
 }
 

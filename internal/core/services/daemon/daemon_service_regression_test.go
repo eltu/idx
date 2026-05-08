@@ -274,15 +274,12 @@ func TestDaemonRegressionErrorMessages(t *testing.T) {
 		t.Fatalf("enable failed: %v", err)
 	}
 
-	err := service.Enable(projectDir)
-	if err == nil {
-		t.Fatal("expected error when enabling already monitored project")
-	}
-	if err.Error() == "" {
-		t.Fatal("expected error message not to be empty")
+	// Enable is idempotent: re-enabling an already-monitored project returns nil.
+	if err := service.Enable(projectDir); err != nil {
+		t.Fatalf("expected nil when re-enabling already monitored project (idempotent), got %v", err)
 	}
 
-	err = service.Disable(filepath.Join(projectDir, "missing"))
+	err := service.Disable(filepath.Join(projectDir, "missing"))
 	if err == nil {
 		t.Fatal("expected error when disabling non-existent project")
 	}
