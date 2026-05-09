@@ -18,7 +18,56 @@ For each approach, the benchmark measures:
 - total session duration
 - count of interactions that used the session's target tool
 - context consumed per scenario (from reset baseline)
+- token consumption broken down by workflow stage
 - delivery correctness across three phases
+
+Token accounting must now be recorded in two parallel views:
+- `workflow_total_*`: includes every measured stage, including `pre_build`
+- `implementation_total_*`: includes only `build`, `feature`, and `bugfix`
+
+Token accounting must also include a per-session provenance label:
+- `measured`: extracted from model/provider usage telemetry
+- `estimated`: derived from transcript text tokenization when telemetry is unavailable
+- `unavailable`: only allowed if neither telemetry nor tokenizer-based estimation can be produced
+
+Mandatory token stages for each tool workflow:
+- `pre_build`
+- `build`
+- `feature`
+- `bugfix`
+
+The benchmark must never leave total token counters as zero when tokens were actually consumed.
+If raw telemetry is missing, estimate token counters from transcript content and mark source as `estimated`.
+If a stage cannot be measured or estimated, record it explicitly as `unavailable` in notes and mark the run as incomplete for token comparison.
+
+## Token Metrics Source and Calculation (Mandatory)
+
+Compute token metrics for each session (tool + phase) using this priority order:
+
+1. Measured telemetry (preferred)
+- Extract usage fields from debug/chat logs for each request/response pair in the session window.
+- Supported field names include (provider-dependent):
+  - `input_tokens`, `output_tokens`, `total_tokens`
+  - `prompt_tokens`, `completion_tokens`, `total_tokens`
+
+2. Estimated from transcript (fallback)
+- If telemetry fields are absent, tokenize transcript payloads and aggregate by stage.
+- Use the model tokenizer declared in logs (for this environment typically `o200k_base`).
+- Estimate input tokens from user/tool-result text sent into model requests.
+- Estimate output tokens from assistant response text/tool-call payload text.
+
+3. Unavailable (last resort)
+- Allowed only when neither telemetry nor tokenizer estimation is feasible.
+- Must set `token_metrics_source=unavailable` and add a blocking note.
+
+Stage allocation rule:
+- Assign each tokenized event to one of: `pre_build`, `build`, `feature`, `bugfix`.
+- Use timestamp windows defined by stage start/end markers captured in the session ledger.
+
+Required formulas:
+- `token_stage_<stage>_total = token_stage_<stage>_input + token_stage_<stage>_output`
+- `workflow_total_* = pre_build + build + feature + bugfix`
+- `implementation_total_* = build + feature + bugfix`
 
 The benchmark outputs a final comparison report with metrics and observations.
 
@@ -122,15 +171,13 @@ TARGET_ROOT=/tmp/idx-benchmark/<run-id>/<tool-phase>/studentreg
 ```
 
 Use the command patterns below. Commands that must operate on the benchmark target project
-use a subshell that changes to `TARGET_ROOT`:
+use a subshell that changes to `TARGET_ROOT`.
 
-All `idx search` invocations in benchmark sessions **must** include `--agent-compact`
-to reduce context/token usage consistently across idx scenarios.
-`--format json` is **not required** for idx benchmark runs; prefer default text output with `--agent-compact`.
-For idx **feature** and **bugfix** phases, use an `--operator OR` query as the first attempt to minimize `tool_search_count`.
-Open a second idx search only if the first OR query returns no useful hits for implementation.
+All `idx search` invocations in benchmark sessions must include `--agent-compact`
+to reduce token usage consistently across idx scenarios.
 
 ```bash
+idx daemon enable "$TARGET_ROOT"
 (cd "$TARGET_ROOT" && idx search "<terms>" --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --files-only --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --matches-only --agent-compact)
@@ -138,12 +185,17 @@ Open a second idx search only if the first OR query returns no useful hits for i
 (cd "$TARGET_ROOT" && idx search --path <path-filter> --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension> --agent-compact)
 (cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --json-pretty --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --files-only --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --explain --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --context <lines> --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --from <offset> --size <limit> --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --operator OR --agent-compact)
 (cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N' --agent-compact)
-(cd "$TARGET_ROOT" && idx sync --quiet)
+(cd "$TARGET_ROOT" && idx sync)
+(cd "$TARGET_ROOT" && idx status)
 ```
 
 Before testing idx and before starting the session timer, run the single pre-step:
@@ -156,6 +208,9 @@ idx daemon enable "$TARGET_ROOT" --quiet
 `--quiet` suppresses informational confirmations from entering the agent context window (errors still go to stderr).
 No separate `idx init` or `idx daemon status` call is needed.
 
+The `idx daemon enable "$TARGET_ROOT" --quiet` step belongs to the `pre_build` token stage.
+It must be measured and reported in the stage ledger even when it is excluded from `implementation_total_*`.
+
 After filesystem changes, resync:
 
 ```bash
@@ -164,7 +219,7 @@ After filesystem changes, resync:
 
 Count a `tool_search_count` interaction for every `search` invocation.
 Count a `tool_navigation_count` interaction for every file opened as a direct result of a search hit.
-For idx sessions, this counting rule applies to `idx search` calls that include `--agent-compact`.
+For idx sessions, this counting rule applies only to `idx search` calls that include `--agent-compact`.
 
 ## Session Isolation Rules
 Scenario definition for this skill:
@@ -174,7 +229,7 @@ For every phase in every branch:
 1. Start a fresh conversation context before beginning the phase.
 2. Do not reuse previous chat history for that phase.
 3. Execute only the session's target search approach:
-- idx branch: use idx search commands only.
+- idx branch: use `idx search ... --agent-compact` commands only.
 - grep branch: use grep only.
 - rg branch: use rg only.
 4. Capture timestamps, interaction counts, and context consumption during that session.
@@ -215,7 +270,8 @@ Total sessions in full benchmark:
 
 Pre-step before recording session start timestamp:
 - Run `idx daemon enable "$TARGET_ROOT" --quiet` (idempotent: auto-inits if needed, exits 0 when already monitoring; `--quiet` keeps confirmations out of context).
-- Only start timing after the command completes.
+- Record this step under the `pre_build` token stage.
+- Only start the implementation timer for the phase after the command completes.
 
 2. Implement the required phase changes
 - keep scope limited to the current phase
@@ -230,6 +286,10 @@ Pre-step before recording session start timestamp:
 - session duration
 - number of interactions using the session tool
 - context usage metrics for the scenario (prompt/input, completion/output, and total when available)
+- token usage metrics for every workflow stage: `pre_build`, `build`, `feature`, `bugfix`
+- workflow totals across all stages
+- implementation totals across `build`, `feature`, and `bugfix`
+- token metric source: `measured` | `estimated` | `unavailable`
 - result status (pass/fail)
 
 ## Metrics Logging Format
@@ -246,6 +306,26 @@ Use one row per session with this schema:
 - context_input_tokens
 - context_output_tokens
 - context_total_tokens
+- token_stage_pre_build_input
+- token_stage_pre_build_output
+- token_stage_pre_build_total
+- token_stage_build_input
+- token_stage_build_output
+- token_stage_build_total
+- token_stage_feature_input
+- token_stage_feature_output
+- token_stage_feature_total
+- token_stage_bugfix_input
+- token_stage_bugfix_output
+- token_stage_bugfix_total
+- workflow_total_input_tokens
+- workflow_total_output_tokens
+- workflow_total_tokens
+- implementation_total_input_tokens
+- implementation_total_output_tokens
+- implementation_total_tokens
+- token_metrics_source
+- token_metrics_notes
 - tests_passed
 - notes
 
@@ -271,11 +351,38 @@ Per-session schema must include context counters per scenario:
 - context_output_tokens
 - context_total_tokens
 
+Per-session schema must also include stage-level token counters:
+- token_stage_pre_build_input
+- token_stage_pre_build_output
+- token_stage_pre_build_total
+- token_stage_build_input
+- token_stage_build_output
+- token_stage_build_total
+- token_stage_feature_input
+- token_stage_feature_output
+- token_stage_feature_total
+- token_stage_bugfix_input
+- token_stage_bugfix_output
+- token_stage_bugfix_total
+- workflow_total_input_tokens
+- workflow_total_output_tokens
+- workflow_total_tokens
+- implementation_total_input_tokens
+- implementation_total_output_tokens
+- implementation_total_tokens
+- token_metrics_source
+- token_metrics_notes
+
+Stage accounting rule:
+- `workflow_total_*` is the sum of `pre_build + build + feature + bugfix`
+- `implementation_total_*` is the sum of `build + feature + bugfix`
+- `context_total_tokens` may match the phase-local slice, but it does not replace the stage ledger
+
 ## Tool Interaction Counting Rules
 Count two categories of interactions separately.
 
 Search interactions (direct tool use):
-- idx session: increment this counter only for `idx search` invocations
+- idx session: increment this counter only for `idx search` invocations that include `--agent-compact`
 - grep session: each grep command increments this counter
 - rg session: each rg command increments this counter
 
@@ -302,8 +409,6 @@ Do not count:
 - If any branch changes requirements, restart that phase in all branches.
 - For a new skill invocation, reset execution assumptions and avoid carrying over prior interaction memory to reduce benchmark bias.
 - If execution mode is not interactive agent mode, discard the run and restart in interactive mode.
-- For idx feature/bugfix phases, the first search must be `idx search "<termA> <termB>" --operator OR --agent-compact`.
-- If a second idx search is needed after the OR-first attempt, record the reason in session notes (e.g., "OR-first had no useful hits").
 
 ## Quality Checks
 - Same workload and acceptance criteria across all branches.
@@ -314,12 +419,15 @@ Do not count:
 - Benchmark target project lives under `/tmp/idx-benchmark/`.
 - Every idx session runs `idx daemon enable "$TARGET_ROOT" --quiet` as the sole pre-step before starting session timing (idempotent: handles init and daemon start in one command).
 - All idx session commands use the `idx` binary available in the shell (`~/.local/bin/idx`).
-- All idx session `search` commands include `--agent-compact` to minimize context usage.
-- In idx feature/bugfix sessions, first-search strategy uses `--operator OR`; extra idx searches are justified in notes.
+- Every idx session `search` invocation includes `--agent-compact`.
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Context reset performed for every scenario before measurement starts.
 - Context token metrics (input/output/total) recorded for every session.
+- Token stage metrics recorded for every session and every tool workflow.
+- `workflow_total_tokens` must be present and non-zero when token consumption occurred.
+- `implementation_total_tokens` must be present and non-zero when implementation work occurred.
+- Every session must include `token_metrics_source` (`measured` or `estimated`; `unavailable` only when explicitly blocked).
 - Tests executed and status recorded for every session.
 - bcrypt usage validated in all three bugfix sessions.
 - Branches for a tool deleted only after all three phases of that tool are complete and metrics are recorded.
@@ -353,12 +461,34 @@ Do not count:
   - Total context_input_tokens per tool
   - Total context_output_tokens per tool
   - Total context_total_tokens per tool
+  - Total workflow_total_input_tokens per tool
+  - Total workflow_total_output_tokens per tool
+  - Total workflow_total_tokens per tool
+  - Total implementation_total_input_tokens per tool
+  - Total implementation_total_output_tokens per tool
+  - Total implementation_total_tokens per tool
   - Overall pass/fail rate per tool
-- Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations.
+- Token breakdown by workflow stage per tool with the exact stages:
+  - `pre_build`
+  - `build`
+  - `feature`
+  - `bugfix`
+- A dedicated section named `Token Breakdown By Session Stage` with columns:
+  - tool
+  - pre_build_total_tokens
+  - build_total_tokens
+  - feature_total_tokens
+  - bugfix_total_tokens
+  - workflow_total_tokens
+  - implementation_total_tokens
+- Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations that include `--agent-compact`.
+  - Methodology note: for idx sessions, every `idx search` invocation includes `--agent-compact` to reduce token usage consistently across runs.
   - Methodology note: for idx sessions, `idx daemon enable "$TARGET_ROOT" --quiet` is the sole pre-step (idempotent: handles init + daemon start). No separate `idx init` or `idx daemon status` call is made before timing.
-  - Methodology note: for idx sessions, every `idx search` invocation includes `--agent-compact` to enforce compact output and reduce token/context overhead.
-  - Methodology note: for idx feature/bugfix sessions, first query uses `--operator OR`; additional idx searches are allowed only with documented reason.
+  - Methodology note: `pre_build` tokens are reported explicitly in the stage ledger and included in `workflow_total_tokens`.
+  - Methodology note: fairness comparisons across tools should use `implementation_total_tokens`, not `workflow_total_tokens`, when pre-step overhead must be isolated.
   - Methodology note: each scenario starts from a fresh context; context token counters must be measured only after this reset and never carried across scenarios.
+  - Methodology note: token metrics must include a provenance marker (`measured`, `estimated`, or `unavailable`) and explanation in notes when not measured.
+  - Methodology note: when telemetry is absent, per-session tokens are calculated from transcript tokenization and clearly labeled as estimates.
   - Qualitative observations and highlights
 
   If the file already exists, append or update the relevant sections without removing prior benchmark runs.
