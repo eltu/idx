@@ -1,17 +1,17 @@
 ---
 name: benchmark-idx-vs-grep-rg
-description: "Run a controlled coding benchmark across idx, grep, and rg with context reset between phases; track session duration and per-tool interaction counts; compare outcomes for build, feature, and bugfix tasks. Use when: benchmark idx vs grep vs rg, compare search approaches, measure coding session efficiency."
+description: "Run a controlled coding benchmark across rg, grep, and idx with context reset between phases; track session duration and per-tool interaction counts; compare outcomes for build, feature, and bugfix tasks. Use when: benchmark rg vs grep vs idx, compare search approaches, measure coding session efficiency."
 argument-hint: "Scope to run: full benchmark or a specific phase (build, feature, bugfix)"
 user-invocable: true
 ---
 
-# Benchmark idx vs grep vs rg
+# Benchmark rg vs grep vs idx
 
 ## What This Skill Produces
 This skill runs a repeatable benchmark that compares three search approaches during software delivery work:
-- idx
-- grep
 - rg
+- grep
+- idx
 
 For each approach, the benchmark measures:
 - start and end time per session
@@ -73,11 +73,12 @@ The benchmark outputs a final comparison report with metrics and observations.
 
 ## When to Use
 Use this skill when:
-- You want an apples-to-apples comparison between idx, grep, and rg.
+- You want an apples-to-apples comparison between rg, grep, and idx.
 - You want to measure speed and interaction volume for coding tasks.
 - You need a reproducible workflow with context resets between tasks.
 
 Trigger phrases:
+- benchmark rg vs grep vs idx
 - benchmark idx vs grep vs rg
 - compare idx and ripgrep workflow
 - run search tool efficiency benchmark
@@ -138,15 +139,26 @@ Phase 3: Bug fix
 
 ## Branch Strategy
 Create 9 short-lived local branches, one per phase per tool:
-- benchmark/idx-build
-- benchmark/idx-feature
-- benchmark/idx-bugfix
-- benchmark/grep-build
-- benchmark/grep-feature
-- benchmark/grep-bugfix
 - benchmark/rg-build
 - benchmark/rg-feature
 - benchmark/rg-bugfix
+- benchmark/grep-build
+- benchmark/grep-feature
+- benchmark/grep-bugfix
+- benchmark/idx-build
+- benchmark/idx-feature
+- benchmark/idx-bugfix
+
+## Tool Execution Order (Mandatory)
+When scope is `full benchmark`, execute tools in this exact order:
+1. `rg` (build -> feature -> bugfix)
+2. `grep` (build -> feature -> bugfix)
+3. `idx` (build -> feature -> bugfix)
+
+Rules:
+- Do not change this order for full runs.
+- Partial scope (`build only`, `feature only`, `bugfix only`) still follows tool order `rg -> grep -> idx`.
+- Keep phase continuity inside each tool (never clean between build -> feature -> bugfix for the same tool).
 
 Each branch contains only the changes for that phase and tool combination.
 Phases within the same tool are sequential: the feature branch extends the build, and the bugfix branch extends the feature.
@@ -180,33 +192,36 @@ to reduce token usage consistently across idx scenarios.
 
 To reduce unnecessary files in context during `idx search`:
 
+- **Always pass `--size 2`** on every `idx search` invocation. idx ranks results by relevance, so the top 2 are sufficient as a first pass. If the needed result is not in the first page, paginate using `--from <offset> --size 2` to fetch the next page. Do not increase `--size` beyond 2 unless pagination has been exhausted and the target is confirmed absent.
+  - Example first page: `idx search "password hash" --size 2 --agent-compact`
+  - Example next page:  `idx search "password hash" --size 2 --from 2 --agent-compact`
 - If you know the file extension being targeted, always add `--ext <extension>`.
-  - Example: `idx search "password hash" --ext go --agent-compact`
+  - Example: `idx search "password hash" --ext go --size 2 --agent-compact`
 - If you know the likely path or exact file path, always add `--path <path-filter>`.
   - You may use wildcards for file targeting when applicable.
-  - Example: `idx search "list command" --path "*main.go" --agent-compact`
+  - Example: `idx search "list command" --path "*main.go" --size 2 --agent-compact`
 
 When both are known, combine both filters in the same search command:
-- Example: `idx search "TestPasswordIsHashed" --path "*main_test.go" --ext go --agent-compact`
+- Example: `idx search "TestPasswordIsHashed" --path "*main_test.go" --ext go --size 2 --agent-compact`
 
 ```bash
 idx daemon enable "$TARGET_ROOT"
-(cd "$TARGET_ROOT" && idx search "<terms>" --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --files-only --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --matches-only --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter> --agent-compact)
-(cd "$TARGET_ROOT" && idx search --path <path-filter> --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension> --agent-compact)
-(cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension> --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --json-pretty --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --format json --files-only --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --explain --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --context <lines> --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --from <offset> --size <limit> --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --operator OR --agent-compact)
-(cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N' --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --size 2 --from <offset> --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --files-only --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --matches-only --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --path <path-filter> --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search --path <path-filter> --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --ext <extension> --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search --path <path-filter> --ext <extension> --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --json-pretty --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --matches-only --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --format json --files-only --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --explain --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --context <lines> --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator OR --size 2 --agent-compact)
+(cd "$TARGET_ROOT" && idx search "<terms>" --operator AND --relaxation '>N' --size 2 --agent-compact)
 (cd "$TARGET_ROOT" && idx sync)
 (cd "$TARGET_ROOT" && idx status)
 ```
@@ -236,15 +251,15 @@ For idx sessions, this counting rule applies only to `idx search` calls that inc
 
 ## Session Isolation Rules
 Scenario definition for this skill:
-- One scenario = one tool + one phase session (for example: idx-build, grep-feature, rg-bugfix).
+- One scenario = one tool + one phase session (for example: rg-build, grep-feature, idx-bugfix).
 
 For every phase in every branch:
 1. Start a fresh conversation context before beginning the phase.
 2. Do not reuse previous chat history for that phase.
 3. Execute only the session's target search approach:
-- idx branch: use `idx search ... --agent-compact` commands only.
-- grep branch: use grep only.
 - rg branch: use rg only.
+- grep branch: use grep only.
+- idx branch: use `idx search ... --agent-compact` commands only.
 4. Capture timestamps, interaction counts, and context consumption during that session.
 5. If context was not reset before the scenario, invalidate the scenario and rerun it with a fresh context.
 
@@ -317,7 +332,7 @@ Use one row per session with this schema:
 - run_id
 - branch
 - phase (build | feature | bugfix)
-- tool (idx | grep | rg)
+- tool (rg | grep | idx)
 - started_at
 - finished_at
 - duration_seconds
@@ -352,15 +367,15 @@ Use one row per session with this schema:
 Group the final comparison report by problem (phase), not by tool, so each phase produces an independent side-by-side comparison across the three tools.
 
 Recommended run_id format:
-- idx-build-001
-- idx-feature-001
-- idx-bugfix-001
-- grep-build-001
-- grep-feature-001
-- grep-bugfix-001
 - rg-build-001
 - rg-feature-001
 - rg-bugfix-001
+- grep-build-001
+- grep-feature-001
+- grep-bugfix-001
+- idx-build-001
+- idx-feature-001
+- idx-bugfix-001
 
 Per-session schema must include both interaction counters:
 - tool_search_count (direct search command invocations)
@@ -434,6 +449,7 @@ Do not count:
 ## Quality Checks
 - Same workload and acceptance criteria across all branches.
 - Same phase order across all branches.
+- Full benchmark tool order is `rg -> grep -> idx`.
 - Fresh context before every phase.
 - One target search tool per session.
 - Interactive agent execution mode used end-to-end (no scripts, no batch shortcuts).
@@ -441,6 +457,7 @@ Do not count:
 - Every idx session runs `idx daemon enable "$TARGET_ROOT" --quiet` as the sole pre-step before starting session timing (idempotent: handles init and daemon start in one command).
 - All idx session commands use the `idx` binary available in the shell (`~/.local/bin/idx`).
 - Every idx session `search` invocation includes `--agent-compact`.
+- Every idx session `search` invocation includes `--size 2`. Pagination via `--from <offset> --size 2` is used when the target result is not in the first page; `--size` is never increased beyond 2.
 - Start/end timestamps recorded for every session.
 - Both tool_search_count and tool_navigation_count recorded for every session.
 - Context reset performed for every scenario before measurement starts.
@@ -467,13 +484,13 @@ Do not count:
 
   The file must contain the following sections:
 
-  ### Build phase comparison (idx vs grep vs rg)
+  ### Build phase comparison (rg vs grep vs idx)
   Table with columns: tool, duration_seconds, tool_search_count, tool_navigation_count, context_total_tokens, tests_passed, notes
 
-  ### Feature phase comparison (idx vs grep vs rg)
+  ### Feature phase comparison (rg vs grep vs idx)
   Same table structure as build phase.
 
-  ### Bugfix phase comparison (idx vs grep vs rg)
+  ### Bugfix phase comparison (rg vs grep vs idx)
   Same table structure plus a column: bcrypt_validated (yes/no)
 
   ### Summary
@@ -505,6 +522,7 @@ Do not count:
   - implementation_total_tokens
 - Methodology note: for idx sessions, `tool_search_count` includes only `idx search` invocations that include `--agent-compact`.
   - Methodology note: for idx sessions, every `idx search` invocation includes `--agent-compact` to reduce token usage consistently across runs.
+  - Methodology note: for idx sessions, every `idx search` invocation includes `--size 2`. idx ranks results by relevance so the top 2 are sufficient as a first pass; subsequent pages are fetched with `--from <offset> --size 2` only when the target is not in the first page. This limits context growth while preserving recall.
   - Methodology note: for idx sessions, `idx daemon enable "$TARGET_ROOT" --quiet` is the sole pre-step (idempotent: handles init + daemon start). No separate `idx init` or `idx daemon status` call is made before timing.
   - Methodology note: `pre_build` tokens are reported explicitly in the stage ledger and included in `workflow_total_tokens`.
   - Methodology note: fairness comparisons across tools should use `implementation_total_tokens`, not `workflow_total_tokens`, when pre-step overhead must be isolated.
@@ -528,6 +546,6 @@ This skill is complete when:
 - A final comparison report is produced.
 
 ## Example Prompts
-- Run a full benchmark with idx vs grep vs rg and produce the final metrics table.
+- Run a full benchmark with rg vs grep vs idx and produce the final metrics table.
 - Run only the bugfix phase benchmark for all three branches.
 - Benchmark build and feature phases only, then summarize speed and interaction counts.
