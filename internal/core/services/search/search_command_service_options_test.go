@@ -210,7 +210,7 @@ func TestSearchCommandServiceRunWithOptionsAgentCompactOutputsTokenEfficientText
 		t.Fatalf("expected compact path header, got %q", output.lines[0])
 	}
 
-	if output.lines[1] != "1: module idx" {
+	if output.lines[1] != "1:module idx" {
 		t.Fatalf("expected trimmed compact line, got %q", output.lines[1])
 	}
 }

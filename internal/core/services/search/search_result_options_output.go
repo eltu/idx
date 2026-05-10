@@ -357,7 +357,7 @@ func (service SearchCommandService) writeMatchedLinesWithOptions(lines []matched
 
 func formattedMatchedLineCompact(line matchedLine) string {
 	lineContent := strings.TrimSpace(line.content)
-	return fmt.Sprintf("%s: %s", coloredLineNumber(line.lineNumber, false), lineContent)
+	return fmt.Sprintf("%s:%s", coloredLineNumber(line.lineNumber, false), lineContent)
 }
 
 func formattedMatchedLine(index int, total int, line matchedLine, terms []string, useANSI bool) string {

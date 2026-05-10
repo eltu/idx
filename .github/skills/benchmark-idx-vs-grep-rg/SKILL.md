@@ -176,6 +176,19 @@ use a subshell that changes to `TARGET_ROOT`.
 All `idx search` invocations in benchmark sessions must include `--agent-compact`
 to reduce token usage consistently across idx scenarios.
 
+### Context-reduction filters (Mandatory when known)
+
+To reduce unnecessary files in context during `idx search`:
+
+- If you know the file extension being targeted, always add `--ext <extension>`.
+  - Example: `idx search "password hash" --ext go --agent-compact`
+- If you know the likely path or exact file path, always add `--path <path-filter>`.
+  - You may use wildcards for file targeting when applicable.
+  - Example: `idx search "list command" --path "*main.go" --agent-compact`
+
+When both are known, combine both filters in the same search command:
+- Example: `idx search "TestPasswordIsHashed" --path "*main_test.go" --ext go --agent-compact`
+
 ```bash
 idx daemon enable "$TARGET_ROOT"
 (cd "$TARGET_ROOT" && idx search "<terms>" --agent-compact)
@@ -241,6 +254,13 @@ For every new invocation of this skill (full or partial scope):
 3. Recreate the benchmark flow from scratch instead of continuing from previous session state.
 4. Prioritize simulation fidelity over metric outcomes; metrics are directional signals, not optimization targets.
 5. Do not use previous run metrics to influence implementation decisions during the current run.
+
+### Hard Reset Rule (Mandatory)
+- Every execution of this skill MUST rerun the benchmark again for the requested scope.
+- Never reuse metrics, timings, token counters, interaction counters, branches, or sandbox artifacts from any previous run.
+- Never copy prior benchmark numbers into a new report section.
+- If any previous-run artifact is detected as input to the current run, invalidate the scenario and rerun it from scratch.
+- "Run from scratch" means: new run_id, fresh sandbox under `/tmp/idx-benchmark/<new-run-id>/`, fresh per-phase sessions, and newly measured (or newly estimated) token/context metrics.
 
 ## Agent Interactive Execution Mode (Mandatory)
 This benchmark must be executed in interactive agent mode, step by step.
@@ -409,6 +429,7 @@ Do not count:
 - If any branch changes requirements, restart that phase in all branches.
 - For a new skill invocation, reset execution assumptions and avoid carrying over prior interaction memory to reduce benchmark bias.
 - If execution mode is not interactive agent mode, discard the run and restart in interactive mode.
+- If current metrics are derived from previous benchmark executions instead of newly executed sessions, mark the run invalid and rerun all requested phases.
 
 ## Quality Checks
 - Same workload and acceptance criteria across all branches.
@@ -434,6 +455,7 @@ Do not count:
 - Sandbox directory for a tool deleted only after its bugfix phase is complete and metrics are recorded.
 - Sandbox never cleaned between phases of the same tool (build → feature → bugfix share artifacts).
 - Sandbox fully empty (or placeholder-only) confirmed before finishing the skill.
+- Current run metrics are newly produced by this invocation and were not reused from previous benchmark executions.
 
 ## Deliverables
 - Code delivered on each branch during its session.
