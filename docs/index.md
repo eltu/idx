@@ -146,7 +146,7 @@ Results are ranked by a combination of:
 
 ## Benchmarks
 
-- [idx vs grep benchmark](benchmarks/idx-vs-grep.md)
+- [idx vs grep — performance report](benchmarks/performance-idx-vs-grep.md)
 
 ---
 
