@@ -1,4 +1,4 @@
-package indexing
+package tui
 
 func trimLastRune(value string) string {
 	runes := []rune(value)

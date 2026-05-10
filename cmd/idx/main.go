@@ -14,7 +14,6 @@ import (
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/adapters/handlers/tui"
 	"idx/internal/adapters/repository"
-	"idx/internal/core/ports"
 	"idx/internal/core/services/daemon"
 	"idx/internal/core/services/indexing"
 	"idx/internal/core/services/lifecycle"
@@ -176,16 +175,9 @@ func run(arguments []string, output io.Writer) error {
 
 	initCommand := indexing.NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner)
 
-	// Adapter that allows calling init from a specific path
-	initCommandAdapter := &initCommandAdapter{
-		initService: initCommand,
-		projectTree: projectTree,
-	}
-
-	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initCommandAdapter, processSpawner)
-	daemonService := &daemonServiceAdapter{
-		daemon: daemonServiceImpl,
-	}
+	initAdapter := cli.NewInitCommandAdapter(initCommand, projectTree)
+	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initAdapter, processSpawner)
+	daemonService := cli.NewDaemonServiceAdapter(daemonServiceImpl)
 
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
@@ -196,39 +188,3 @@ func run(arguments []string, output io.Writer) error {
 	return runner.Run()
 }
 
-// initCommandAdapter adapts InitCommandService to allow calling init from a specific path.
-type initCommandAdapter struct {
-	initService indexing.InitCommandService
-	projectTree ports.ProjectTree
-}
-
-func (a *initCommandAdapter) RunFromPath(projectPath string) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
-	}
-	defer os.Chdir(cwd)
-
-	if err := os.Chdir(projectPath); err != nil {
-		return fmt.Errorf("failed to change to project directory %q: %w", projectPath, err)
-	}
-
-	return a.initService.Run()
-}
-
-// daemonServiceAdapter adapts DaemonService to the daemonableCommand interface.
-type daemonServiceAdapter struct {
-	daemon *daemon.DaemonService
-}
-
-func (a *daemonServiceAdapter) Enable(projectPath string) error {
-	return a.daemon.Enable(projectPath)
-}
-
-func (a *daemonServiceAdapter) Disable(projectPath string) error {
-	return a.daemon.Disable(projectPath)
-}
-
-func (a *daemonServiceAdapter) Status() error {
-	return a.daemon.Status()
-}

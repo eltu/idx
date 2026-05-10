@@ -1,4 +1,4 @@
-package indexing
+package tui
 
 import (
 	"strings"
@@ -114,11 +114,11 @@ func TestRunInspectUIUsesTestHook(t *testing.T) {
 	})
 	defer SetRunInspectTUITestHook(nil)
 
-	if err := RunInspectUI(domain.NewInvertedIndex()); err != nil {
+	if err := runInspectTUI(domain.NewInvertedIndex()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if !called {
-		t.Fatal("expected test hook to be invoked by RunInspectUI")
+		t.Fatal("expected test hook to be invoked by runInspectTUI")
 	}
 }
 

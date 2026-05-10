@@ -3,7 +3,6 @@ package tui
 import (
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
-	"idx/internal/core/services/indexing"
 )
 
 type inspectRunner struct{}
@@ -15,5 +14,5 @@ func NewInspectRunner() ports.InspectUIRunner {
 }
 
 func (inspectRunner) Run(index *domain.InvertedIndex) error {
-	return indexing.RunInspectUI(index)
+	return runInspectTUI(index)
 }

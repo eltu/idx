@@ -1,4 +1,4 @@
-package indexing
+package tui
 
 import (
 	"fmt"
@@ -224,117 +224,6 @@ func inspectLogsView(model inspectModel) string {
 	return builder.String()
 }
 
-func inspectDirectoriesVisibleRange(model inspectModel) (int, int) {
-	if len(model.filteredDirectories) == 0 {
-		return 0, 0
-	}
-	start := maxInt(model.directoryStart, 0)
-	end := minInt(start+inspectDirectoriesListHeight(model), len(model.filteredDirectories))
-	if start >= end {
-		start = len(model.filteredDirectories) - 1
-		end = len(model.filteredDirectories)
-	}
-	return start, end
-}
-
-func inspectDocumentsVisibleRange(model inspectModel) (int, int) {
-	if len(model.filteredDocuments) == 0 {
-		return 0, 0
-	}
-	start := maxInt(model.documentStart, 0)
-	end := minInt(start+inspectDocumentsListHeight(model), len(model.filteredDocuments))
-	if start >= end {
-		start = len(model.filteredDocuments) - 1
-		end = len(model.filteredDocuments)
-	}
-	return start, end
-}
-
-func inspectLogsVisibleRange(model inspectModel) (int, int) {
-	if len(model.filteredLogs) == 0 {
-		return 0, 0
-	}
-	start := maxInt(model.logStart, 0)
-	end := minInt(start+inspectLogsListHeight(model), len(model.filteredLogs))
-	if start >= end {
-		start = len(model.filteredLogs) - 1
-		end = len(model.filteredLogs)
-	}
-	return start, end
-}
-
-func inspectDirectoriesListHeight(model inspectModel) int { return maxInt(model.height-11, 1) }
-func inspectDocumentsListHeight(model inspectModel) int   { return maxInt(model.height-12, 1) }
-func inspectLogsListHeight(model inspectModel) int        { return maxInt(model.height-12, 1) }
-func inspectDirectoriesPageStep(model inspectModel) int {
-	return maxInt(inspectDirectoriesListHeight(model)-1, 1)
-}
-func inspectDocumentsPageStep(model inspectModel) int {
-	return maxInt(inspectDocumentsListHeight(model)-1, 1)
-}
-func inspectLogsPageStep(model inspectModel) int { return maxInt(inspectLogsListHeight(model)-1, 1) }
-
-func adjustInspectDirectoriesViewport(model inspectModel) inspectModel {
-	if len(model.filteredDirectories) == 0 {
-		model.directoryStart, model.directorySelected = 0, 0
-		return model
-	}
-	model.directorySelected = clampInt(model.directorySelected, 0, len(model.filteredDirectories)-1)
-	listHeight := inspectDirectoriesListHeight(model)
-	if model.directorySelected < model.directoryStart {
-		model.directoryStart = model.directorySelected
-	}
-	if model.directorySelected >= model.directoryStart+listHeight {
-		model.directoryStart = model.directorySelected - listHeight + 1
-	}
-	model.directoryStart = clampInt(model.directoryStart, 0, maxInt(len(model.filteredDirectories)-listHeight, 0))
-	return model
-}
-
-func adjustInspectDocumentsViewport(model inspectModel) inspectModel {
-	if len(model.filteredDocuments) == 0 {
-		model.documentStart, model.documentSelected = 0, 0
-		return model
-	}
-	model.documentSelected = clampInt(model.documentSelected, 0, len(model.filteredDocuments)-1)
-	listHeight := inspectDocumentsListHeight(model)
-	if model.documentSelected < model.documentStart {
-		model.documentStart = model.documentSelected
-	}
-	if model.documentSelected >= model.documentStart+listHeight {
-		model.documentStart = model.documentSelected - listHeight + 1
-	}
-	model.documentStart = clampInt(model.documentStart, 0, maxInt(len(model.filteredDocuments)-listHeight, 0))
-	return model
-}
-
-func adjustInspectLogsViewport(model inspectModel) inspectModel {
-	model.logColumnOffset = clampInt(model.logColumnOffset, 0, inspectMaxLogColumnOffset(model))
-	if len(model.filteredLogs) == 0 {
-		model.logStart, model.logSelected = 0, 0
-		return model
-	}
-	model.logSelected = clampInt(model.logSelected, 0, len(model.filteredLogs)-1)
-	listHeight := inspectLogsListHeight(model)
-	if model.logSelected < model.logStart {
-		model.logStart = model.logSelected
-	}
-	if model.logSelected >= model.logStart+listHeight {
-		model.logStart = model.logSelected - listHeight + 1
-	}
-	model.logStart = clampInt(model.logStart, 0, maxInt(len(model.filteredLogs)-listHeight, 0))
-	return model
-}
-
-func inspectMaxLogColumnOffset(model inspectModel) int {
-	maxWidth := len([]rune(inspectLogTableHeader()))
-	for _, row := range model.filteredLogs {
-		maxWidth = maxInt(maxWidth, len([]rune(inspectLogTableRow(row))))
-	}
-	availableWidth := maxInt(model.width, 1)
-	return maxInt(maxWidth-availableWidth, 0)
-}
-
 func inspectInputLine(model inspectModel, searchActive bool, searchQuery string) string {
 	if model.commandMode == inspectCommandModeCommand {
 		suggestions := inspectCommandSuggestions(model.commandQuery)
@@ -358,6 +247,7 @@ func inspectInputLine(model inspectModel, searchActive bool, searchQuery string)
 func inspectLogTableHeader() string {
 	return fmt.Sprintf("%-24s | %-52s | %-24s", "INDEXED_AT", "PATH", "HASH")
 }
+
 func inspectLogTableRow(row inspectLogRow) string {
 	return fmt.Sprintf("%-24s | %-52s | %-24s", row.indexedAt, row.path, row.hash)
 }
@@ -425,4 +315,118 @@ func clampInt(value int, low int, high int) int {
 		return high
 	}
 	return value
+}
+
+func inspectDirectoriesVisibleRange(model inspectModel) (int, int) {
+	if len(model.filteredDirectories) == 0 {
+		return 0, 0
+	}
+	start := maxInt(model.directoryStart, 0)
+	end := minInt(start+inspectDirectoriesListHeight(model), len(model.filteredDirectories))
+	if start >= end {
+		start = len(model.filteredDirectories) - 1
+		end = len(model.filteredDirectories)
+	}
+	return start, end
+}
+
+func inspectDocumentsVisibleRange(model inspectModel) (int, int) {
+	if len(model.filteredDocuments) == 0 {
+		return 0, 0
+	}
+	start := maxInt(model.documentStart, 0)
+	end := minInt(start+inspectDocumentsListHeight(model), len(model.filteredDocuments))
+	if start >= end {
+		start = len(model.filteredDocuments) - 1
+		end = len(model.filteredDocuments)
+	}
+	return start, end
+}
+
+func inspectLogsVisibleRange(model inspectModel) (int, int) {
+	if len(model.filteredLogs) == 0 {
+		return 0, 0
+	}
+	start := maxInt(model.logStart, 0)
+	end := minInt(start+inspectLogsListHeight(model), len(model.filteredLogs))
+	if start >= end {
+		start = len(model.filteredLogs) - 1
+		end = len(model.filteredLogs)
+	}
+	return start, end
+}
+
+func inspectDirectoriesListHeight(model inspectModel) int { return maxInt(model.height-11, 1) }
+func inspectDocumentsListHeight(model inspectModel) int   { return maxInt(model.height-12, 1) }
+func inspectLogsListHeight(model inspectModel) int        { return maxInt(model.height-12, 1) }
+
+func inspectDirectoriesPageStep(model inspectModel) int {
+	return maxInt(inspectDirectoriesListHeight(model)-1, 1)
+}
+
+func inspectDocumentsPageStep(model inspectModel) int {
+	return maxInt(inspectDocumentsListHeight(model)-1, 1)
+}
+
+func inspectLogsPageStep(model inspectModel) int { return maxInt(inspectLogsListHeight(model)-1, 1) }
+
+func adjustInspectDirectoriesViewport(model inspectModel) inspectModel {
+	if len(model.filteredDirectories) == 0 {
+		model.directoryStart, model.directorySelected = 0, 0
+		return model
+	}
+	model.directorySelected = clampInt(model.directorySelected, 0, len(model.filteredDirectories)-1)
+	listHeight := inspectDirectoriesListHeight(model)
+	if model.directorySelected < model.directoryStart {
+		model.directoryStart = model.directorySelected
+	}
+	if model.directorySelected >= model.directoryStart+listHeight {
+		model.directoryStart = model.directorySelected - listHeight + 1
+	}
+	model.directoryStart = clampInt(model.directoryStart, 0, maxInt(len(model.filteredDirectories)-listHeight, 0))
+	return model
+}
+
+func adjustInspectDocumentsViewport(model inspectModel) inspectModel {
+	if len(model.filteredDocuments) == 0 {
+		model.documentStart, model.documentSelected = 0, 0
+		return model
+	}
+	model.documentSelected = clampInt(model.documentSelected, 0, len(model.filteredDocuments)-1)
+	listHeight := inspectDocumentsListHeight(model)
+	if model.documentSelected < model.documentStart {
+		model.documentStart = model.documentSelected
+	}
+	if model.documentSelected >= model.documentStart+listHeight {
+		model.documentStart = model.documentSelected - listHeight + 1
+	}
+	model.documentStart = clampInt(model.documentStart, 0, maxInt(len(model.filteredDocuments)-listHeight, 0))
+	return model
+}
+
+func adjustInspectLogsViewport(model inspectModel) inspectModel {
+	model.logColumnOffset = clampInt(model.logColumnOffset, 0, inspectMaxLogColumnOffset(model))
+	if len(model.filteredLogs) == 0 {
+		model.logStart, model.logSelected = 0, 0
+		return model
+	}
+	model.logSelected = clampInt(model.logSelected, 0, len(model.filteredLogs)-1)
+	listHeight := inspectLogsListHeight(model)
+	if model.logSelected < model.logStart {
+		model.logStart = model.logSelected
+	}
+	if model.logSelected >= model.logStart+listHeight {
+		model.logStart = model.logSelected - listHeight + 1
+	}
+	model.logStart = clampInt(model.logStart, 0, maxInt(len(model.filteredLogs)-listHeight, 0))
+	return model
+}
+
+func inspectMaxLogColumnOffset(model inspectModel) int {
+	maxWidth := len([]rune(inspectLogTableHeader()))
+	for _, row := range model.filteredLogs {
+		maxWidth = maxInt(maxWidth, len([]rune(inspectLogTableRow(row))))
+	}
+	availableWidth := maxInt(model.width, 1)
+	return maxInt(maxWidth-availableWidth, 0)
 }

@@ -25,10 +25,19 @@ type InitCommandService struct {
 	inspectUI      ports.InspectUIRunner
 }
 
-// NewInitCommandService builds the init use case.
+// disabledInspectUIRunner is the default when no TUI adapter is injected.
+// Returns an error instead of panicking to signal misconfiguration early.
+type disabledInspectUIRunner struct{}
+
+func (disabledInspectUIRunner) Run(_ *domain.InvertedIndex) error {
+	return fmt.Errorf("inspect UI not configured: use NewInitCommandServiceWithInspectUI to enable the TUI")
+}
+
+// NewInitCommandService builds the init use case without TUI support.
+// Use NewInitCommandServiceWithInspectUI when the inspect command must launch the TUI.
 // Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo).
 func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository) InitCommandService {
-	return NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, defaultInspectUIRunner{})
+	return NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, disabledInspectUIRunner{})
 }
 
 // NewInitCommandServiceWithInspectUI builds the init use case with an injected inspect UI runner.

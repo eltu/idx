@@ -1,4 +1,4 @@
-package indexing
+package tui
 
 import (
 	"encoding/json"
@@ -171,6 +171,7 @@ func inspectBuildLogRow(line string, position int, filePath string) inspectLogRo
 	}
 
 	row.jsonRaw = jsonRaw
+	_ = position
 	return row
 }
 

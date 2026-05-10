@@ -5,7 +5,6 @@ import (
 
 	"idx/internal/adapters/handlers/tui"
 	"idx/internal/core/domain"
-	"idx/internal/core/services/indexing"
 )
 
 func TestNewInspectRunnerImplementsPort(t *testing.T) {
@@ -17,11 +16,11 @@ func TestNewInspectRunnerImplementsPort(t *testing.T) {
 
 func TestInspectRunnerRunUsesTestHook(t *testing.T) {
 	called := false
-	indexing.SetRunInspectTUITestHook(func(_ *domain.InvertedIndex) error {
+	tui.SetRunInspectTUITestHook(func(_ *domain.InvertedIndex) error {
 		called = true
 		return nil
 	})
-	defer indexing.SetRunInspectTUITestHook(nil)
+	defer tui.SetRunInspectTUITestHook(nil)
 
 	runner := tui.NewInspectRunner()
 	if err := runner.Run(domain.NewInvertedIndex()); err != nil {

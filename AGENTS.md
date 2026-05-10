@@ -53,13 +53,14 @@
 │   │   ├── domain/          # Entities/Models (structs)
 │   │   ├── ports/           # Interfaces (contracts for In/Out)
 │   │   └── services/
+│   │       ├── daemon/      # Daemon management use cases
 │   │       ├── indexing/    # Init & BM25 indexing use cases
 │   │       ├── search/      # Search use cases
 │   │       └── lifecycle/   # Destroy use cases
 │   └── adapters/            # The "Outside" (Infrastructure)
 │       ├── handlers/
-│       │   ├── cli/         # Input (CLI commands)
-│       │   └── tui/         # Input (TUI adapters)
+│       │   ├── cli/         # Input (CLI commands & adapters)
+│       │   └── tui/         # Input (TUI implementation & adapters)
 │       └── repository/      # Output (filesystem, index storage)
 └── go.mod
 ```

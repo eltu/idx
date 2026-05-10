@@ -9,6 +9,19 @@ import (
 	"idx/internal/core/services/indexing"
 )
 
+// stubInspectUIRunner captures the index passed to Run for assertion in tests.
+type stubInspectUIRunner struct {
+	called bool
+	index  *domain.InvertedIndex
+	err    error
+}
+
+func (s *stubInspectUIRunner) Run(index *domain.InvertedIndex) error {
+	s.called = true
+	s.index = index
+	return s.err
+}
+
 func TestInitCommandServiceInspectWithoutPathRunsTUI(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal")
@@ -36,32 +49,24 @@ func TestInitCommandServiceInspectWithoutPathRunsTUI(t *testing.T) {
 	childIndex.AddDocument("child.go", filepath.Join(childDir, "child.go"), 7)
 	indexRepo.savedIndices[childDir] = childIndex
 
-	tuiCalled := false
-	originalRunInspectTUI := indexing.RunInspectTUITestHook()
-	indexing.SetRunInspectTUITestHook(func(index *domain.InvertedIndex) error {
-		tuiCalled = true
-		if index == nil || index.DocumentCount != 2 {
-			t.Fatalf("expected inspect TUI to receive merged project indices, got %+v", index)
-		}
-
-		if len(index.Documents) != 2 {
-			t.Fatalf("expected merged inspect index with 2 documents, got %d", len(index.Documents))
-		}
-		return nil
-	})
-	t.Cleanup(func() {
-		indexing.SetRunInspectTUITestHook(originalRunInspectTUI)
-	})
-
-	service := indexing.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
+	stub := &stubInspectUIRunner{}
+	service := indexing.NewInitCommandServiceWithInspectUI(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil, stub)
 
 	err := service.Inspect("")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !tuiCalled {
+	if !stub.called {
 		t.Fatal("expected inspect without path to run TUI")
+	}
+
+	if stub.index == nil || stub.index.DocumentCount != 2 {
+		t.Fatalf("expected inspect TUI to receive merged project indices, got %+v", stub.index)
+	}
+
+	if len(stub.index.Documents) != 2 {
+		t.Fatalf("expected merged inspect index with 2 documents, got %d", len(stub.index.Documents))
 	}
 
 	if len(output.lines) != 0 {

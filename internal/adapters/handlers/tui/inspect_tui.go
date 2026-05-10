@@ -1,4 +1,4 @@
-package indexing
+package tui
 
 import (
 	"fmt"
@@ -34,6 +34,7 @@ var (
 	inspectDocumentPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("117")).Bold(true)
 )
 
+// SetRunInspectTUITestHook replaces the TUI runner for tests. Pass nil to restore the default.
 func SetRunInspectTUITestHook(hook func(index *domain.InvertedIndex) error) {
 	if hook == nil {
 		runInspectTUI = runInspectTUIProgram
@@ -43,6 +44,7 @@ func SetRunInspectTUITestHook(hook func(index *domain.InvertedIndex) error) {
 	runInspectTUI = hook
 }
 
+// RunInspectTUITestHook returns the current TUI runner (default or test hook).
 func RunInspectTUITestHook() func(index *domain.InvertedIndex) error {
 	return runInspectTUI
 }
@@ -149,8 +151,4 @@ func runInspectTUIProgram(index *domain.InvertedIndex) error {
 	}
 
 	return nil
-}
-
-func RunInspectUI(index *domain.InvertedIndex) error {
-	return runInspectTUI(index)
 }
