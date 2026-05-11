@@ -148,11 +148,11 @@ Results are ranked by a combination of:
 
 Benchmark reports are organized by category to make navigation and comparison easier.
 
-- [idx vs grep — performance report](benchmarks/performance/idx-vs-grep.md)
-- [idx benchmark report](benchmarks/tokens/benchmark-idx.md)
-- [grep benchmark report](benchmarks/tokens/benchmark-grep.md)
-- [rg benchmark report](benchmarks/tokens/benchmark-rg.md)
-- [benchmark summary](benchmarks/tokens/benkmark-sumary.md)
+- [idx vs grep — performance report](benchmarks/performance/idx-vs-grep.md): Focused performance comparison between `idx` and `grep`, highlighting speed and execution characteristics.
+- [idx benchmark report](benchmarks/tokens/benchmark-idx.md): Detailed `idx`-only benchmark across build, feature, and bugfix phases, including searches, timing, and token estimates.
+- [grep benchmark report](benchmarks/tokens/benchmark-grep.md): Detailed `grep` benchmark report with per-phase search behavior, navigation patterns, timing, and validation outcomes.
+- [rg benchmark report](benchmarks/tokens/benchmark-rg.md): Detailed `rg` (ripgrep) benchmark report with run metrics, phase-by-phase results, and aggregate totals.
+- [benchmark summary](benchmarks/tokens/benkmark-sumary.md): Consolidated summary comparing `idx`, `grep`, and `rg` in one place for quick decision-making.
 
 ---
 
