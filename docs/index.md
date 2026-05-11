@@ -146,7 +146,13 @@ Results are ranked by a combination of:
 
 ## Benchmarks
 
-- [idx vs grep — performance report](benchmarks/performance-idx-vs-grep.md)
+Benchmark reports are organized by category to make navigation and comparison easier.
+
+- [idx vs grep — performance report](benchmarks/performance/idx-vs-grep.md)
+- [idx benchmark report](benchmarks/tokens/benchmark-idx.md)
+- [grep benchmark report](benchmarks/tokens/benchmark-grep.md)
+- [rg benchmark report](benchmarks/tokens/benchmark-rg.md)
+- [benchmark summary](benchmarks/tokens/benkmark-sumary.md)
 
 ---
 
