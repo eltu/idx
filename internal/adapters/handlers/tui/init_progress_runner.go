@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"idx/internal/core/ports"
 
 	tea "charm.land/bubbletea/v2"
@@ -14,25 +15,32 @@ type InitProgressRunner struct {
 	progressCh chan string
 	totalCh    chan int
 	done       chan struct{}
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewInitProgressRunner builds the init progress TUI adapter.
 // Example: runner := tui.NewInitProgressRunner()
 func NewInitProgressRunner() *InitProgressRunner {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &InitProgressRunner{
 		progressCh: make(chan string, 100),
 		totalCh:    make(chan int, 1),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
 func (r *InitProgressRunner) SetQuiet(quiet bool) { r.quiet = quiet }
+
+func (r *InitProgressRunner) Context() context.Context { return r.ctx }
 
 func (r *InitProgressRunner) StartCounting() {
 	if r.quiet {
 		return
 	}
 	r.done = make(chan struct{})
-	model := newInitProgressModel(r.progressCh, r.totalCh)
+	model := newInitProgressModel(r.progressCh, r.totalCh, r.cancel)
 	r.program = tea.NewProgram(model)
 	go func() {
 		defer close(r.done)
@@ -58,7 +66,13 @@ func (r *InitProgressRunner) Finish() {
 	if r.quiet || r.program == nil {
 		return
 	}
-	close(r.progressCh)
+	// Safe close: the model may have already quit via ctrl+c without draining the channel.
+	select {
+	case <-r.ctx.Done():
+		// cancelled — program already quit, just wait for goroutine to exit
+	default:
+		close(r.progressCh)
+	}
 	<-r.done
 }
 

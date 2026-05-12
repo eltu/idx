@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,10 +37,11 @@ func (disabledInspectUIRunner) Run(_ *domain.InvertedIndex) error {
 
 type disabledInitProgress struct{}
 
-func (disabledInitProgress) StartCounting()      {}
-func (disabledInitProgress) SetTotal(int)        {}
-func (disabledInitProgress) IncrementDir(string) {}
-func (disabledInitProgress) Finish()             {}
+func (disabledInitProgress) StartCounting()             {}
+func (disabledInitProgress) SetTotal(int)               {}
+func (disabledInitProgress) IncrementDir(string)        {}
+func (disabledInitProgress) Finish()                    {}
+func (disabledInitProgress) Context() context.Context   { return context.Background() }
 
 // NewInitCommandService builds the init use case without TUI support.
 // Use NewInitCommandServiceWithInspectUI when the inspect command must launch the TUI.
@@ -212,6 +214,9 @@ func (service InitCommandService) runIndex() error {
 
 	if err := service.indexDirectory(currentDir, projectRoot, matcher); err != nil {
 		service.initProgress.Finish()
+		if err == context.Canceled {
+			return nil
+		}
 		return err
 	}
 	service.initProgress.Finish()
@@ -312,6 +317,10 @@ func (service InitCommandService) countEligibleDirectories(dirPath, projectRoot 
 }
 
 func (service InitCommandService) indexDirectory(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
+	if err := service.initProgress.Context().Err(); err != nil {
+		return context.Canceled
+	}
+
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}

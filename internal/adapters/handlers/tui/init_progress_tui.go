@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -44,10 +45,11 @@ type initProgressModel struct {
 	width      int
 	progressCh <-chan string
 	totalCh    <-chan int
+	cancelFunc context.CancelFunc
 }
 
-func newInitProgressModel(progressCh <-chan string, totalCh <-chan int) initProgressModel {
-	return initProgressModel{progressCh: progressCh, totalCh: totalCh}
+func newInitProgressModel(progressCh <-chan string, totalCh <-chan int, cancelFunc context.CancelFunc) initProgressModel {
+	return initProgressModel{progressCh: progressCh, totalCh: totalCh, cancelFunc: cancelFunc}
 }
 
 func (m initProgressModel) Init() tea.Cmd {
@@ -78,6 +80,11 @@ func waitForProgressDir(ch <-chan string) tea.Cmd {
 
 func (m initProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			m.cancelFunc()
+			return m, tea.Quit
+		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		return m, nil
@@ -140,8 +147,26 @@ func renderInitProgressBar(m initProgressModel) string {
 		barWidth = 56
 	}
 	filled := int(progressPercent(m) * float64(barWidth))
-	return progressFilledStyle.Render(strings.Repeat("█", filled)) +
+	return renderGradientFilled(filled) +
 		progressEmptyStyle.Render(strings.Repeat("░", barWidth-filled))
+}
+
+// progressGradientColors goes from deep blue → cyan, left to right.
+var progressGradientColors = []string{"27", "33", "39", "45", "51"}
+
+func renderGradientFilled(count int) string {
+	if count == 0 {
+		return ""
+	}
+	b := strings.Builder{}
+	for i := range count {
+		idx := 0
+		if count > 1 {
+			idx = (i * (len(progressGradientColors) - 1)) / (count - 1)
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(progressGradientColors[idx])).Render("█"))
+	}
+	return b.String()
 }
 
 func renderInitProgressDirLine(lastDir string) string {
