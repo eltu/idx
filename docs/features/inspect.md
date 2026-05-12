@@ -14,10 +14,11 @@ idx inspect [path]
 
 - `path` (optional): relative or absolute path from the current directory.
 - At most one path is accepted.
+- Empty path and flag-like tokens (starting with `--`) are rejected.
 
 ## Flags
 
-- None.
+- Global: `--quiet`, `-q`.
 
 ## Behavior and Side Effects
 

@@ -16,10 +16,12 @@ idx destroy
 
 ## Flags
 
-- None.
+- Global: `--quiet`, `-q`.
 
 ## Behavior and Side Effects
 
+- Before destroy logic runs, CLI tries to disable daemon monitoring for `.`.
+- Daemon disable errors are ignored when they indicate a non-active daemon state.
 - Resolves current directory and Git root.
 - Must run from the project root.
 - Recursively traverses directories.

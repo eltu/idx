@@ -4,6 +4,8 @@ description: Fast code and text search for Git repositories, powered by BM25 and
 layout: default
 ---
 
+# idx
+
 Fast code and text search CLI for Git repositories, powered by BM25 and per-directory indexes.
 
 Repository: [github.com/eltu/idx](https://github.com/eltu/idx)
@@ -26,7 +28,7 @@ It also supports metadata filters for both path and file extension, so you can c
 
 If this is your first time using `idx`, follow this step-by-step flow.
 
-### 1) Initialize indexing once (`init`)
+### Step 1: Initialize indexing once (`init`)
 
 Run this in your project root:
 
@@ -44,7 +46,7 @@ Use `init` when:
 - You are setting up `idx` in a project for the first time.
 - You removed indexes and want to recreate them.
 
-### 2) Keep the index updated (`daemon` / `watch`) or update manually (`sync`)
+### Step 2: Keep indexes updated (`daemon` / `watch`) or update manually (`sync`)
 
 After `init`, choose one update strategy:
 
@@ -75,7 +77,7 @@ Tip:
 - If your project changes every iteration, use `daemon` or `watch`.
 - If you changed files and did not use automatic mode, run `sync` before searching.
 
-### 3) Search your code (`search`)
+### Step 3: Search your code (`search`)
 
 Start simple:
 
@@ -106,6 +108,8 @@ Use `search` when:
 
 ## Commands
 
+All commands support the global flag `--quiet` (`-q`) to suppress informational output.
+
 | Command | Description |
 |---|---|
 | [`idx init`](features/init.md) | Create BM25 indexes for the current Git project |
@@ -116,6 +120,7 @@ Use `search` when:
 | [`idx watch`](features/watch.md) | Keep indexes in sync in real time (foreground) |
 | [`idx daemon`](features/daemon.md) | Manage background watch processes |
 | [`idx destroy`](features/destroy.md) | Remove all index metadata |
+| [`idx version`](features/version.md) | Show version and build information |
 
 ---
 
@@ -145,27 +150,6 @@ idx search auth token --format json --json-pretty --explain
 
 # Paginate
 idx search auth token --from 10 --size 5
-```
-
----
-
-## Keep indexes fresh
-
-**One-time:**
-```bash
-idx sync
-```
-
-**Realtime (foreground):**
-```bash
-idx watch
-```
-
-**Background daemon:**
-```bash
-idx daemon enable .
-idx daemon status
-idx daemon disable .
 ```
 
 ---

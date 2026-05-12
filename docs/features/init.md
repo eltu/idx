@@ -16,7 +16,7 @@ idx init
 
 ## Flags
 
-- None.
+- Global: `--quiet`, `-q`.
 
 ## Behavior and Side Effects
 
@@ -26,7 +26,7 @@ idx init
 - Recursively indexes directories while skipping `.git` and `.idx`.
 - Applies `.gitignore` rules while traversing files and directories.
 - Writes index data under each indexed directory in `.idx/`.
-- Writes transaction log entries in `.idx/logs/tlog.idx` for indexed files.
+- Updates checksum snapshots used by `idx sync` and `idx status`.
 - If an index already exists in the current directory, does not rebuild and returns an info message.
 
 ## Output
@@ -41,7 +41,7 @@ idx init
 - `.gitignore` cannot be read or written.
 - Ignore matcher cannot be built from `.gitignore`.
 - Directory/file read errors during traversal.
-- Index repository write errors.
+- Index/checksum persistence errors.
 
 ## Examples
 

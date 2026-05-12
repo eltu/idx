@@ -20,6 +20,7 @@ idx watch [flags]
 | --- | --- | --- | --- |
 | `--debounce` | duration | `750ms` | Must be greater than `0` |
 | `--show-updated-files` | bool | `false` | Prints changed file list per batch |
+| `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
 ## Behavior and Side Effects
 
@@ -60,5 +61,6 @@ idx watch --show-updated-files
 	- Service validation: `failed to run watch command: got invalid debounce ...`
 - If daemon state already contains monitored projects:
 	- `cannot run watch: daemon is already monitoring this project...`
+- Existing daemon watch is allowed when this process is started by daemon (`IDX_DAEMON_CHILD=1`).
 - Watcher initialization or runtime watcher errors.
 - Directory read/sync/indexing errors during watch batches.

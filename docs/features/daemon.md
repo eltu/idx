@@ -21,13 +21,14 @@ idx daemon status
 
 ## Flags
 
-- None.
+- Global: `--quiet`, `-q`.
 
 ## Behavior and Side Effects
 
 - `enable`:
 	- Resolves project path to absolute path and validates it exists.
 	- Checks daemon state to avoid duplicate monitoring.
+	- If already monitored with a live process, returns success without extra output (idempotent).
 	- If index is missing, auto-runs init from target path.
 	- Spawns background watch process and stores PID/state.
 - `disable`:
@@ -57,7 +58,6 @@ idx daemon status
 - CLI argument contract:
 	- `expected project path argument` (wrong arg count for enable/disable)
 - `enable` path validation failures.
-- Project already monitored: `project "..." is already being monitored (PID: ...)`
 - Failure to start watch process.
 - Failure to persist daemon state.
 - `disable` when daemon state is empty or project not registered.

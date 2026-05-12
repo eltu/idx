@@ -4,6 +4,7 @@
 
 - `missing command: got ... expected one of [sync init status inspect watch destroy search]`
 - `unsupported command "...": expected one of [sync init status inspect watch destroy search]`
+	- Note: `daemon`, `version`, and help/version flags are also accepted by command dispatch.
 - `inspect accepts at most one path: got ... expected idx inspect [path]`
 - `invalid inspect path "...": expected idx inspect [path]`
 - `expected project path argument` (daemon enable/disable)
@@ -39,9 +40,9 @@
 - `invalid --debounce value ...: expected a duration greater than 0`
 - `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
 - `cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first`
-- `project "..." is already being monitored (PID: ...)`
 - `project "..." not being monitored`
 - `project "..." not being monitored: no projects active`
+- `failed to start watch for "...": got error ..., expected process to start`
 
 ## Recovery Quick Guide
 

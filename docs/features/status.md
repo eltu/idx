@@ -20,6 +20,7 @@ idx status --profile
 | Flag | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `--profile` | bool | `false` | Show a detailed per-directory report and summary table |
+| `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
 ## Behavior and Side Effects
 
@@ -30,7 +31,7 @@ idx status --profile
 - Fails if eligible directories with files exist but are not indexed.
 - For each indexed directory, checks whether reindexing is needed using current file state and checksum/index snapshot logic.
 - Marks a directory as stale when it requires reindexing.
-- With `--profile`, prints one panel per indexed directory plus a summary panel.
+- With `--profile`, prints one panel per indexed directory plus a summary panel before final status validation.
 - Read-only command; no writes are performed.
 
 ## Output

@@ -16,17 +16,15 @@ idx sync
 
 ## Flags
 
-- None.
+- Global: `--quiet`, `-q`.
 
 ## Behavior and Side Effects
 
 - Must be executed from the Git project root.
 - Requires the root index at `<project-root>/.idx/index.idx`.
-- Discovers all currently indexed directories.
-- Discovers all currently eligible directories based on `.gitignore`.
-- Removes stale `.idx` directories that are indexed but no longer eligible.
+- Discovers indexed directories and currently eligible directories from `.gitignore`.
+- Removes stale `.idx` directories that are no longer eligible.
 - Re-indexes eligible directories only when checksums indicate changes.
-- Appends changed file entries to `.idx/logs/tlog.idx`.
 
 ## Output
 
@@ -38,7 +36,7 @@ idx sync
 - Root index does not exist: `sync requires project root to be indexed... run idx init first`.
 - `.gitignore` matcher cannot be loaded.
 - Directory traversal/read errors.
-- Index or checksum persistence errors.
+- Index/checksum persistence errors.
 
 ## Examples
 

@@ -21,6 +21,7 @@ idx search [query terms] [flags]
 | `--format` | string | `text` | Allowed: `text`, `json` |
 | `--json-pretty` | bool | `false` | Requires `--format json` |
 | `--explain` | bool | `false` | Includes ranking score |
+| `--agent-compact` | bool | `false` | Compact text output for agents (no header/footer spacing, simplified lines) |
 | `--context` | int | `0` | Must be `>= 0` |
 | `--matches-only` | bool | `false` | Keeps only matching lines |
 | `--files-only` | bool | `false` | Returns only file paths |
@@ -30,6 +31,7 @@ idx search [query terms] [flags]
 | `--size` | int | unset (`0`) | If set, must be `> 0` |
 | `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
 | `--relaxation` | string | unset | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
+| `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
 Compatibility alias:
 
@@ -54,6 +56,7 @@ Compatibility alias:
 - Text mode with results:
 	- Header: `📁 Found <total> file(s) matching your search`
 	- Or paginated header: `📁 Found <total> file(s) matching your search (showing <displayed> with pagination)`
+- With `--agent-compact`, header/footer spacing is omitted and lines are printed as `<line>:<content>`.
 - Text mode without results: `No results found.`
 - JSON mode without results:
 	- `{"count":0,"results":[]}` (pretty when `--json-pretty` is enabled)
@@ -70,6 +73,7 @@ idx search auth token
 idx search auth token --format json --json-pretty
 idx search auth token --explain
 idx search auth token --format json --explain
+idx search auth token --agent-compact
 idx search auth token --context 2
 idx search --path internal/core
 idx search --ext go

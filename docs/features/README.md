@@ -12,7 +12,14 @@ Detailed end-user command reference, organized by command.
 - [watch](watch.md)
 - [daemon](daemon.md)
 - [destroy](destroy.md)
+- [version](version.md)
 - [errors](errors.md)
+
+## Global flags
+
+All commands inherit the root global flags:
+
+- `--quiet`, `-q`: suppress informational output (errors are still written to stderr).
 
 ## Recommended usage flow
 
@@ -20,4 +27,4 @@ Detailed end-user command reference, organized by command.
 2. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
 3. Verify index freshness with `idx status`.
 4. Use `idx search` during development.
-5. For exploratory multi-term queries, start with `--operator OR` or use `--operator AND --relaxation '>N'` when you want strict ranking with controlled fallback.
+5. Use `idx version` (or `idx --version`) when you need build/version info.
