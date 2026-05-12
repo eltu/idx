@@ -18,25 +18,89 @@ Fast code and text search CLI for Git repositories, powered by BM25 and per-dire
 
 Unlike `grep` or `ripgrep`, `idx` ranks results by relevance: files whose content (and names) better match your query appear first. It handles multi-term AND / OR queries, CamelCase and snake_case file names, proximity bonuses, and filename-aware recall so that `search_scoring.go` is always returned when you search `scoring`.
 
-It also supports metadata filters for both path and file extension, so you can constrain results to scopes such as `internal/core` or only `.go` files.
+It also supports metadata filters for both path and file extension, so you can constrain results to scopes such as `internal/core` or only `.go` files.```
 
 ---
 
-## Quick start
+## Getting Started (First Project)
+
+If this is your first time using `idx`, follow this step-by-step flow.
+
+### 1) Initialize indexing once (`init`)
+
+Run this in your project root:
 
 ```bash
-make build
-./bin/idx init
-./bin/idx search "auth token"
-```
-
-Or install and run:
-
-```bash
-go install ./cmd/idx
 idx init
-idx search "func main"
 ```
+
+What it does:
+
+- Builds the initial index for your project.
+- Prepares `idx` so future searches are fast.
+
+Use `init` when:
+
+- You are setting up `idx` in a project for the first time.
+- You removed indexes and want to recreate them.
+
+### 2) Keep the index updated (`daemon` / `watch`) or update manually (`sync`)
+
+After `init`, choose one update strategy:
+
+Option A: Automatic updates (recommended)
+
+- `idx daemon enable .`: runs indexing in the background for the project.
+- `idx watch`: keeps the current terminal session watching file changes.
+
+Use automatic mode when:
+
+- You edit files frequently.
+- You want search results to stay fresh without extra commands.
+
+Option B: Manual updates
+
+```bash
+idx sync
+```
+
+Use `sync` when:
+
+- You prefer explicit control.
+- You only need updates from time to time.
+- You run commands in CI/scripts or in short sessions.
+
+Tip:
+
+- If your project changes every iteration, use `daemon` or `watch`.
+- If you changed files and did not use automatic mode, run `sync` before searching.
+
+### 3) Search your code (`search`)
+
+Start simple:
+
+```bash
+idx search "auth middleware"
+```
+
+Useful first-query variants:
+
+```bash
+idx search "jwt token" --operator OR
+idx search "rate limit" --ext go
+```
+
+Use `search` when:
+
+- You want to find code, logic, or text quickly.
+- You need exploration before refactoring.
+- You are debugging and want relevant files fast.
+
+### Quick daily flow
+
+1. `idx init` (once per project).
+2. Keep index fresh with `idx daemon` / `idx watch`, or run `idx sync` when needed.
+3. Run `idx search "your terms"` during development.
 
 ---
 
