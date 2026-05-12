@@ -11,6 +11,13 @@ import (
 	"idx/internal/core/ports"
 )
 
+const (
+	groupIndexSetup = "index-setup"
+	groupIndexSync  = "index-sync"
+	groupSearch     = "search"
+	groupAbout      = "about"
+)
+
 func (runner CommandRunner) newRootCommand() *cobra.Command {
 	var quiet bool
 
@@ -37,17 +44,26 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	// Errors are always written to stderr via the returned error value.
 	root.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress informational output (errors are still written to stderr)")
 
-	root.AddCommand(runner.newSyncCommand())
-	root.AddCommand(runner.newInitCommand())
-	root.AddCommand(runner.newStatusCommand())
-	root.AddCommand(runner.newInspectCommand())
-	root.AddCommand(runner.newWatchCommand())
-	root.AddCommand(runner.newDestroyCommand())
-	root.AddCommand(runner.newSearchCommand())
-	root.AddCommand(runner.newDaemonCommand())
-	root.AddCommand(runner.newVersionCommand())
+	root.AddGroup(
+		&cobra.Group{ID: groupIndexSetup, Title: "Index Setup:"},
+		&cobra.Group{ID: groupIndexSync, Title: "Index Sync:"},
+		&cobra.Group{ID: groupSearch, Title: "Search:"},
+		&cobra.Group{ID: groupAbout, Title: "About:"},
+	)
+
+	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
+	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newWatchCommand(), runner.newDaemonCommand(), runner.newStatusCommand())
+	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand())
+	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
 
 	return root
+}
+
+func addCommandToGroup(parent *cobra.Command, groupID string, cmds ...*cobra.Command) {
+	for _, cmd := range cmds {
+		cmd.GroupID = groupID
+		parent.AddCommand(cmd)
+	}
 }
 
 func (runner CommandRunner) newWatchCommand() *cobra.Command {
