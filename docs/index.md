@@ -8,6 +8,8 @@ layout: default
 
 Fast code and text search CLI for Git repositories, powered by BM25 and per-directory indexes.
 
+Repository: [github.com/eltu/idx](https://github.com/eltu/idx)
+
 > ⚠️ This project is under active development and may contain bugs or breaking changes.
 
 ---
@@ -18,7 +20,7 @@ Fast code and text search CLI for Git repositories, powered by BM25 and per-dire
 
 Unlike `grep` or `ripgrep`, `idx` ranks results by relevance: files whose content (and names) better match your query appear first. It handles multi-term AND / OR queries, CamelCase and snake_case file names, proximity bonuses, and filename-aware recall so that `search_scoring.go` is always returned when you search `scoring`.
 
-It also supports metadata filters for both path and file extension, so you can constrain results to scopes such as `internal/core` or only `.go` files.```
+It also supports metadata filters for both path and file extension, so you can constrain results to scopes such as `internal/core` or only `.go` files.
 
 ---
 
