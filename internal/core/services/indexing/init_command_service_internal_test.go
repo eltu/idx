@@ -258,6 +258,7 @@ func newValidInternalService(root string) InitCommandService {
 		indexRepo:      internalIndexRepo{},
 		checksumRepo:   internalChecksumRepo{loadData: map[string]string{}, exists: true},
 		inspectUI:      internalInspectUIRunner{},
+		initProgress:   disabledInitProgress{},
 	}
 }
 

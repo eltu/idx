@@ -261,6 +261,7 @@ func newWatchService(root string) InitCommandService {
 		indexRepo:      internalWatchIndexRepo{},
 		checksumRepo:   internalWatchChecksumRepo{},
 		inspectUI:      internalWatchInspectUI{},
+		initProgress:   disabledInitProgress{},
 	}
 }
 

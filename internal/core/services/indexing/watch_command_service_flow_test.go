@@ -176,6 +176,7 @@ func TestSyncAllDirectoriesBeforeWatchSyncsEligibleAndRemovesStale(t *testing.T)
 		indexRepo:      indexRepo,
 		checksumRepo:   checksumRepo,
 		inspectUI:      internalInspectUIRunner{},
+		initProgress:   disabledInitProgress{},
 	}
 
 	if err := service.syncAllDirectoriesBeforeWatch(root, matcher); err != nil {

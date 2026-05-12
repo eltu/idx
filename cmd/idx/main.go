@@ -22,6 +22,15 @@ import (
 
 var exitProcess = os.Exit
 
+type multiQuiet struct {
+	a, b interface{ SetQuiet(bool) }
+}
+
+func (m multiQuiet) SetQuiet(q bool) {
+	m.a.SetQuiet(q)
+	m.b.SetQuiet(q)
+}
+
 // version and buildDate are injected at build time via -ldflags.
 var (
 	version   = "dev"
@@ -172,8 +181,9 @@ func run(arguments []string, output io.Writer) error {
 	daemonStateRepo := repository.NewDaemonStateRepository()
 	processSpawner := &repository.OSProcessSpawner{}
 	inspectRunner := tui.NewInspectRunner()
+	progressRunner := tui.NewInitProgressRunner()
 
-	initCommand := indexing.NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner)
+	initCommand := indexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner, progressRunner)
 
 	initAdapter := cli.NewInitCommandAdapter(initCommand, projectTree)
 	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initAdapter, processSpawner)
@@ -183,7 +193,7 @@ func run(arguments []string, output io.Writer) error {
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
-		WithQuietToggle(writer)
+		WithQuietToggle(multiQuiet{writer, progressRunner})
 
 	return runner.Run()
 }

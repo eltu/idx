@@ -23,6 +23,7 @@ type InitCommandService struct {
 	checksumRepo   ports.DirectoryChecksumRepository
 	daemonRepo     ports.DaemonRepository
 	inspectUI      ports.InspectUIRunner
+	initProgress   ports.InitProgress
 }
 
 // disabledInspectUIRunner is the default when no TUI adapter is injected.
@@ -32,6 +33,13 @@ type disabledInspectUIRunner struct{}
 func (disabledInspectUIRunner) Run(_ *domain.InvertedIndex) error {
 	return fmt.Errorf("inspect UI not configured: use NewInitCommandServiceWithInspectUI to enable the TUI")
 }
+
+type disabledInitProgress struct{}
+
+func (disabledInitProgress) StartCounting()      {}
+func (disabledInitProgress) SetTotal(int)        {}
+func (disabledInitProgress) IncrementDir(string) {}
+func (disabledInitProgress) Finish()             {}
 
 // NewInitCommandService builds the init use case without TUI support.
 // Use NewInitCommandServiceWithInspectUI when the inspect command must launch the TUI.
@@ -43,6 +51,12 @@ func NewInitCommandService(projectTree ports.ProjectTree, matcherFactory ports.I
 // NewInitCommandServiceWithInspectUI builds the init use case with an injected inspect UI runner.
 // Example: service := NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, inspectUI).
 func NewInitCommandServiceWithInspectUI(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository, inspectUI ports.InspectUIRunner) InitCommandService {
+	return NewInitCommandServiceWithProgress(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, inspectUI, disabledInitProgress{})
+}
+
+// NewInitCommandServiceWithProgress builds the init use case with both inspect UI and a progress reporter.
+// Example: service := NewInitCommandServiceWithProgress(..., inspectUI, progressRunner).
+func NewInitCommandServiceWithProgress(projectTree ports.ProjectTree, matcherFactory ports.IgnoreMatcherFactory, output ports.TextOutput, fileReader ports.FileReader, indexer ports.BM25Indexer, indexRepo ports.IndexRepository, checksumRepo ports.DirectoryChecksumRepository, daemonRepo ports.DaemonRepository, inspectUI ports.InspectUIRunner, progress ports.InitProgress) InitCommandService {
 	return InitCommandService{
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,
@@ -53,6 +67,7 @@ func NewInitCommandServiceWithInspectUI(projectTree ports.ProjectTree, matcherFa
 		checksumRepo:   checksumRepo,
 		daemonRepo:     daemonRepo,
 		inspectUI:      inspectUI,
+		initProgress:   progress,
 	}
 }
 
@@ -187,11 +202,21 @@ func (service InitCommandService) runIndex() error {
 		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
 	}
 
-	if err := service.indexDirectory(currentDir, projectRoot, matcher); err != nil {
+	service.initProgress.StartCounting()
+
+	total, err := service.countEligibleDirectories(currentDir, projectRoot, matcher)
+	if err != nil {
 		return err
 	}
+	service.initProgress.SetTotal(total)
 
-	return service.output.WriteLine("✅ Index created. You can now run idx search.")
+	if err := service.indexDirectory(currentDir, projectRoot, matcher); err != nil {
+		service.initProgress.Finish()
+		return err
+	}
+	service.initProgress.Finish()
+
+	return nil
 }
 
 func (service InitCommandService) ensureIdxRuleInGitIgnore(projectRoot string) error {
@@ -261,6 +286,31 @@ func isMissingFileError(err error) bool {
 	return strings.Contains(message, "file not found") || strings.Contains(message, "no such file or directory")
 }
 
+func (service InitCommandService) countEligibleDirectories(dirPath, projectRoot string, matcher ports.IgnoreMatcher) (int, error) {
+	entries, err := service.projectTree.ReadDir(dirPath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", dirPath, err)
+	}
+
+	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 1
+	for _, entry := range allowedEntries {
+		if !entry.IsDir {
+			continue
+		}
+		n, err := service.countEligibleDirectories(entry.Path, projectRoot, matcher)
+		if err != nil {
+			return 0, err
+		}
+		count += n
+	}
+	return count, nil
+}
+
 func (service InitCommandService) indexDirectory(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
 	if err := service.validateDependencies(); err != nil {
 		return err
@@ -269,6 +319,7 @@ func (service InitCommandService) indexDirectory(directoryPath string, projectRo
 	if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
 		return err
 	}
+	service.initProgress.IncrementDir(directoryPath)
 
 	entries, err := service.projectTree.ReadDir(directoryPath)
 	if err != nil {
