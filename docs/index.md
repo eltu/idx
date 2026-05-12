@@ -4,8 +4,6 @@ description: Fast code and text search for Git repositories, powered by BM25 and
 layout: default
 ---
 
-# idx
-
 Fast code and text search CLI for Git repositories, powered by BM25 and per-directory indexes.
 
 Repository: [github.com/eltu/idx](https://github.com/eltu/idx)
