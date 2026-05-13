@@ -36,6 +36,7 @@ type CommandRunner struct {
 	destroyCommand runnableCommand
 	searchCommand  searchableCommand
 	daemonService  daemonableCommand
+	skillsCommand  skillsableCommand
 	buildInfo      BuildInfo
 	quietToggle    interface{ SetQuiet(bool) }
 }
@@ -63,6 +64,13 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 // Example: runner = runner.WithBuildInfo(cli.BuildInfo{Version: "v1.0.0", BuildDate: "2026-05-05"}).
 func (runner CommandRunner) WithBuildInfo(info BuildInfo) CommandRunner {
 	runner.buildInfo = info
+	return runner
+}
+
+// WithSkillsCommand wires the skills installer so 'idx skills install' works.
+// Example: runner = runner.WithSkillsCommand(skillsService).
+func (runner CommandRunner) WithSkillsCommand(s skillsableCommand) CommandRunner {
+	runner.skillsCommand = s
 	return runner
 }
 
@@ -101,7 +109,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "skills", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

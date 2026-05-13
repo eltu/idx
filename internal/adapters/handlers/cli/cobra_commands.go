@@ -17,6 +17,7 @@ const (
 	groupIndexSync  = "index-sync"
 	groupSearch     = "search"
 	groupAbout      = "about"
+	groupTools      = "tools"
 )
 
 func (runner CommandRunner) newRootCommand() *cobra.Command {
@@ -50,12 +51,14 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 		&cobra.Group{ID: groupIndexSync, Title: "Index Sync:"},
 		&cobra.Group{ID: groupSearch, Title: "Search:"},
 		&cobra.Group{ID: groupAbout, Title: "About:"},
+		&cobra.Group{ID: groupTools, Title: "Tools:"},
 	)
 
 	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
 	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newWatchCommand(), runner.newDaemonCommand(), runner.newStatusCommand())
 	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand())
 	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
+	addCommandToGroup(root, groupTools, runner.newSkillsCommand())
 
 	return root
 }

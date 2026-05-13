@@ -18,6 +18,7 @@ import (
 	"idx/internal/core/services/indexing"
 	"idx/internal/core/services/lifecycle"
 	"idx/internal/core/services/search"
+	"idx/internal/core/services/skills"
 )
 
 var exitProcess = os.Exit
@@ -193,9 +194,12 @@ func run(arguments []string, output io.Writer) error {
 
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
+	skillsInstaller := repository.NewOSSkillsInstaller()
+	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
-		WithQuietToggle(multiQuiet{writer, progressRunner})
+		WithQuietToggle(multiQuiet{writer, progressRunner}).
+		WithSkillsCommand(skillsService)
 
 	return runner.Run()
 }

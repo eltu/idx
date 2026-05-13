@@ -86,6 +86,7 @@
 - ADR 0010: Filename tokens are indexed in BM25 corpus for recall.
 - ADR 0011: Destroy disables daemon before removing indices.
 - ADR 0012: Search supports indexed metadata filtering by file extension (`--ext`).
+- ADR 0013: Skills install command uses `git clone` (not curl-pipe) and explicit required editor argument.
 
 ## Formatting
 
