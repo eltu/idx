@@ -18,7 +18,7 @@ func NewOSFileReader() *OSFileReader {
 func (reader *OSFileReader) ReadFile(path string) (string, error) {
 	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
-		return "", fmt.Errorf("failed to read file %q: got error %v, expected a readable file", path, err)
+		return "", fmt.Errorf("failed to read file %q: got error %w, expected a readable file", path, err)
 	}
 
 	return string(data), nil

@@ -13,25 +13,25 @@ import (
 var runInspectTUI = runInspectTUIProgram
 
 var (
-	inspectTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
-	inspectHelpStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	inspectLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
-	inspectInfoStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	inspectTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(colorPrimary)
+	inspectHelpStyle  = lipgloss.NewStyle().Foreground(colorMuted)
+	inspectLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSecondary)
+	inspectInfoStyle  = lipgloss.NewStyle().Foreground(colorText)
 
-	inspectSelectedRowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("25")).Bold(true)
-	inspectRowStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
+	inspectSelectedRowStyle = lipgloss.NewStyle().Foreground(colorSelectedFG).Background(colorSelectedBG).Bold(true)
+	inspectRowStyle         = lipgloss.NewStyle().Foreground(colorText)
 
-	inspectJSONKeyStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
-	inspectJSONStringStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
-	inspectJSONNumberStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
-	inspectJSONKeywordStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
-	inspectJSONPunctStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	inspectJSONDefaultStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	inspectStatusLineStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("45"))
-	inspectDividerStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	inspectEmptyStateStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	inspectQuitMessageStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	inspectDocumentPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("117")).Bold(true)
+	inspectJSONKeyStyle      = lipgloss.NewStyle().Foreground(colorSecondary)
+	inspectJSONStringStyle   = lipgloss.NewStyle().Foreground(colorSuccess)
+	inspectJSONNumberStyle   = lipgloss.NewStyle().Foreground(colorNumber)
+	inspectJSONKeywordStyle  = lipgloss.NewStyle().Foreground(colorError).Bold(true)
+	inspectJSONPunctStyle    = lipgloss.NewStyle().Foreground(colorTextDim)
+	inspectJSONDefaultStyle  = lipgloss.NewStyle().Foreground(colorText)
+	inspectStatusLineStyle   = lipgloss.NewStyle().Foreground(colorSecondary)
+	inspectDividerStyle      = lipgloss.NewStyle().Foreground(colorSurface)
+	inspectEmptyStateStyle   = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+	inspectQuitMessageStyle  = lipgloss.NewStyle().Foreground(colorMuted)
+	inspectDocumentPathStyle = lipgloss.NewStyle().Foreground(colorPath).Bold(true)
 )
 
 // SetRunInspectTUITestHook replaces the TUI runner for tests. Pass nil to restore the default.

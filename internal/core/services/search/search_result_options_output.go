@@ -182,6 +182,11 @@ func filesOnlyResults(results []searchResult) []searchResult {
 func matchesOnlyResults(results []searchResult) []searchResult {
 	filtered := make([]searchResult, 0, len(results))
 	for _, result := range results {
+		if result.stale {
+			filtered = append(filtered, result)
+			continue
+		}
+
 		matchedLines := onlyMatchedLines(result.matchedLines)
 		if len(matchedLines) == 0 {
 			continue
@@ -324,6 +329,10 @@ func (service SearchCommandService) writeResultBlock(result searchResult, projec
 	}
 	if err := service.output.WriteLine(header); err != nil {
 		return err
+	}
+
+	if result.stale {
+		return service.output.WriteLine(fmt.Sprintf("└── ⚠ file not found — index is outdated, run idx sync"))
 	}
 
 	if err := service.writeMatchedLinesWithOptions(result.matchedLines, terms, useANSI, options); err != nil {

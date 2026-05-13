@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	progressTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
-	progressFilledStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	progressEmptyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	progressPercentStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
-	progressCountStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	progressDirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("117"))
-	progressSpinnerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	progressTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorSecondary)
+	progressFilledStyle  = lipgloss.NewStyle().Foreground(colorPrimary)
+	progressEmptyStyle   = lipgloss.NewStyle().Foreground(colorSurface)
+	progressPercentStyle = lipgloss.NewStyle().Bold(true).Foreground(colorText)
+	progressCountStyle   = lipgloss.NewStyle().Foreground(colorMuted)
+	progressDirStyle     = lipgloss.NewStyle().Foreground(colorPath)
+	progressSpinnerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorPrimary)
 )
 
 var spinnerFrames = []string{"|", "/", "-", "\\"}
@@ -151,9 +151,6 @@ func renderInitProgressBar(m initProgressModel) string {
 		progressEmptyStyle.Render(strings.Repeat("░", barWidth-filled))
 }
 
-// progressGradientColors goes from deep blue → cyan, left to right.
-var progressGradientColors = []string{"27", "33", "39", "45", "51"}
-
 func renderGradientFilled(count int) string {
 	if count == 0 {
 		return ""
@@ -162,9 +159,9 @@ func renderGradientFilled(count int) string {
 	for i := range count {
 		idx := 0
 		if count > 1 {
-			idx = (i * (len(progressGradientColors) - 1)) / (count - 1)
+			idx = (i * (len(progressGradientHex) - 1)) / (count - 1)
 		}
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(progressGradientColors[idx])).Render("█"))
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(progressGradientHex[idx])).Render("█"))
 	}
 	return b.String()
 }

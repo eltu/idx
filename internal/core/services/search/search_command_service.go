@@ -54,6 +54,9 @@ type searchResult struct {
 	// are equal: a line containing all terms (e.g. "err := root.Execute()")
 	// ranks above files where the same terms appear on separate lines.
 	termConcentration int
+	// stale marks a result whose file was present in the index but no longer
+	// exists on disk. Shown with a warning instead of matched lines.
+	stale bool
 }
 
 type matchedLine struct {

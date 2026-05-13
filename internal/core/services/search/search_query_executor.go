@@ -1,7 +1,9 @@
 package search
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -212,6 +214,10 @@ func (service SearchCommandService) buildSearchResults(directoryPath string, ter
 	for fileName, score := range scores {
 		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score, matchedTerms)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				results = append(results, searchResult{directoryPath: directoryPath, fileName: fileName, score: score, stale: true})
+				continue
+			}
 			return nil, err
 		}
 		results = append(results, result)

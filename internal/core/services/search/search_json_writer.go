@@ -16,6 +16,7 @@ type jsonSearchResult struct {
 	Name    string                `json:"name"`
 	Path    string                `json:"path"`
 	Score   *float64              `json:"score,omitempty"`
+	Stale   bool                  `json:"stale,omitempty"`
 	Matches []jsonSearchMatchLine `json:"matches"`
 }
 
@@ -97,6 +98,7 @@ func (service SearchCommandService) jsonSearchResult(result searchResult, projec
 		Name:    result.fileName,
 		Path:    projectRelativePath,
 		Score:   score,
+		Stale:   result.stale,
 		Matches: jsonMatchLines(result.matchedLines),
 	}, nil
 }

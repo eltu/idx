@@ -13,7 +13,12 @@ import (
 )
 
 var (
-	statusPanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	statusPanelStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	statusWarningStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
+	statusMutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
+	statusPathStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
+	statusActionStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
+	statusStaleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
 )
 
 type statusFileReport struct {
@@ -77,7 +82,7 @@ func (service InitCommandService) runStatus(profile bool) error {
 
 	missing := missingIndexDirectories(directories, eligibleWithFiles)
 	if len(missing) > 0 {
-		return fmt.Errorf("unindexed directories found: %v — run idx sync to update", missing)
+		return service.writeUnindexedDirectoriesError(projectRoot, missing)
 	}
 
 	reports := make([]statusDirectoryReport, 0, len(directories))
@@ -108,7 +113,7 @@ func (service InitCommandService) runStatus(profile bool) error {
 	}
 
 	if len(staleDirectories) > 0 {
-		return fmt.Errorf("\nstale index at %q: run idx sync to update\n", staleDirectories[0])
+		return service.writeStaleIndexError(projectRoot, staleDirectories)
 	}
 
 	return service.output.WriteLine("\n✅ Indices are up to date.\n")
@@ -284,6 +289,57 @@ func truncateStatusColumn(value string, maxWidth int) string {
 	}
 
 	return value[:maxWidth-3] + "..."
+}
+
+func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot string, missing []string) error {
+	header := statusWarningStyle.Render("⚠  Index out of sync")
+	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s not indexed yet:", len(missing), pluralSuffix(len(missing), "y", "ies")))
+	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
+
+	lines := []string{"", header, "", count}
+	for _, dir := range missing {
+		rel, err := filepath.Rel(projectRoot, dir)
+		if err != nil {
+			rel = dir
+		}
+		lines = append(lines, "  "+statusPathStyle.Render(rel))
+	}
+	lines = append(lines, "", "  "+action, "")
+
+	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("index out of sync")
+}
+
+func (service InitCommandService) writeStaleIndexError(projectRoot string, stale []string) error {
+	header := statusStaleStyle.Render("✗  Stale index detected")
+	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s with outdated index:", len(stale), pluralSuffix(len(stale), "y", "ies")))
+	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
+
+	lines := []string{"", header, "", count}
+	for _, dir := range stale {
+		rel, err := filepath.Rel(projectRoot, dir)
+		if err != nil {
+			rel = dir
+		}
+		lines = append(lines, "  "+statusPathStyle.Render(rel))
+	}
+	lines = append(lines, "", "  "+action, "")
+
+	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("stale index")
+}
+
+func pluralSuffix(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }
 
 // missingIndexDirectories returns eligible directories that have no index yet.

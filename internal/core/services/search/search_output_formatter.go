@@ -8,9 +8,9 @@ import (
 
 const (
 	ansiReset      = "\033[0m"
-	ansiLightBlue  = "\033[96m"
-	ansiBoldYellow = "\033[1;33m"
-	ansiLightGreen = "\033[92m"
+	ansiFilePath   = "\033[38;2;99;102;241m"   // #6366F1 Primary — file paths
+	ansiMatchBold  = "\033[1;38;2;251;191;36m" // #FBBF24 Accent bold — matched terms
+	ansiLineNumber = "\033[38;2;100;116;139m"  // #64748B Muted — line numbers
 )
 
 // coloredFilePath wraps path in light-blue ANSI codes for terminal display when enabled.
@@ -19,7 +19,7 @@ func coloredFilePath(path string, useANSI bool) string {
 		return path
 	}
 
-	return ansiLightBlue + path + ansiReset
+	return ansiFilePath + path + ansiReset
 }
 
 // coloredLineNumber wraps a line number in light-green ANSI codes when enabled.
@@ -28,7 +28,7 @@ func coloredLineNumber(n int, useANSI bool) string {
 		return fmt.Sprintf("%d", n)
 	}
 
-	return fmt.Sprintf("%s%d%s", ansiLightGreen, n, ansiReset)
+	return fmt.Sprintf("%s%d%s", ansiLineNumber, n, ansiReset)
 }
 
 // highlightTermsInLine wraps each whole-word match
@@ -110,7 +110,7 @@ func renderHighlightedLine(line string, spans []highlightSpan) string {
 	position := 0
 	for _, span := range spans {
 		builder.WriteString(line[position:span.start])
-		builder.WriteString(ansiBoldYellow)
+		builder.WriteString(ansiMatchBold)
 		builder.WriteString(line[span.start:span.end])
 		builder.WriteString(ansiReset)
 		position = span.end
