@@ -2,12 +2,10 @@
 
 ## Command dispatch and argument contract
 
-- `missing command: got ... expected one of [sync init status inspect watch destroy search]`
-- `unsupported command "...": expected one of [sync init status inspect watch destroy search]`
-	- Note: `daemon`, `version`, and help/version flags are also accepted by command dispatch.
 - `inspect accepts at most one path: got ... expected idx inspect [path]`
 - `invalid inspect path "...": expected idx inspect [path]`
 - `expected project path argument` (daemon enable/disable)
+- `expected editor argument: one of [copilot claude cursor]` (skills install, cobra-level)
 
 ## Search flag validation
 
@@ -20,6 +18,12 @@
 - `unsupported --operator value "...": expected one of [AND OR]`
 - `invalid --relaxation value "...": expected format >N where N is a non-negative integer`
 - `invalid --relaxation with --operator "...": expected "AND"`
+
+## Skills flag validation
+
+- Missing editor (inline styled error, not cobra error):
+  - `⚠  Missing editor argument` with usage and editor list
+- Unsupported editor value: `unsupported editor "...": expected one of [copilot claude cursor]`
 
 ## Index lifecycle and state errors
 
@@ -44,6 +48,12 @@
 - `project "..." not being monitored: no projects active`
 - `failed to start watch for "...": got error ..., expected process to start`
 
+## Skills install errors
+
+- `failed to clone idx-skills: git clone failed: exit status ...`
+- `install script failed for "...": install-skills.sh exited with error: exit status ...`
+- `failed to create temp directory: ...`
+
 ## Recovery Quick Guide
 
 1. Run `idx init` to bootstrap indexes.
@@ -51,3 +61,4 @@
 3. Validate flags and positional arguments.
 4. Use `idx daemon status` before starting `idx watch`.
 5. Use `idx status` to verify whether index logs still match file modification timestamps.
+6. Ensure `git` is in `$PATH` before running `idx skills install`.

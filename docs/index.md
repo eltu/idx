@@ -103,6 +103,7 @@ Use `search` when:
 1. `idx init` (once per project).
 2. Keep index fresh with `idx daemon` / `idx watch`, or run `idx sync` when needed.
 3. Run `idx search "your terms"` during development.
+4. Run `idx skills install <editor>` once to install AI coding skills into your editor.
 
 ---
 
@@ -121,6 +122,7 @@ All commands support the global flag `--quiet` (`-q`) to suppress informational 
 | [`idx daemon`](features/daemon.md) | Manage background watch processes |
 | [`idx destroy`](features/destroy.md) | Remove all index metadata |
 | [`idx version`](features/version.md) | Show version and build information |
+| [`idx skills`](features/skills.md) | Install idx skills for AI-powered editors |
 
 ---
 
@@ -182,6 +184,7 @@ Results are ranked by a combination of:
 | [ADR 0010](adr/0010-index-filename-tokens-in-bm25-corpus-for-recall.md) | Filename tokens indexed in BM25 corpus for recall |
 | [ADR 0011](adr/0011-destroy-disables-daemon-before-removing-indices.md) | `idx destroy` disables daemon before removing indexes |
 | [ADR 0012](adr/0012-add-search-extension-metadata-filter.md) | `idx search` adds indexed metadata filter by file extension (`--ext`) |
+| [ADR 0013](adr/0013-skills-install-command.md) | `idx skills install` uses `git clone` over curl-pipe with explicit required editor argument |
 
 ---
 
@@ -189,6 +192,7 @@ Results are ranked by a combination of:
 
 - Go `1.26+`
 - Git repository (project root is resolved from `.git`)
+- `git` binary in `$PATH` (required for `idx skills install`)
 
 ---
 
