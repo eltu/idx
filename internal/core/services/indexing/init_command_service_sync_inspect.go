@@ -30,7 +30,11 @@ func (service InitCommandService) Sync() error {
 		return err
 	}
 
-	return service.output.WriteLine("✅ Project indices synchronized.")
+	action := statusActionStyle.Render("idx search")
+	return service.output.WriteLine(fmt.Sprintf("\n%s\n\n  %s\n",
+		statusSuccessStyle.Render("✅ Project indices synchronized."),
+		statusMutedStyle.Render("Index is up to date. You can run "+action+"."),
+	))
 }
 
 func (service InitCommandService) syncPlan() (string, ports.IgnoreMatcher, []string, []string, error) {

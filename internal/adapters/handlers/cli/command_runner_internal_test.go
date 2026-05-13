@@ -31,10 +31,10 @@ func (noOpDaemonCommand) Enable(string) error  { return nil }
 func (noOpDaemonCommand) Disable(string) error { return nil }
 func (noOpDaemonCommand) Status() error        { return nil }
 
-func TestCommandRunnerRunRejectsMissingCommand(t *testing.T) {
+func TestCommandRunnerRunShowsHelpWithNoArgs(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, noOpIndexCommand{}, noOpDestroyCommand{}, noOpSearchCommand{}, noOpDaemonCommand{})
-	if err := runner.Run(); err == nil {
-		t.Fatal("expected missing command error")
+	if err := runner.Run(); err != nil {
+		t.Fatalf("expected help to be shown with no args, got error: %v", err)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 var (
 	statusPanelStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	statusSuccessStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
 	statusWarningStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
 	statusMutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
 	statusPathStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))

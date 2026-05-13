@@ -47,7 +47,9 @@ func main() {
 
 	if err := run(os.Args, os.Stdout); err != nil {
 		logger.Error("command failed", zap.Error(err), zap.Strings("arguments", os.Args))
-		fmt.Fprintln(os.Stderr, err.Error())
+		if msg := err.Error(); msg != "" {
+			fmt.Fprintln(os.Stderr, msg)
+		}
 		exitProcess(1)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	"idx/internal/core/ports"
@@ -234,7 +235,8 @@ func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args 
 
 	query := strings.Join(args, " ")
 	if err := validateSearchInput(query, config.pathQueries, config.extensionQueries, runner.arguments); err != nil {
-		return err
+		writeSearchMissingQueryError(searchCommand)
+		return fmt.Errorf("")
 	}
 
 	return runner.searchCommand.RunWithOptions(query, config.options())
@@ -376,4 +378,28 @@ func (config searchCommandConfig) options() ports.SearchOptions {
 	}
 
 	return options
+}
+
+var (
+	searchErrorWarningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
+	searchErrorMutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
+	searchErrorActionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
+	searchErrorPathStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
+)
+
+func writeSearchMissingQueryError(cmd *cobra.Command) {
+	usage := searchErrorActionStyle.Render("idx search") + " " + searchErrorPathStyle.Render("<terms>")
+	examples := []string{
+		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("error handling"),
+		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("--ext go func main"),
+		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("--path internal logger"),
+	}
+
+	msg := fmt.Sprintf("\n%s\n\n  Usage:  %s\n\n  Examples:\n    %s\n",
+		searchErrorWarningStyle.Render("⚠  Missing search query"),
+		usage,
+		strings.Join(examples, "\n    "),
+	)
+
+	fmt.Fprintln(cmd.OutOrStdout(), msg)
 }

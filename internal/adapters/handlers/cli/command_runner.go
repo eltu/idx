@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -81,28 +80,22 @@ func (runner CommandRunner) Run() error {
 	logger := zap.L()
 	logger.Info("starting command execution", zap.Strings("arguments", runner.arguments))
 
-	if len(runner.arguments) < 2 {
-		err := fmt.Errorf("missing command: got %v, expected one of [sync init status inspect watch destroy search]", runner.arguments)
-		logger.Warn("invalid command invocation", zap.Error(err))
-		return err
-	}
-
-	if !canExecuteWithCobra(runner.arguments[1]) {
-		err := fmt.Errorf("unsupported command %q: expected one of [sync init status inspect watch destroy search]", runner.arguments[1])
-		logger.Warn("unsupported command", zap.String("command", runner.arguments[1]), zap.Error(err))
-		return err
-	}
-
+	args := runner.arguments[1:]
 	root := runner.newRootCommand()
-	root.SetArgs(runner.arguments[1:])
+	root.SetArgs(args)
+
+	command := ""
+	if len(args) > 0 {
+		command = args[0]
+	}
 
 	err := root.Execute()
 	if err != nil {
-		logger.Error("command execution failed", zap.String("command", runner.arguments[1]), zap.Error(err))
+		logger.Error("command execution failed", zap.String("command", command), zap.Error(err))
 		return err
 	}
 
-	logger.Info("command execution completed", zap.String("command", runner.arguments[1]))
+	logger.Info("command execution completed", zap.String("command", command))
 	return nil
 }
 
