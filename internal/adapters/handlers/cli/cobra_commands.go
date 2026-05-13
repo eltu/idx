@@ -37,8 +37,8 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 		},
 	}
 
-	// Customize --version / -v output to include build date.
-	root.SetVersionTemplate(fmt.Sprintf("idx %s (built %s)\n", runner.buildInfo.Version, runner.buildInfo.BuildDate))
+	// Customize --version / -v output to use the logo renderer.
+	root.SetVersionTemplate(renderVersionOutput(runner.buildInfo.Version, runner.buildInfo.BuildDate) + "\n")
 
 	// --quiet suppresses informational messages so automated/scripted callers
 	// (e.g. benchmark pre-steps) do not pollute the agent context window.

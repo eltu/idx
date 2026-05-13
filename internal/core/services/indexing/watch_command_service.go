@@ -56,7 +56,7 @@ func (service InitCommandService) watchLoop(showUpdatedFiles bool, debounce time
 		return err
 	}
 
-	if err := service.output.WriteLine("👀 Watch mode started. Press Ctrl+C to stop."); err != nil {
+	if err := service.writeWatchHeader(projectRoot, debounce); err != nil {
 		return err
 	}
 
@@ -74,7 +74,11 @@ func (service InitCommandService) ensureRootIndex(projectRoot string, matcher po
 		return nil
 	}
 
-	if err := service.output.WriteLine("ℹ️ Root index not found. Creating initial index before watch."); err != nil {
+	creating := fmt.Sprintf("  %s  %s",
+		statusWarningStyle.Render("ℹ"),
+		statusMutedStyle.Render("No index found. Creating initial index..."),
+	)
+	if err := service.output.WriteLine(creating); err != nil {
 		return err
 	}
 
@@ -82,7 +86,21 @@ func (service InitCommandService) ensureRootIndex(projectRoot string, matcher po
 		return err
 	}
 
-	return service.output.WriteLine("✅ Initial index created. Starting realtime monitoring.")
+	created := fmt.Sprintf("  %s  %s",
+		statusSuccessStyle.Render("✓"),
+		statusMutedStyle.Render("Initial index created."),
+	)
+	return service.output.WriteLine(created)
+}
+
+func (service InitCommandService) writeWatchHeader(projectRoot string, debounce time.Duration) error {
+	projectName := filepath.Base(projectRoot)
+	header := fmt.Sprintf("\n%s  %s  %s\n",
+		statusWarningStyle.Render("👀  Watching"),
+		statusActionStyle.Render(projectName),
+		statusMutedStyle.Render("·  Ctrl+C to stop"),
+	)
+	return service.output.WriteLine(header)
 }
 
 func (service InitCommandService) syncAllDirectoriesBeforeWatch(projectRoot string, matcher ports.IgnoreMatcher) error {
@@ -165,7 +183,8 @@ func (service InitCommandService) consumeWatchEvents(watcher *fsnotify.Watcher, 
 	for {
 		select {
 		case <-signals:
-			return service.output.WriteLine("🛑 Watch mode stopped.")
+			msg := fmt.Sprintf("\n%s\n", statusStaleStyle.Render("🛑  Watch stopped."))
+			return service.output.WriteLine(msg)
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return nil
@@ -350,17 +369,54 @@ func (service InitCommandService) flushWatchedBatch(pendingDirectories map[strin
 		}
 	}
 
-	if err := service.output.WriteLine(fmt.Sprintf("🔄 Synchronized %d changed directorie(s).", len(directories))); err != nil {
+	return service.writeWatchBatchSummary(directories, pendingFiles)
+}
+
+const watchMaxFilesListed = 8
+
+func (service InitCommandService) writeWatchBatchSummary(directories []string, pendingFiles map[string]struct{}) error {
+	ts := statusMutedStyle.Render(time.Now().Format("15:04:05"))
+	marker := statusSuccessStyle.Render("✦")
+	dirLabel := statusMutedStyle.Render(fmt.Sprintf("%d dir(s)", len(directories)))
+
+	files := sortedFileBatch(pendingFiles)
+	var fileLabel string
+	if len(files) == 0 {
+		fileLabel = statusMutedStyle.Render("structural change")
+	} else {
+		fileLabel = statusMutedStyle.Render(fmt.Sprintf("%d file(s)", len(files)))
+	}
+
+	summary := fmt.Sprintf("  %s  %s  ·  %s  ·  %s", marker, ts, dirLabel, fileLabel)
+	if err := service.output.WriteLine(summary); err != nil {
 		return err
 	}
 
-	if showUpdatedFiles {
-		if err := service.writeUpdatedFiles(pendingFiles); err != nil {
+	listed := files
+	truncated := 0
+	if len(files) > watchMaxFilesListed {
+		listed = files[:watchMaxFilesListed]
+		truncated = len(files) - watchMaxFilesListed
+	}
+
+	for i, f := range listed {
+		prefix := statusMutedStyle.Render("  ├─")
+		if i == len(listed)-1 && truncated == 0 {
+			prefix = statusMutedStyle.Render("  └─")
+		}
+		if err := service.output.WriteLine(fmt.Sprintf("%s %s", prefix, statusPathStyle.Render(f))); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	if truncated > 0 {
+		more := statusMutedStyle.Render(fmt.Sprintf("  └─ ... and %d more", truncated))
+		if err := service.output.WriteLine(more); err != nil {
+			return err
+		}
+	}
+
+	return service.output.WriteLine("")
 }
 
 func sortedDirectoryBatch(pending map[string]struct{}) []string {
