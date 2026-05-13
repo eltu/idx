@@ -108,8 +108,13 @@ func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 		t.Fatalf("expected stale index error, got %v", err)
 	}
 
-	if len(output.lines) != linesBeforeStatus {
-		t.Fatalf("expected simple status to avoid profile output, got %q", strings.Join(output.lines, "\n"))
+	if len(output.lines) <= linesBeforeStatus {
+		t.Fatalf("expected stale status to write formatted output, got no new lines")
+	}
+
+	outputText := strings.Join(output.lines[linesBeforeStatus:], "\n")
+	if !strings.Contains(outputText, "idx sync") {
+		t.Fatalf("expected stale output to mention idx sync, got %q", outputText)
 	}
 }
 

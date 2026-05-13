@@ -310,7 +310,7 @@ func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot str
 		return err
 	}
 
-	return fmt.Errorf("index out of sync")
+	return fmt.Errorf("unindexed directories found")
 }
 
 func (service InitCommandService) writeStaleIndexError(projectRoot string, stale []string) error {
