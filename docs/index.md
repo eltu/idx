@@ -101,9 +101,10 @@ Use `search` when:
 ### Quick daily flow
 
 1. `idx init` (once per project).
-2. Keep index fresh with `idx daemon` / `idx watch`, or run `idx sync` when needed.
-3. Run `idx search "your terms"` during development.
-4. Run `idx skills install <editor>` once to install AI coding skills into your editor.
+2. Optionally add `.idx.yml` at the project root to set defaults (run `idx config show` to inspect).
+3. Keep index fresh with `idx daemon` / `idx watch`, or run `idx sync` when needed.
+4. Run `idx search "your terms"` during development.
+5. Run `idx skills install <editor>` once to install AI coding skills into your editor.
 
 ---
 
@@ -123,6 +124,7 @@ All commands support the global flag `--quiet` (`-q`) to suppress informational 
 | [`idx destroy`](features/destroy.md) | Remove all index metadata |
 | [`idx version`](features/version.md) | Show version and build information |
 | [`idx skills`](features/skills.md) | Install idx skills for AI-powered editors |
+| [`idx config`](features/config.md) | Show resolved project configuration and active overrides |
 
 ---
 
@@ -185,6 +187,7 @@ Results are ranked by a combination of:
 | [ADR 0011](adr/0011-destroy-disables-daemon-before-removing-indices.md) | `idx destroy` disables daemon before removing indexes |
 | [ADR 0012](adr/0012-add-search-extension-metadata-filter.md) | `idx search` adds indexed metadata filter by file extension (`--ext`) |
 | [ADR 0013](adr/0013-skills-install-command.md) | `idx skills install` uses `git clone` over curl-pipe with explicit required editor argument |
+| [ADR 0014](adr/0014-project-level-config-file.md) | Project-level `.idx.yml` at Git root; pointer-field override detection; defaults → file → CLI flag precedence |
 
 ---
 
