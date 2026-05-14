@@ -14,6 +14,7 @@ Detailed end-user command reference, organized by command.
 - [destroy](destroy.md)
 - [version](version.md)
 - [skills](skills.md)
+- [config](config.md)
 - [errors](errors.md)
 
 ## Global flags
@@ -31,6 +32,7 @@ All commands inherit the root global flags:
 | Search | `search`, `inspect` |
 | About | `version` |
 | Tools | `skills` |
+| Config | `config`, `config show` |
 
 ## Recommended usage flow
 

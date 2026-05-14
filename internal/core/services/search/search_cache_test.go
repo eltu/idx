@@ -78,7 +78,7 @@ func TestCacheSetInCacheAssignsFutureTTL(t *testing.T) {
 		t.Fatalf("expected future expiration, got %v", entry.expiresAt)
 	}
 
-	minExpected := before.Add(searchCacheTTL - 200*time.Millisecond)
+	minExpected := before.Add(time.Minute - 200*time.Millisecond)
 	if entry.expiresAt.Before(minExpected) {
 		t.Fatalf("expected expiration close to now+TTL, got %v", entry.expiresAt)
 	}

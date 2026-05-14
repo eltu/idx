@@ -18,9 +18,11 @@ idx watch [flags]
 
 | Flag | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `--debounce` | duration | `750ms` | Must be greater than `0` |
+| `--debounce` | duration | `750ms`¹ | Must be greater than `0` |
 | `--show-updated-files` | bool | `false` | Prints changed file list per batch |
 | `--quiet`, `-q` | bool | `false` | Suppress informational output |
+
+¹ Default is sourced from `.idx.yml` `watch.debounce` when the file exists. CLI flag always takes precedence.
 
 ## Behavior and Side Effects
 

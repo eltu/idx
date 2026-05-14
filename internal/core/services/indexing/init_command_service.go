@@ -15,16 +15,18 @@ import (
 const daemonChildEnvVar = "IDX_DAEMON_CHILD"
 
 type InitCommandService struct {
-	projectTree    ports.ProjectTree
-	matcherFactory ports.IgnoreMatcherFactory
-	output         ports.TextOutput
-	fileReader     ports.FileReader
-	indexer        ports.BM25Indexer
-	indexRepo      ports.IndexRepository
-	checksumRepo   ports.DirectoryChecksumRepository
-	daemonRepo     ports.DaemonRepository
-	inspectUI      ports.InspectUIRunner
-	initProgress   ports.InitProgress
+	projectTree         ports.ProjectTree
+	matcherFactory      ports.IgnoreMatcherFactory
+	output              ports.TextOutput
+	fileReader          ports.FileReader
+	indexer             ports.BM25Indexer
+	indexRepo           ports.IndexRepository
+	checksumRepo        ports.DirectoryChecksumRepository
+	daemonRepo          ports.DaemonRepository
+	inspectUI           ports.InspectUIRunner
+	initProgress        ports.InitProgress
+	statusConfigFilePath  string
+	statusConfigOverrides []string
 }
 
 // disabledInspectUIRunner is the default when no TUI adapter is injected.

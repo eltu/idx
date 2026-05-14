@@ -36,8 +36,8 @@
 ## Status-specific validation
 
 - `no index found under project root "...": run idx init first`
-- `unindexed directories found: [...] — run idx sync to update`
-- `stale index at "...": run idx sync to update`
+- `unindexed directories found` — preceded by a styled warning panel listing the unindexed directories
+- `stale index` — preceded by the status overview panel showing `❌ N directory/ies stale — run idx sync`
 
 ## Watch and daemon errors
 

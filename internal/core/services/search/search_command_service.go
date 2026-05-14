@@ -9,16 +9,33 @@ import (
 	"idx/internal/core/ports"
 )
 
-const (
-	bm25K1           = 1.5
-	bm25B            = 0.75
-	proximityWeight  = 3.00
-	maxSearchWorkers = 4
-)
+// SearchServiceOptions holds tuning parameters for the search service.
+// Zero values are replaced by DefaultIdxConfig() equivalents in WithTuning.
+type SearchServiceOptions struct {
+	BM25K1          float64
+	BM25B           float64
+	ProximityWeight float64
+	MaxWorkers      int
+	CacheTTL        time.Duration
+}
 
-const (
-	searchCacheTTL = 1 * time.Minute
-)
+type searchTuning struct {
+	bm25K1          float64
+	bm25B           float64
+	proximityWeight float64
+	maxWorkers      int
+	cacheTTL        time.Duration
+}
+
+func defaultSearchTuning() searchTuning {
+	return searchTuning{
+		bm25K1:          1.5,
+		bm25B:           0.75,
+		proximityWeight: 3.00,
+		maxWorkers:      4,
+		cacheTTL:        time.Minute,
+	}
+}
 
 type cacheEntry struct {
 	results   []searchResult
@@ -28,6 +45,7 @@ type cacheEntry struct {
 type searchCache struct {
 	mu      sync.Mutex
 	entries map[string]cacheEntry
+	ttl     time.Duration
 }
 
 type SearchCommandService struct {
@@ -37,6 +55,7 @@ type SearchCommandService struct {
 	indexRepo    searchableIndexRepository
 	cache        *searchCache
 	cacheEnabled bool
+	tuning       searchTuning
 }
 
 type searchableIndexRepository interface {
@@ -65,17 +84,45 @@ type matchedLine struct {
 	isMatch    bool
 }
 
-// NewSearchCommandService builds the search use case.
-// Example: service := NewSearchCommandService(projectTree, output, indexRepo).
+// NewSearchCommandService builds the search use case with built-in defaults.
+// Use WithTuning to override BM25 parameters or cache settings from .idx.yml.
+// Example: service := NewSearchCommandService(projectTree, output, fileReader, indexRepo).
 func NewSearchCommandService(projectTree ports.ProjectTree, output ports.TextOutput, fileReader ports.FileReader, indexRepo searchableIndexRepository) SearchCommandService {
+	tuning := defaultSearchTuning()
 	return SearchCommandService{
 		projectTree:  projectTree,
 		output:       output,
 		fileReader:   fileReader,
 		indexRepo:    indexRepo,
-		cache:        &searchCache{entries: make(map[string]cacheEntry)},
+		cache:        &searchCache{entries: make(map[string]cacheEntry), ttl: tuning.cacheTTL},
 		cacheEnabled: true,
+		tuning:       tuning,
 	}
+}
+
+// WithTuning applies BM25 and cache parameters from the project config.
+// Non-zero fields in opts replace the corresponding default.
+// Example: service = service.WithTuning(SearchServiceOptions{BM25K1: 1.2, MaxWorkers: 8}).
+func (service SearchCommandService) WithTuning(opts SearchServiceOptions) SearchCommandService {
+	if opts.BM25K1 > 0 {
+		service.tuning.bm25K1 = opts.BM25K1
+	}
+	if opts.BM25B > 0 {
+		service.tuning.bm25B = opts.BM25B
+	}
+	if opts.ProximityWeight > 0 {
+		service.tuning.proximityWeight = opts.ProximityWeight
+	}
+	if opts.MaxWorkers > 0 {
+		service.tuning.maxWorkers = opts.MaxWorkers
+	}
+	if opts.CacheTTL > 0 {
+		service.tuning.cacheTTL = opts.CacheTTL
+		if service.cache != nil {
+			service.cache.ttl = opts.CacheTTL
+		}
+	}
+	return service
 }
 
 // SetCacheEnabled toggles the search cache. Useful for deterministic unit tests.

@@ -18,20 +18,22 @@ idx search [query terms] [flags]
 
 | Flag | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `--format` | string | `text` | Allowed: `text`, `json` |
+| `--format` | string | `text`¹ | Allowed: `text`, `json` |
 | `--json-pretty` | bool | `false` | Requires `--format json` |
 | `--explain` | bool | `false` | Includes ranking score |
 | `--agent-compact` | bool | `false` | Compact text output for agents (no header/footer spacing, simplified lines) |
-| `--context` | int | `0` | Must be `>= 0` |
+| `--context` | int | `0`¹ | Must be `>= 0` |
 | `--matches-only` | bool | `false` | Keeps only matching lines |
 | `--files-only` | bool | `false` | Returns only file paths |
 | `--path` | string array | `[]` | Repeatable metadata-path filter |
 | `--ext` | string array | `[]` | Repeatable file-extension filter (`go` or `.go`) |
 | `--from` | int | `0` | Pagination offset, must be `>= 0` |
-| `--size` | int | unset (`0`) | If set, must be `> 0` |
-| `--operator` | string | `AND` | Boolean operator for multi-term queries: `AND` or `OR` |
-| `--relaxation` | string | unset | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
+| `--size` | int | `0`¹ (unlimited) | If set, must be `> 0` |
+| `--operator` | string | `AND`¹ | Boolean operator for multi-term queries: `AND` or `OR` |
+| `--relaxation` | string | `""`¹ | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
 | `--quiet`, `-q` | bool | `false` | Suppress informational output |
+
+¹ Default is sourced from `.idx.yml` (`search.format`, `search.context`, `search.size`, `search.operator`, `search.relaxation`) when the file exists. CLI flags always take precedence over `.idx.yml`.
 
 Compatibility alias:
 

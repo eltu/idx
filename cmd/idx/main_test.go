@@ -83,7 +83,7 @@ func TestNewLoggerWithValidIDXLogLevel(t *testing.T) {
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("IDX_LOG_LEVEL", "debug")
 
-	logger, err := newLogger()
+	logger, err := newLogger("")
 	if err != nil {
 		t.Fatalf("expected no error with valid log level, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestNewLoggerWithInvalidIDXLogLevel(t *testing.T) {
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("IDX_LOG_LEVEL", "not-a-level")
 
-	_, err := newLogger()
+	_, err := newLogger("")
 	if err == nil {
 		t.Fatal("expected error with invalid log level, got nil")
 	}

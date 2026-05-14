@@ -74,7 +74,7 @@ func scoreRange(scores map[string]float64) (float64, float64) {
 	return minScore, maxScore
 }
 
-func scoreDocuments(index *domain.InvertedIndex, terms []string, operator string) map[string]float64 {
+func scoreDocuments(index *domain.InvertedIndex, terms []string, operator string, tuning searchTuning) map[string]float64 {
 	var matchingDocuments map[string]struct{}
 	if operator == ports.SearchOperatorOR {
 		matchingDocuments = documentsContainingAnyTerm(index, terms)
@@ -93,10 +93,10 @@ func scoreDocuments(index *domain.InvertedIndex, terms []string, operator string
 			continue
 		}
 
-		addTermScores(scores, index, termStats, matchingDocuments)
+		addTermScores(scores, index, termStats, matchingDocuments, tuning)
 	}
 
-	applyProximityBonus(scores, index, terms, matchingDocuments)
+	applyProximityBonus(scores, index, terms, matchingDocuments, tuning)
 
 	if operator == ports.SearchOperatorOR {
 		applyTermCoverageMultiplier(scores, index, terms, matchingDocuments)
@@ -105,9 +105,9 @@ func scoreDocuments(index *domain.InvertedIndex, terms []string, operator string
 	return scores
 }
 
-func applyProximityBonus(scores map[string]float64, index *domain.InvertedIndex, terms []string, matchingDocuments map[string]struct{}) {
+func applyProximityBonus(scores map[string]float64, index *domain.InvertedIndex, terms []string, matchingDocuments map[string]struct{}, tuning searchTuning) {
 	for filePath := range matchingDocuments {
-		scores[filePath] += proximityBonusForDocument(index, filePath, terms)
+		scores[filePath] += proximityBonusForDocument(index, filePath, terms, tuning)
 	}
 }
 
@@ -150,7 +150,7 @@ func documentContainsTerm(index *domain.InvertedIndex, filePath string, term str
 	return exists
 }
 
-func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, terms []string) float64 {
+func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, terms []string, tuning searchTuning) float64 {
 	if len(terms) < 2 {
 		return 0
 	}
@@ -171,7 +171,7 @@ func proximityBonusForDocument(index *domain.InvertedIndex, filePath string, ter
 		return 0
 	}
 
-	return proximityWeight * (totalPairScore / float64(pairCount))
+	return tuning.proximityWeight * (totalPairScore / float64(pairCount))
 }
 
 func minimumDistanceForTermPair(index *domain.InvertedIndex, filePath string, leftTerm string, rightTerm string) (int, bool) {
@@ -263,7 +263,7 @@ func filterDocumentsByTerm(matchingDocuments map[string]struct{}, termStats *dom
 	}
 }
 
-func addTermScores(scores map[string]float64, index *domain.InvertedIndex, termStats *domain.TermStats, matchingDocuments map[string]struct{}) {
+func addTermScores(scores map[string]float64, index *domain.InvertedIndex, termStats *domain.TermStats, matchingDocuments map[string]struct{}, tuning searchTuning) {
 	for filePath, docTerm := range termStats.Docs {
 		if _, exists := matchingDocuments[filePath]; !exists {
 			continue
@@ -274,7 +274,7 @@ func addTermScores(scores map[string]float64, index *domain.InvertedIndex, termS
 			continue
 		}
 
-		scores[filePath] += domain.BM25Score(docTerm.TF, termStats.IDF, docStats.Length, index.AverageDocLength, bm25K1, bm25B)
+		scores[filePath] += domain.BM25Score(docTerm.TF, termStats.IDF, docStats.Length, index.AverageDocLength, tuning.bm25K1, tuning.bm25B)
 	}
 }
 

@@ -4,10 +4,11 @@ import (
 	"time"
 )
 
-// initCache initializes a new search cache.
+// initCache initializes a new search cache with the default 1-minute TTL.
 func initCache() searchCache {
 	return searchCache{
 		entries: make(map[string]cacheEntry),
+		ttl:     time.Minute,
 	}
 }
 
@@ -37,7 +38,7 @@ func (sc *searchCache) setInCache(key string, results []searchResult) {
 
 	sc.entries[key] = cacheEntry{
 		results:   results,
-		expiresAt: time.Now().Add(searchCacheTTL),
+		expiresAt: time.Now().Add(sc.ttl),
 	}
 }
 
@@ -52,7 +53,7 @@ func (sc *searchCache) renewCacheTTL(key string) {
 		return
 	}
 
-	entry.expiresAt = time.Now().Add(searchCacheTTL)
+	entry.expiresAt = time.Now().Add(sc.ttl)
 	sc.entries[key] = entry
 }
 

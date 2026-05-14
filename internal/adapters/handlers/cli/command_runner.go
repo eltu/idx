@@ -5,6 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 )
 
@@ -39,6 +40,9 @@ type CommandRunner struct {
 	skillsCommand  skillsableCommand
 	buildInfo      BuildInfo
 	quietToggle    interface{ SetQuiet(bool) }
+	config         domain.IdxConfig
+	configFilePath string
+	configOverrides []string
 }
 
 // daemonableCommand defines methods for daemon control.
@@ -49,6 +53,8 @@ type daemonableCommand interface {
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
+// Initialises config with DefaultIdxConfig so flag defaults are valid even
+// when WithConfig is not called (e.g. in unit tests).
 // Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand, daemonService).
 func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand runnableCommand, searchCommand searchableCommand, daemonService daemonableCommand) CommandRunner {
 	return CommandRunner{
@@ -57,6 +63,7 @@ func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroy
 		destroyCommand: destroyCommand,
 		searchCommand:  searchCommand,
 		daemonService:  daemonService,
+		config:         domain.DefaultIdxConfig(),
 	}
 }
 
@@ -79,6 +86,16 @@ func (runner CommandRunner) WithSkillsCommand(s skillsableCommand) CommandRunner
 // Example: runner = runner.WithQuietToggle(writer).
 func (runner CommandRunner) WithQuietToggle(t interface{ SetQuiet(bool) }) CommandRunner {
 	runner.quietToggle = t
+	return runner
+}
+
+// WithConfig attaches the resolved project config so commands can use
+// file-level defaults and 'idx config show' can display override details.
+// Example: runner = runner.WithConfig(cfg, "/project/.idx.yml", []string{"search.format"}).
+func (runner CommandRunner) WithConfig(cfg domain.IdxConfig, filePath string, overrides []string) CommandRunner {
+	runner.config = cfg
+	runner.configFilePath = filePath
+	runner.configOverrides = overrides
 	return runner
 }
 
@@ -109,7 +126,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "skills", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "skills", "config", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

@@ -35,7 +35,7 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	jobs := make(chan string)
 	resultsCh := make(chan []searchResult, len(directories))
 	errCh := make(chan error, 1)
-	workerCount := boundedSearchWorkerCount(len(directories))
+	workerCount := boundedSearchWorkerCount(len(directories), service.tuning.maxWorkers)
 	runDirectoryWorkers(service, workerCount, jobs, terms, options, resultsCh, errCh)
 	for _, directoryPath := range directories {
 		jobs <- directoryPath
@@ -86,14 +86,14 @@ func collectDirectoryResults(resultsCh <-chan []searchResult, errCh <-chan error
 	}
 }
 
-func boundedSearchWorkerCount(directoryCount int) int {
+func boundedSearchWorkerCount(directoryCount, maxWorkers int) int {
 	if directoryCount <= 1 {
 		return 1
 	}
 
 	limit := runtime.NumCPU()
-	if limit > maxSearchWorkers {
-		limit = maxSearchWorkers
+	if limit > maxWorkers {
+		limit = maxWorkers
 	}
 
 	if limit < 1 {
@@ -126,7 +126,7 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 		return nil, err
 	}
 
-	scores := scoreDocuments(index, terms, options.Operator)
+	scores := scoreDocuments(index, terms, options.Operator, service.tuning)
 	metadataMatches := metadataMatchedDocuments(index, options)
 	if shouldRelaxSearch(terms, options) {
 		return service.relaxedDirectoryResults(index, directoryPath, terms, options, metadataMatches)
@@ -158,7 +158,7 @@ func (service SearchCommandService) relaxedDirectoryResults(index *domain.Invert
 	combined := make(map[string]searchResult)
 	candidates := relaxationCandidates(terms, options.RelaxationMinExclusive)
 	for _, candidateTerms := range candidates {
-		candidateScores := scoreDocuments(index, candidateTerms, ports.SearchOperatorAND)
+		candidateScores := scoreDocuments(index, candidateTerms, ports.SearchOperatorAND, service.tuning)
 		candidateScores = filteredScores(candidateScores, metadataMatches, false)
 		normalizeScores(candidateScores)
 

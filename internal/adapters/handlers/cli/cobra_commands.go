@@ -18,6 +18,7 @@ const (
 	groupSearch     = "search"
 	groupAbout      = "about"
 	groupTools      = "tools"
+	groupConfig     = "config"
 )
 
 func (runner CommandRunner) newRootCommand() *cobra.Command {
@@ -52,6 +53,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 		&cobra.Group{ID: groupSearch, Title: "Search:"},
 		&cobra.Group{ID: groupAbout, Title: "About:"},
 		&cobra.Group{ID: groupTools, Title: "Tools:"},
+		&cobra.Group{ID: groupConfig, Title: "Config:"},
 	)
 
 	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
@@ -59,6 +61,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand())
 	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
 	addCommandToGroup(root, groupTools, runner.newSkillsCommand())
+	addCommandToGroup(root, groupConfig, runner.newConfigCommand())
 
 	return root
 }
@@ -87,7 +90,7 @@ func (runner CommandRunner) newWatchCommand() *cobra.Command {
 	}
 
 	watchCommand.Flags().BoolVar(&showUpdatedFiles, "show-updated-files", false, "Print updated files in each synchronized batch")
-	watchCommand.Flags().DurationVar(&debounce, "debounce", 750*time.Millisecond, "Debounce window for batching file events (e.g. 250ms, 1s)")
+	watchCommand.Flags().DurationVar(&debounce, "debounce", runner.config.Watch.Debounce, "Debounce window for batching file events (e.g. 250ms, 1s)")
 
 	return watchCommand
 }
@@ -119,12 +122,20 @@ func (runner CommandRunner) newStatusCommand() *cobra.Command {
 		Use:   "status",
 		Short: "Check whether indexed files are up to date",
 		RunE: func(_ *cobra.Command, _ []string) error {
+			if !profile {
+				if sc, ok := runner.indexCommand.(interface {
+					StatusWithContext(string, []string) error
+				}); ok {
+					return sc.StatusWithContext(runner.configFilePath, runner.configOverrides)
+				}
+			}
+
+			runner.showConfigBanner()
 			if profile {
 				if profileCommand, ok := runner.indexCommand.(interface{ StatusWithProfile(bool) error }); ok {
 					return profileCommand.StatusWithProfile(true)
 				}
 			}
-
 			return runner.indexCommand.Status()
 		},
 	}
@@ -207,7 +218,7 @@ func (runner CommandRunner) newSearchCommand() *cobra.Command {
 		},
 	}
 
-	configureSearchFlags(searchCommand, config)
+	runner.configureSearchFlags(searchCommand, config)
 
 	return searchCommand
 }
@@ -245,9 +256,10 @@ func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args 
 	return runner.searchCommand.RunWithOptions(query, config.options())
 }
 
-func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
-	searchCommand.Flags().StringVar(&config.format, "format", ports.SearchOutputText, "Output format: text|json")
-	searchCommand.Flags().IntVar(&config.contextLines, "context", 0, "Number of context lines around matches")
+func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
+	cfg := runner.config.Search
+	searchCommand.Flags().StringVar(&config.format, "format", cfg.Format, "Output format: text|json")
+	searchCommand.Flags().IntVar(&config.contextLines, "context", cfg.Context, "Number of context lines around matches")
 	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "Pretty-print JSON output")
 	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
 	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "Use compact text output optimized for agents (fewer tokens)")
@@ -258,9 +270,9 @@ func configureSearchFlags(searchCommand *cobra.Command, config *searchCommandCon
 	searchCommand.Flags().StringArrayVar(&config.pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
 	searchCommand.Flags().StringArrayVar(&config.extensionQueries, "ext", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
 	searchCommand.Flags().IntVar(&config.from, "from", 0, "Skip the first N ranked files")
-	searchCommand.Flags().IntVar(&config.size, "size", 0, "Limit results to top N files")
-	searchCommand.Flags().StringVar(&config.operator, "operator", ports.SearchOperatorAND, "Boolean operator for multi-term queries: AND|OR")
-	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", "", "Relax AND query with trailing-term fallback. Format: >N")
+	searchCommand.Flags().IntVar(&config.size, "size", cfg.Size, "Limit results to top N files")
+	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
+	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", cfg.Relaxation, "Relax AND query with trailing-term fallback. Format: >N")
 }
 
 func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {

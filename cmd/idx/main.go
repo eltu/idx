@@ -39,7 +39,12 @@ var (
 )
 
 func main() {
-	logger, err := newLogger()
+	// Load config early so log.level in .idx.yml affects the logger.
+	cwd, _ := os.Getwd()
+	projectRoot := gitRootFrom(cwd)
+	earlyConfig := earlyLoadConfigLogLevel(projectRoot)
+
+	logger, err := newLogger(earlyConfig)
 	if err != nil {
 		logger = zap.NewNop()
 		zap.ReplaceGlobals(logger)
@@ -55,13 +60,21 @@ func main() {
 	}
 }
 
-func newLogger() (*zap.Logger, error) {
+func newLogger(configLogLevel string) (*zap.Logger, error) {
 	logPath, err := loggerOutputPath()
 	if err != nil {
 		return nil, err
 	}
 
 	logLevel := zapcore.ErrorLevel
+
+	// .idx.yml log.level is the base; IDX_LOG_LEVEL env var takes precedence.
+	if configLogLevel != "" {
+		var parsedLevel zapcore.Level
+		if err := parsedLevel.Set(strings.ToLower(configLogLevel)); err == nil {
+			logLevel = parsedLevel
+		}
+	}
 
 	if envLevel := strings.TrimSpace(os.Getenv("IDX_LOG_LEVEL")); envLevel != "" {
 		var parsedLevel zapcore.Level
@@ -186,6 +199,13 @@ func run(arguments []string, output io.Writer) error {
 	inspectRunner := tui.NewInspectRunner()
 	progressRunner := tui.NewInitProgressRunner()
 
+	// Load project config from .idx.yml (git root) to wire service defaults.
+	configRepo := repository.NewYAMLConfigRepository()
+	cwd, _ := os.Getwd()
+	projectRoot := gitRootFrom(cwd)
+	cfg, overrides, _ := configRepo.Load(projectRoot)
+	configFilePath := configRepo.FilePath(projectRoot)
+
 	initCommand := indexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner, progressRunner)
 
 	initAdapter := cli.NewInitCommandAdapter(initCommand, projectTree)
@@ -193,14 +213,33 @@ func run(arguments []string, output io.Writer) error {
 	daemonService := cli.NewDaemonServiceAdapter(daemonServiceImpl)
 
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
-	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo)
+	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo).
+		WithTuning(search.SearchServiceOptions{
+			BM25K1:          cfg.BM25.K1,
+			BM25B:           cfg.BM25.B,
+			ProximityWeight: cfg.BM25.ProximityWeight,
+			MaxWorkers:      cfg.Search.MaxWorkers,
+			CacheTTL:        cfg.Search.CacheTTL,
+		})
 	skillsInstaller := repository.NewOSSkillsInstaller()
 	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{writer, progressRunner}).
-		WithSkillsCommand(skillsService)
+		WithSkillsCommand(skillsService).
+		WithConfig(cfg, configFilePath, overrides)
 
 	return runner.Run()
+}
+
+// earlyLoadConfigLogLevel reads only the log.level field from .idx.yml so the
+// logger can be initialised before the full DI graph is wired in run().
+func earlyLoadConfigLogLevel(projectRoot string) string {
+	configRepo := repository.NewYAMLConfigRepository()
+	cfg, _, err := configRepo.Load(projectRoot)
+	if err != nil {
+		return ""
+	}
+	return cfg.Log.Level
 }
 

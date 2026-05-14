@@ -48,6 +48,13 @@ func (service InitCommandService) Status() error {
 	return service.runStatus(false)
 }
 
+// StatusWithContext is like Status but embeds config file info in the overview panel.
+func (service InitCommandService) StatusWithContext(configFilePath string, configOverrides []string) error {
+	service.statusConfigFilePath = configFilePath
+	service.statusConfigOverrides = configOverrides
+	return service.runStatus(false)
+}
+
 func (service InitCommandService) StatusWithProfile(profile bool) error {
 	return service.runStatus(profile)
 }
@@ -114,10 +121,37 @@ func (service InitCommandService) runStatus(profile bool) error {
 	}
 
 	if len(staleDirectories) > 0 {
+		if !profile {
+			staleCount := len(staleDirectories)
+			indexLine := statusStaleStyle.Render(fmt.Sprintf("❌ %d director%s stale", staleCount, pluralSuffix(staleCount, "y", "ies"))) +
+				"  — run " + statusActionStyle.Render("idx sync")
+			if err := service.writeStatusOverviewPanel(statusPanelData{
+				projectRoot:     projectRoot,
+				summary:         summary,
+				directories:     directories,
+				configFilePath:  service.statusConfigFilePath,
+				configOverrides: service.statusConfigOverrides,
+				indexStatus:     indexLine,
+			}); err != nil {
+				return err
+			}
+			return fmt.Errorf("stale index")
+		}
 		return service.writeStaleIndexError(projectRoot, staleDirectories)
 	}
 
-	return service.output.WriteLine("\n✅ Indices are up to date.\n")
+	if profile {
+		return service.output.WriteLine("\n✅ Indices are up to date.\n")
+	}
+
+	return service.writeStatusOverviewPanel(statusPanelData{
+		projectRoot:     projectRoot,
+		summary:         summary,
+		directories:     directories,
+		configFilePath:  service.statusConfigFilePath,
+		configOverrides: service.statusConfigOverrides,
+		indexStatus:     statusSuccessStyle.Render("✅ up to date"),
+	})
 }
 
 func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, error) {
