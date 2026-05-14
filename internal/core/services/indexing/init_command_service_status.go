@@ -93,6 +93,15 @@ func (service InitCommandService) runStatus(profile bool) error {
 		return service.writeUnindexedDirectoriesError(projectRoot, missing)
 	}
 
+	reports, summary, staleDirectories, err := service.collectStatusReports(directories, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+
+	return service.writeStatusResult(profile, projectRoot, directories, reports, summary, staleDirectories)
+}
+
+func (service InitCommandService) collectStatusReports(directories []string, projectRoot string, matcher ports.IgnoreMatcher) ([]statusDirectoryReport, statusSummary, []string, error) {
 	reports := make([]statusDirectoryReport, 0, len(directories))
 	summary := statusSummary{CheckedDirectories: len(directories)}
 	staleDirectories := make([]string, 0)
@@ -100,20 +109,22 @@ func (service InitCommandService) runStatus(profile bool) error {
 	for _, directoryPath := range directories {
 		report, err := service.verifyDirectoryIndexCurrent(directoryPath, projectRoot, matcher)
 		if err != nil {
-			return err
+			return nil, statusSummary{}, nil, err
 		}
 
 		reports = append(reports, report)
 		summary = updateStatusSummary(summary, report)
 		if report.ShouldReindex {
 			staleDirectories = append(staleDirectories, directoryPath)
-		}
-
-		if !report.ShouldReindex {
+		} else {
 			summary.UpdatedDirectories++
 		}
 	}
 
+	return reports, summary, staleDirectories, nil
+}
+
+func (service InitCommandService) writeStatusResult(profile bool, projectRoot string, directories []string, reports []statusDirectoryReport, summary statusSummary, staleDirectories []string) error {
 	if profile {
 		if err := service.writeStatusReport(projectRoot, reports, summary); err != nil {
 			return err
@@ -121,23 +132,7 @@ func (service InitCommandService) runStatus(profile bool) error {
 	}
 
 	if len(staleDirectories) > 0 {
-		if !profile {
-			staleCount := len(staleDirectories)
-			indexLine := statusStaleStyle.Render(fmt.Sprintf("❌ %d director%s stale", staleCount, pluralSuffix(staleCount, "y", "ies"))) +
-				"  — run " + statusActionStyle.Render("idx sync")
-			if err := service.writeStatusOverviewPanel(statusPanelData{
-				projectRoot:     projectRoot,
-				summary:         summary,
-				directories:     directories,
-				configFilePath:  service.statusConfigFilePath,
-				configOverrides: service.statusConfigOverrides,
-				indexStatus:     indexLine,
-			}); err != nil {
-				return err
-			}
-			return fmt.Errorf("stale index")
-		}
-		return service.writeStaleIndexError(projectRoot, staleDirectories)
+		return service.writeStaleResult(profile, projectRoot, directories, summary, staleDirectories)
 	}
 
 	if profile {
@@ -152,6 +147,29 @@ func (service InitCommandService) runStatus(profile bool) error {
 		configOverrides: service.statusConfigOverrides,
 		indexStatus:     statusSuccessStyle.Render("✅ up to date"),
 	})
+}
+
+func (service InitCommandService) writeStaleResult(profile bool, projectRoot string, directories []string, summary statusSummary, staleDirectories []string) error {
+	if profile {
+		return service.writeStaleIndexError(projectRoot, staleDirectories)
+	}
+
+	staleCount := len(staleDirectories)
+	indexLine := statusStaleStyle.Render(fmt.Sprintf("❌ %d director%s stale", staleCount, pluralSuffix(staleCount, "y", "ies"))) +
+		"  — run " + statusActionStyle.Render("idx sync")
+
+	if err := service.writeStatusOverviewPanel(statusPanelData{
+		projectRoot:     projectRoot,
+		summary:         summary,
+		directories:     directories,
+		configFilePath:  service.statusConfigFilePath,
+		configOverrides: service.statusConfigOverrides,
+		indexStatus:     indexLine,
+	}); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("stale index")
 }
 
 func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, error) {

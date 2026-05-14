@@ -97,80 +97,121 @@ type yamlLogConfig struct {
 func applyYAMLOverrides(cfg *domain.IdxConfig, raw yamlIdxConfig) ([]string, error) {
 	var overrides []string
 
-	if s := raw.Search; s != nil {
-		if s.Format != nil {
-			cfg.Search.Format = *s.Format
-			overrides = append(overrides, "search.format")
+	if raw.Search != nil {
+		keys, err := applySearchOverrides(&cfg.Search, raw.Search)
+		if err != nil {
+			return nil, err
 		}
-		if s.Size != nil {
-			cfg.Search.Size = *s.Size
-			overrides = append(overrides, "search.size")
-		}
-		if s.Operator != nil {
-			cfg.Search.Operator = *s.Operator
-			overrides = append(overrides, "search.operator")
-		}
-		if s.Context != nil {
-			cfg.Search.Context = *s.Context
-			overrides = append(overrides, "search.context")
-		}
-		if s.Relaxation != nil {
-			cfg.Search.Relaxation = *s.Relaxation
-			overrides = append(overrides, "search.relaxation")
-		}
-		if s.CacheTTL != nil {
-			d, err := time.ParseDuration(*s.CacheTTL)
-			if err != nil {
-				return nil, fmt.Errorf("invalid search.cache_ttl %q: expected a Go duration like 60s, 2m, 500ms", *s.CacheTTL)
-			}
-			cfg.Search.CacheTTL = d
-			overrides = append(overrides, "search.cache_ttl")
-		}
-		if s.MaxWorkers != nil {
-			cfg.Search.MaxWorkers = *s.MaxWorkers
-			overrides = append(overrides, "search.max_workers")
-		}
+		overrides = append(overrides, keys...)
 	}
 
-	if w := raw.Watch; w != nil {
-		if w.Debounce != nil {
-			d, err := time.ParseDuration(*w.Debounce)
-			if err != nil {
-				return nil, fmt.Errorf("invalid watch.debounce %q: expected a Go duration like 750ms, 1s, 2s", *w.Debounce)
-			}
-			cfg.Watch.Debounce = d
-			overrides = append(overrides, "watch.debounce")
+	if raw.Watch != nil {
+		keys, err := applyWatchOverrides(&cfg.Watch, raw.Watch)
+		if err != nil {
+			return nil, err
 		}
+		overrides = append(overrides, keys...)
 	}
 
-	if i := raw.Index; i != nil {
-		if i.Exclude != nil {
-			cfg.Index.Exclude = i.Exclude
-			overrides = append(overrides, "index.exclude")
-		}
+	if raw.Index != nil {
+		overrides = append(overrides, applyIndexOverrides(&cfg.Index, raw.Index)...)
 	}
 
-	if b := raw.BM25; b != nil {
-		if b.K1 != nil {
-			cfg.BM25.K1 = *b.K1
-			overrides = append(overrides, "bm25.k1")
-		}
-		if b.B != nil {
-			cfg.BM25.B = *b.B
-			overrides = append(overrides, "bm25.b")
-		}
-		if b.ProximityWeight != nil {
-			cfg.BM25.ProximityWeight = *b.ProximityWeight
-			overrides = append(overrides, "bm25.proximity_weight")
-		}
+	if raw.BM25 != nil {
+		overrides = append(overrides, applyBM25Overrides(&cfg.BM25, raw.BM25)...)
 	}
 
-	if l := raw.Log; l != nil {
-		if l.Level != nil {
-			cfg.Log.Level = *l.Level
-			overrides = append(overrides, "log.level")
-		}
+	if raw.Log != nil {
+		overrides = append(overrides, applyLogOverrides(&cfg.Log, raw.Log)...)
 	}
 
 	return overrides, nil
+}
+
+func applySearchOverrides(cfg *domain.SearchConfig, s *yamlSearchConfig) ([]string, error) {
+	var keys []string
+
+	if s.Format != nil {
+		cfg.Format = *s.Format
+		keys = append(keys, "search.format")
+	}
+	if s.Size != nil {
+		cfg.Size = *s.Size
+		keys = append(keys, "search.size")
+	}
+	if s.Operator != nil {
+		cfg.Operator = *s.Operator
+		keys = append(keys, "search.operator")
+	}
+	if s.Context != nil {
+		cfg.Context = *s.Context
+		keys = append(keys, "search.context")
+	}
+	if s.Relaxation != nil {
+		cfg.Relaxation = *s.Relaxation
+		keys = append(keys, "search.relaxation")
+	}
+	if s.CacheTTL != nil {
+		d, err := time.ParseDuration(*s.CacheTTL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid search.cache_ttl %q: expected a Go duration like 60s, 2m, 500ms", *s.CacheTTL)
+		}
+		cfg.CacheTTL = d
+		keys = append(keys, "search.cache_ttl")
+	}
+	if s.MaxWorkers != nil {
+		cfg.MaxWorkers = *s.MaxWorkers
+		keys = append(keys, "search.max_workers")
+	}
+
+	return keys, nil
+}
+
+func applyWatchOverrides(cfg *domain.WatchConfig, w *yamlWatchConfig) ([]string, error) {
+	if w.Debounce == nil {
+		return nil, nil
+	}
+
+	d, err := time.ParseDuration(*w.Debounce)
+	if err != nil {
+		return nil, fmt.Errorf("invalid watch.debounce %q: expected a Go duration like 750ms, 1s, 2s", *w.Debounce)
+	}
+
+	cfg.Debounce = d
+	return []string{"watch.debounce"}, nil
+}
+
+func applyIndexOverrides(cfg *domain.IndexConfig, i *yamlIndexConfig) []string {
+	if i.Exclude == nil {
+		return nil
+	}
+	cfg.Exclude = i.Exclude
+	return []string{"index.exclude"}
+}
+
+func applyBM25Overrides(cfg *domain.BM25Config, b *yamlBM25Config) []string {
+	var keys []string
+
+	if b.K1 != nil {
+		cfg.K1 = *b.K1
+		keys = append(keys, "bm25.k1")
+	}
+	if b.B != nil {
+		cfg.B = *b.B
+		keys = append(keys, "bm25.b")
+	}
+	if b.ProximityWeight != nil {
+		cfg.ProximityWeight = *b.ProximityWeight
+		keys = append(keys, "bm25.proximity_weight")
+	}
+
+	return keys
+}
+
+func applyLogOverrides(cfg *domain.LogConfig, l *yamlLogConfig) []string {
+	if l.Level == nil {
+		return nil
+	}
+	cfg.Level = *l.Level
+	return []string{"log.level"}
 }
