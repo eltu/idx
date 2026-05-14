@@ -22,45 +22,53 @@ func (service InitCommandService) watchLoop(showUpdatedFiles bool, debounce time
 	if debounce <= 0 {
 		debounce = defaultWatchDebounceInterval
 	}
-
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	projectRoot, matcher, err := service.resolveWatchContext()
 	if err != nil {
 		return err
 	}
-
-	matcher, err := service.matcherFactory.New(projectRoot)
+	watcher, err := service.createFileWatcher(projectRoot, matcher)
 	if err != nil {
-		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
-	}
-
-	if err := service.ensureRootIndex(projectRoot, matcher); err != nil {
 		return err
-	}
-
-	if err := service.syncAllDirectoriesBeforeWatch(projectRoot, matcher); err != nil {
-		return err
-	}
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to start file watcher for %q: got error %v, expected watcher initialization", projectRoot, err)
 	}
 	defer func() { _ = watcher.Close() }()
-
-	if err := service.addRecursiveWatches(watcher, projectRoot, projectRoot, matcher); err != nil {
-		return err
-	}
-
 	if err := service.writeWatchHeader(projectRoot, debounce); err != nil {
 		return err
 	}
-
 	return service.consumeWatchEvents(watcher, projectRoot, matcher, showUpdatedFiles, debounce)
+}
+
+func (service InitCommandService) resolveWatchContext() (string, ports.IgnoreMatcher, error) {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return "", nil, err
+	}
+	matcher, err := service.matcherFactory.New(projectRoot)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
+	}
+	if err := service.ensureRootIndex(projectRoot, matcher); err != nil {
+		return "", nil, err
+	}
+	if err := service.syncAllDirectoriesBeforeWatch(projectRoot, matcher); err != nil {
+		return "", nil, err
+	}
+	return projectRoot, matcher, nil
+}
+
+func (service InitCommandService) createFileWatcher(projectRoot string, matcher ports.IgnoreMatcher) (*fsnotify.Watcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start file watcher for %q: got error %v, expected watcher initialization", projectRoot, err)
+	}
+	if err := service.addRecursiveWatches(watcher, projectRoot, projectRoot, matcher); err != nil {
+		_ = watcher.Close()
+		return nil, err
+	}
+	return watcher, nil
 }
 
 func (service InitCommandService) ensureRootIndex(projectRoot string, matcher ports.IgnoreMatcher) error {
@@ -378,45 +386,50 @@ func (service InitCommandService) writeWatchBatchSummary(directories []string, p
 	ts := statusMutedStyle.Render(time.Now().Format("15:04:05"))
 	marker := statusSuccessStyle.Render("✦")
 	dirLabel := statusMutedStyle.Render(fmt.Sprintf("%d dir(s)", len(directories)))
-
 	files := sortedFileBatch(pendingFiles)
-	var fileLabel string
-	if len(files) == 0 {
-		fileLabel = statusMutedStyle.Render("structural change")
-	} else {
-		fileLabel = statusMutedStyle.Render(fmt.Sprintf("%d file(s)", len(files)))
-	}
-
-	summary := fmt.Sprintf("  %s  %s  ·  %s  ·  %s", marker, ts, dirLabel, fileLabel)
+	summary := fmt.Sprintf("  %s  %s  ·  %s  ·  %s", marker, ts, dirLabel, watchFileLabel(files))
 	if err := service.output.WriteLine(summary); err != nil {
 		return err
 	}
+	return service.writeWatchFileList(files)
+}
 
-	listed := files
-	truncated := 0
-	if len(files) > watchMaxFilesListed {
-		listed = files[:watchMaxFilesListed]
-		truncated = len(files) - watchMaxFilesListed
+func watchFileLabel(files []string) string {
+	if len(files) == 0 {
+		return statusMutedStyle.Render("structural change")
 	}
+	return statusMutedStyle.Render(fmt.Sprintf("%d file(s)", len(files)))
+}
 
+func (service InitCommandService) writeWatchFileList(files []string) error {
+	listed, truncated := truncatedFileList(files)
 	for i, f := range listed {
-		prefix := statusMutedStyle.Render("  ├─")
-		if i == len(listed)-1 && truncated == 0 {
-			prefix = statusMutedStyle.Render("  └─")
-		}
+		prefix := watchEntryPrefix(i, len(listed)-1, truncated)
 		if err := service.output.WriteLine(fmt.Sprintf("%s %s", prefix, statusPathStyle.Render(f))); err != nil {
 			return err
 		}
 	}
-
 	if truncated > 0 {
 		more := statusMutedStyle.Render(fmt.Sprintf("  └─ ... and %d more", truncated))
 		if err := service.output.WriteLine(more); err != nil {
 			return err
 		}
 	}
-
 	return service.output.WriteLine("")
+}
+
+func truncatedFileList(files []string) ([]string, int) {
+	if len(files) <= watchMaxFilesListed {
+		return files, 0
+	}
+	return files[:watchMaxFilesListed], len(files) - watchMaxFilesListed
+}
+
+func watchEntryPrefix(i, lastIndex, truncated int) string {
+	if i == lastIndex && truncated == 0 {
+		return statusMutedStyle.Render("  └─")
+	}
+	return statusMutedStyle.Render("  ├─")
 }
 
 func sortedDirectoryBatch(pending map[string]struct{}) []string {

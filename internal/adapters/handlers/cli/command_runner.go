@@ -32,16 +32,16 @@ type BuildInfo struct {
 }
 
 type CommandRunner struct {
-	arguments      []string
-	indexCommand   indexableCommand
-	destroyCommand runnableCommand
-	searchCommand  searchableCommand
-	daemonService  daemonableCommand
-	skillsCommand  skillsableCommand
-	buildInfo      BuildInfo
-	quietToggle    interface{ SetQuiet(bool) }
-	config         domain.IdxConfig
-	configFilePath string
+	arguments       []string
+	indexCommand    indexableCommand
+	destroyCommand  runnableCommand
+	searchCommand   searchableCommand
+	daemonService   daemonableCommand
+	skillsCommand   skillsableCommand
+	buildInfo       BuildInfo
+	quietToggle     interface{ SetQuiet(bool) }
+	config          domain.IdxConfig
+	configFilePath  string
 	configOverrides []string
 }
 

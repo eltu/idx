@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"idx/internal/core/domain"
@@ -15,16 +14,16 @@ import (
 const daemonChildEnvVar = "IDX_DAEMON_CHILD"
 
 type InitCommandService struct {
-	projectTree         ports.ProjectTree
-	matcherFactory      ports.IgnoreMatcherFactory
-	output              ports.TextOutput
-	fileReader          ports.FileReader
-	indexer             ports.BM25Indexer
-	indexRepo           ports.IndexRepository
-	checksumRepo        ports.DirectoryChecksumRepository
-	daemonRepo          ports.DaemonRepository
-	inspectUI           ports.InspectUIRunner
-	initProgress        ports.InitProgress
+	projectTree           ports.ProjectTree
+	matcherFactory        ports.IgnoreMatcherFactory
+	output                ports.TextOutput
+	fileReader            ports.FileReader
+	indexer               ports.BM25Indexer
+	indexRepo             ports.IndexRepository
+	checksumRepo          ports.DirectoryChecksumRepository
+	daemonRepo            ports.DaemonRepository
+	inspectUI             ports.InspectUIRunner
+	initProgress          ports.InitProgress
 	statusConfigFilePath  string
 	statusConfigOverrides []string
 }
@@ -39,11 +38,11 @@ func (disabledInspectUIRunner) Run(_ *domain.InvertedIndex) error {
 
 type disabledInitProgress struct{}
 
-func (disabledInitProgress) StartCounting()             {}
-func (disabledInitProgress) SetTotal(int)               {}
-func (disabledInitProgress) IncrementDir(string)        {}
-func (disabledInitProgress) Finish()                    {}
-func (disabledInitProgress) Context() context.Context   { return context.Background() }
+func (disabledInitProgress) StartCounting()           {}
+func (disabledInitProgress) SetTotal(int)             {}
+func (disabledInitProgress) IncrementDir(string)      {}
+func (disabledInitProgress) Finish()                  {}
+func (disabledInitProgress) Context() context.Context { return context.Background() }
 
 // NewInitCommandService builds the init use case without TUI support.
 // Use NewInitCommandServiceWithInspectUI when the inspect command must launch the TUI.
@@ -115,29 +114,32 @@ func (service InitCommandService) currentProjectAlreadyMonitored() (bool, error)
 	if service.daemonRepo == nil {
 		return false, nil
 	}
-
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	projectRoot, err := service.currentProjectRoot()
 	if err != nil {
 		return false, err
 	}
-
 	state, _ := service.daemonRepo.ReadState()
-	if state == nil {
-		return false, nil
-	}
+	return isProjectInDaemonState(state, projectRoot), nil
+}
 
+func (service InitCommandService) currentProjectRoot() (string, error) {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+	return service.projectTree.FindGitRoot(currentDir)
+}
+
+func isProjectInDaemonState(state *domain.DaemonState, projectRoot string) bool {
+	if state == nil {
+		return false
+	}
 	for _, project := range state.Projects {
 		if project.Enabled && project.Path == projectRoot {
-			return true, nil
+			return true
 		}
 	}
-
-	return false, nil
+	return false
 }
 
 func (service InitCommandService) validateDependencies() error {
@@ -177,43 +179,46 @@ func (service InitCommandService) validateDependencies() error {
 }
 
 func (service InitCommandService) runIndex() error {
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	currentDir, projectRoot, err := service.resolveIndexPaths()
 	if err != nil {
 		return err
 	}
-
 	if err := service.ensureIdxRuleInGitIgnore(projectRoot); err != nil {
 		return err
 	}
-
-	currentIndexPath := indexFilePath(currentDir)
-	hasIndex, err := service.projectTree.Exists(currentIndexPath)
+	hasIndex, err := service.projectTree.Exists(indexFilePath(currentDir))
 	if err != nil {
 		return err
 	}
-
 	if hasIndex {
 		return service.output.WriteLine("ℹ️ This project is already indexed. You can run idx search.")
 	}
+	return service.initIndexing(currentDir, projectRoot)
+}
 
+func (service InitCommandService) resolveIndexPaths() (string, string, error) {
+	currentDir, err := service.projectTree.CurrentDir()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+	}
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return "", "", err
+	}
+	return currentDir, projectRoot, nil
+}
+
+func (service InitCommandService) initIndexing(currentDir, projectRoot string) error {
 	matcher, err := service.matcherFactory.New(projectRoot)
 	if err != nil {
 		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
 	}
-
 	service.initProgress.StartCounting()
-
 	total, err := service.countEligibleDirectories(currentDir, projectRoot, matcher)
 	if err != nil {
 		return err
 	}
 	service.initProgress.SetTotal(total)
-
 	if err := service.indexDirectory(currentDir, projectRoot, matcher); err != nil {
 		service.initProgress.Finish()
 		if err == context.Canceled {
@@ -222,75 +227,7 @@ func (service InitCommandService) runIndex() error {
 		return err
 	}
 	service.initProgress.Finish()
-
 	return nil
-}
-
-func (service InitCommandService) ensureIdxRuleInGitIgnore(projectRoot string) error {
-	gitIgnorePath := filepath.Join(projectRoot, ".gitignore")
-	content, err := service.fileReader.ReadFile(gitIgnorePath)
-	if err != nil {
-		if !isMissingFileError(err) {
-			return fmt.Errorf("failed to read project .gitignore %q: got error %v, expected readable file", gitIgnorePath, err)
-		}
-
-		return service.projectTree.WriteFile(gitIgnorePath, []byte(".idx/\n"))
-	}
-
-	if hasIdxDirectoryIgnoreRule(content) {
-		return nil
-	}
-
-	updated := appendIdxDirectoryIgnoreRule(content)
-	return service.projectTree.WriteFile(gitIgnorePath, []byte(updated))
-}
-
-func hasIdxDirectoryIgnoreRule(content string) bool {
-	lines := strings.Split(content, "\n")
-	for _, rawLine := range lines {
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
-			continue
-		}
-
-		normalized := normalizeIgnorePattern(line)
-		if normalized == ".idx" {
-			return true
-		}
-	}
-
-	return false
-}
-
-func normalizeIgnorePattern(pattern string) string {
-	normalized := strings.TrimSpace(pattern)
-	normalized = strings.TrimPrefix(normalized, "/")
-	normalized = strings.TrimSuffix(normalized, "/")
-	normalized = strings.TrimSuffix(normalized, "/**")
-	normalized = strings.TrimPrefix(normalized, "**/")
-	return normalized
-}
-
-func appendIdxDirectoryIgnoreRule(content string) string {
-	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
-		return ".idx/\n"
-	}
-
-	if strings.HasSuffix(content, "\n") {
-		return content + ".idx/\n"
-	}
-
-	return content + "\n.idx/\n"
-}
-
-func isMissingFileError(err error) bool {
-	if os.IsNotExist(err) {
-		return true
-	}
-
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "file not found") || strings.Contains(message, "no such file or directory")
 }
 
 func (service InitCommandService) countEligibleDirectories(dirPath, projectRoot string, matcher ports.IgnoreMatcher) (int, error) {
@@ -322,35 +259,36 @@ func (service InitCommandService) indexDirectory(directoryPath string, projectRo
 	if err := service.initProgress.Context().Err(); err != nil {
 		return context.Canceled
 	}
-
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
-
 	if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
 		return err
 	}
 	service.initProgress.IncrementDir(directoryPath)
-
-	entries, err := service.projectTree.ReadDir(directoryPath)
-	if err != nil {
-		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
-	}
-
-	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
+	dirEntries, err := service.subdirectoryEntries(directoryPath, projectRoot, matcher)
 	if err != nil {
 		return err
 	}
+	return service.indexChildren(dirEntries, projectRoot, matcher)
+}
 
+func (service InitCommandService) subdirectoryEntries(directoryPath, projectRoot string, matcher ports.IgnoreMatcher) ([]domain.DirectoryEntry, error) {
+	entries, err := service.projectTree.ReadDir(directoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
+	}
+	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
+	if err != nil {
+		return nil, err
+	}
 	dirEntries := make([]domain.DirectoryEntry, 0)
 	for _, entry := range allowedEntries {
 		if entry.IsDir {
 			dirEntries = append(dirEntries, entry)
 		}
 	}
-
-	// Recursively index subdirectories
-	return service.indexChildren(dirEntries, projectRoot, matcher)
+	return dirEntries, nil
 }
 
 func (service InitCommandService) syncDirectoryIndex(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
@@ -422,40 +360,35 @@ func (service InitCommandService) buildAndSaveIndex(directoryPath string, fileEn
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
+	documents, err := service.buildIndexDocuments(fileEntries)
+	if err != nil {
+		return err
+	}
+	index, err := service.indexer.BuildIndex(documents)
+	if err != nil {
+		return fmt.Errorf("failed to build BM25 index for %q: got error %v, expected valid document content", directoryPath, err)
+	}
+	if err := service.indexRepo.SaveIndex(directoryPath, index); err != nil {
+		return err
+	}
+	logEntries := buildChangedLogEntries(fileEntries, snapshot, changedFileNames, time.Now().UTC())
+	return appendIndexedFilesLog(directoryPath, logEntries)
+}
 
-	// Read all files and build index documents.
+func (service InitCommandService) buildIndexDocuments(fileEntries []domain.DirectoryEntry) ([]domain.IndexDocument, error) {
 	documents := make([]domain.IndexDocument, 0, len(fileEntries))
 	for _, entry := range fileEntries {
 		content, err := service.fileReader.ReadFile(entry.Path)
 		if err != nil {
-			return err
+			return nil, err
 		}
-
 		documents = append(documents, domain.IndexDocument{
 			Name:    entry.Name,
 			Path:    entry.Path,
 			Content: content,
 		})
 	}
-
-	// Build BM25 index
-	index, err := service.indexer.BuildIndex(documents)
-	if err != nil {
-		return fmt.Errorf("failed to build BM25 index for %q: got error %v, expected valid document content", directoryPath, err)
-	}
-
-	// Save index
-	if err := service.indexRepo.SaveIndex(directoryPath, index); err != nil {
-		return err
-	}
-
-	logEntries := buildChangedLogEntries(fileEntries, snapshot, changedFileNames, time.Now().UTC())
-
-	if err := appendIndexedFilesLog(directoryPath, logEntries); err != nil {
-		return err
-	}
-
-	return nil
+	return documents, nil
 }
 
 func buildChangedLogEntries(fileEntries []domain.DirectoryEntry, snapshot ports.DirectoryChecksumSnapshot, changedFileNames map[string]struct{}, indexedAt time.Time) []indexedFileLogEntry {

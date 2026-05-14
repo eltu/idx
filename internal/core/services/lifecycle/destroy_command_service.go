@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 )
 
@@ -64,36 +65,30 @@ func (service DestroyCommandService) destroyIndexes(directoryPath string) error 
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
-
 	entries, err := service.projectTree.ReadDir(directoryPath)
 	if err != nil {
 		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
 	}
-
-	collectedErrors := make([]error, 0)
-
+	errs := make([]error, 0)
 	for _, entry := range entries {
-		if entry.Name == ".git" {
-			continue
-		}
-
-		if entry.IsDir && entry.Name == ".idx" {
-			if err := service.projectTree.RemoveAll(entry.Path); err != nil {
-				collectedErrors = append(collectedErrors, fmt.Errorf("failed to remove index directory %q: got error %v, expected a removable .idx directory", entry.Path, err))
-				continue
-			}
-
-			continue
-		}
-
-		if entry.IsDir {
-			if err := service.destroyIndexes(entry.Path); err != nil {
-				collectedErrors = append(collectedErrors, err)
-			}
+		if err := service.processDestroyEntry(entry); err != nil {
+			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
+}
 
-	return errors.Join(collectedErrors...)
+func (service DestroyCommandService) processDestroyEntry(entry domain.DirectoryEntry) error {
+	if entry.Name == ".git" || !entry.IsDir {
+		return nil
+	}
+	if entry.Name == ".idx" {
+		if err := service.projectTree.RemoveAll(entry.Path); err != nil {
+			return fmt.Errorf("failed to remove index directory %q: got error %v, expected a removable .idx directory", entry.Path, err)
+		}
+		return nil
+	}
+	return service.destroyIndexes(entry.Path)
 }
 
 func isProjectRoot(currentDir string, projectRoot string) bool {

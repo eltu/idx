@@ -169,43 +169,53 @@ func (s *DaemonService) Disable(projectPath string) error {
 	if err != nil {
 		return fmt.Errorf("invalid project path: got error %v, expected valid filesystem path", err)
 	}
-
-	state, err := s.daemonRepo.ReadState()
+	state, err := s.loadNonEmptyState(absPath)
 	if err != nil {
-		return fmt.Errorf("daemon not initialized: got error %v, expected valid state file", err)
+		return err
 	}
-
-	if state == nil || len(state.Projects) == 0 {
-		return fmt.Errorf("project %q not being monitored: no projects active", absPath)
-	}
-
-	filtered := make([]domain.MonitoredProject, 0, len(state.Projects))
-	removedCount := 0
-	for _, project := range state.Projects {
-		if project.Path != absPath {
-			filtered = append(filtered, project)
-			continue
-		}
-
-		removedCount++
-		if project.Enabled && project.PID > 0 {
-			proc, findErr := os.FindProcess(project.PID)
-			if findErr == nil {
-				_ = proc.Kill()
-			}
-		}
-	}
-
-	if removedCount == 0 {
+	filtered, removed := removeProjectFromState(state.Projects, absPath)
+	if removed == 0 {
 		return fmt.Errorf("project %q not being monitored", absPath)
 	}
-
 	state.Projects = filtered
 	if err := s.daemonRepo.SaveState(state); err != nil {
 		return fmt.Errorf("failed to remove project from daemon state: got error %v, expected writable state file", err)
 	}
-
 	return s.output.WriteLine(fmt.Sprintf("✅ Watch disabled for %q", absPath))
+}
+
+func (s *DaemonService) loadNonEmptyState(absPath string) (*domain.DaemonState, error) {
+	state, err := s.daemonRepo.ReadState()
+	if err != nil {
+		return nil, fmt.Errorf("daemon not initialized: got error %v, expected valid state file", err)
+	}
+	if state == nil || len(state.Projects) == 0 {
+		return nil, fmt.Errorf("project %q not being monitored: no projects active", absPath)
+	}
+	return state, nil
+}
+
+func removeProjectFromState(projects []domain.MonitoredProject, absPath string) ([]domain.MonitoredProject, int) {
+	filtered := make([]domain.MonitoredProject, 0, len(projects))
+	removed := 0
+	for _, project := range projects {
+		if project.Path != absPath {
+			filtered = append(filtered, project)
+			continue
+		}
+		removed++
+		killProjectProcess(project)
+	}
+	return filtered, removed
+}
+
+func killProjectProcess(project domain.MonitoredProject) {
+	if !project.Enabled || project.PID <= 0 {
+		return
+	}
+	if proc, err := os.FindProcess(project.PID); err == nil {
+		_ = proc.Kill()
+	}
 }
 
 // Status shows all monitored projects and their status.

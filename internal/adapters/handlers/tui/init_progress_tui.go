@@ -23,10 +23,10 @@ var (
 var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 type (
-	progressTickMsg    struct{ dir string }
-	progressDoneMsg    struct{}
+	progressTickMsg     struct{ dir string }
+	progressDoneMsg     struct{}
 	progressSetTotalMsg struct{ total int }
-	progressSpinnerMsg struct{}
+	progressSpinnerMsg  struct{}
 )
 
 type progressPhase int

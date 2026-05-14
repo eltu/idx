@@ -13,13 +13,13 @@ import (
 )
 
 var (
-	statusPanelStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	statusSuccessStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
-	statusWarningStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
-	statusMutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
-	statusPathStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
-	statusActionStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
-	statusStaleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
+	statusPanelStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	statusSuccessStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
+	statusWarningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
+	statusMutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
+	statusPathStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
+	statusActionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
+	statusStaleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
 )
 
 type statusFileReport struct {
@@ -63,42 +63,41 @@ func (service InitCommandService) runStatus(profile bool) error {
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
-
 	projectRoot, matcher, err := service.statusMatcher()
 	if err != nil {
 		return err
 	}
-
 	directories, err := IndexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
 		return err
 	}
-
 	if len(directories) == 0 {
 		return fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
 	}
-
-	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
-	if err != nil {
+	if err := service.validateIndexCoverage(projectRoot, directories, matcher); err != nil {
 		return err
 	}
-
-	eligibleWithFiles, err := service.filterDirectoriesWithFiles(eligible, projectRoot, matcher)
-	if err != nil {
-		return err
-	}
-
-	missing := missingIndexDirectories(directories, eligibleWithFiles)
-	if len(missing) > 0 {
-		return service.writeUnindexedDirectoriesError(projectRoot, missing)
-	}
-
 	reports, summary, staleDirectories, err := service.collectStatusReports(directories, projectRoot, matcher)
 	if err != nil {
 		return err
 	}
-
 	return service.writeStatusResult(profile, projectRoot, directories, reports, summary, staleDirectories)
+}
+
+func (service InitCommandService) validateIndexCoverage(projectRoot string, directories []string, matcher ports.IgnoreMatcher) error {
+	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+	eligibleWithFiles, err := service.filterDirectoriesWithFiles(eligible, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+	missing := missingIndexDirectories(directories, eligibleWithFiles)
+	if len(missing) > 0 {
+		return service.writeUnindexedDirectoriesError(projectRoot, missing)
+	}
+	return nil
 }
 
 func (service InitCommandService) collectStatusReports(directories []string, projectRoot string, matcher ports.IgnoreMatcher) ([]statusDirectoryReport, statusSummary, []string, error) {
@@ -244,36 +243,45 @@ func updateStatusSummary(summary statusSummary, report statusDirectoryReport) st
 }
 
 func (service InitCommandService) writeStatusReport(projectRoot string, reports []statusDirectoryReport, summary statusSummary) error {
+	if err := service.writeDirectoryReports(projectRoot, reports); err != nil {
+		return err
+	}
+	return service.writeStatusSummaryPanel(summary)
+}
+
+func (service InitCommandService) writeDirectoryReports(projectRoot string, reports []statusDirectoryReport) error {
 	for _, report := range reports {
-		directoryLabel, err := filepath.Rel(projectRoot, report.Path)
-		if err != nil {
-			directoryLabel = report.Path
-		}
-
-		if directoryLabel == "." {
-			directoryLabel = projectRoot
-		}
-
-		directoryState := "✅ updated"
-		if report.ShouldReindex {
-			directoryState = "❌ stale"
-		}
-
-		section := fmt.Sprintf("📂 %s\n%s\n\n%s", directoryLabel, directoryState, renderDirectoryTable(report.Files))
-		if report.StructuralChange {
-			section += "\n\n! note: file set changed (added/removed files) since last indexing"
-		}
-
-		if err := service.output.WriteLine("\n" + statusPanelStyle.Render(section)); err != nil {
+		if err := service.writeDirectoryReport(projectRoot, report); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+func (service InitCommandService) writeDirectoryReport(projectRoot string, report statusDirectoryReport) error {
+	directoryLabel, err := filepath.Rel(projectRoot, report.Path)
+	if err != nil {
+		directoryLabel = report.Path
+	}
+	if directoryLabel == "." {
+		directoryLabel = projectRoot
+	}
+	directoryState := "✅ updated"
+	if report.ShouldReindex {
+		directoryState = "❌ stale"
+	}
+	section := fmt.Sprintf("📂 %s\n%s\n\n%s", directoryLabel, directoryState, renderDirectoryTable(report.Files))
+	if report.StructuralChange {
+		section += "\n\n! note: file set changed (added/removed files) since last indexing"
+	}
+	return service.output.WriteLine("\n" + statusPanelStyle.Render(section))
+}
+
+func (service InitCommandService) writeStatusSummaryPanel(summary statusSummary) error {
 	latest := "n/a"
 	if summary.HasLatest {
 		latest = summary.LatestModifiedAt.Format(time.RFC3339)
 	}
-
 	summarySection := fmt.Sprintf(
 		"📊 Summary\n%s",
 		renderSummaryTable([][2]string{
@@ -284,7 +292,6 @@ func (service InitCommandService) writeStatusReport(projectRoot string, reports 
 			{"latest file modification", latest},
 		}),
 	)
-
 	return service.output.WriteLine("\n" + statusPanelStyle.Render(summarySection))
 }
 

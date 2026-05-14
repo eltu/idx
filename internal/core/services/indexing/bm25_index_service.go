@@ -23,10 +23,18 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 	if len(documents) == 0 {
 		return domain.NewInvertedIndex(), nil
 	}
+	index, tokensByDoc := prepareDocumentIndex(documents)
+	addTermsFromContent(index, tokensByDoc)
+	addFileNameTermsToIndex(index, documents)
+	index.CalculateAverageDocLen()
+	index.CalculateIDF()
+	return index, nil
+}
 
+// prepareDocumentIndex runs the first pass: tokenizes all documents and records
+// metadata (path, extension) in the index.
+func prepareDocumentIndex(documents []domain.IndexDocument) (*domain.InvertedIndex, map[string][]domain.TokenWithPosition) {
 	index := domain.NewInvertedIndex()
-
-	// First pass: tokenize all documents and collect term statistics
 	tokensByDoc := make(map[string][]domain.TokenWithPosition)
 	for _, document := range documents {
 		tokens := domain.TokenizeText(document.Content)
@@ -36,38 +44,34 @@ func (service BM25IndexService) BuildIndex(documents []domain.IndexDocument) (*d
 		index.AddFileNameTerms(document.Name, document.Name)
 		index.AddExtensionTerms(document.Name, normalizedExtension(filepath.Ext(document.Name)))
 	}
+	return index, tokensByDoc
+}
 
-	// Second pass: build term index from content
+// addTermsFromContent runs the second pass: adds BM25 terms from document content tokens.
+func addTermsFromContent(index *domain.InvertedIndex, tokensByDoc map[string][]domain.TokenWithPosition) {
 	for docName, tokens := range tokensByDoc {
 		frequencies, positions := domain.CountTokenFrequencies(tokens)
-
 		for term, freq := range frequencies {
 			index.AddTerm(term, docName, freq, positions[term])
 		}
 	}
+}
 
-	// Third pass: index filename tokens into BM25 Terms for retrieval.
-	// Only adds terms not already present in content so content-based scores
-	// are not distorted. Documents whose name contains a term will be found
-	// even when that term never appears in their content.
+// addFileNameTermsToIndex runs the third pass: indexes filename tokens for recall.
+// Only adds terms not already present in content so content-based scores are not distorted.
+func addFileNameTermsToIndex(index *domain.InvertedIndex, documents []domain.IndexDocument) {
 	for _, document := range documents {
 		fileNameTokens := domain.TokenizeFileName(document.Name)
-		fileNameFreqs, fileNamePositions := domain.CountTokenFrequencies(fileNameTokens)
-		for term, freq := range fileNameFreqs {
+		freqs, positions := domain.CountTokenFrequencies(fileNameTokens)
+		for term, freq := range freqs {
 			if termStats := index.Terms[term]; termStats != nil {
 				if _, alreadyIndexed := termStats.Docs[document.Name]; alreadyIndexed {
 					continue
 				}
 			}
-			index.AddTerm(term, document.Name, freq, fileNamePositions[term])
+			index.AddTerm(term, document.Name, freq, positions[term])
 		}
 	}
-
-	// Fourth pass: calculate IDF scores
-	index.CalculateAverageDocLen()
-	index.CalculateIDF()
-
-	return index, nil
 }
 
 func normalizedExtension(extension string) string {

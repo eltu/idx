@@ -242,4 +242,3 @@ func earlyLoadConfigLogLevel(projectRoot string) string {
 	}
 	return cfg.Log.Level
 }
-

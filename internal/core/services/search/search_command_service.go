@@ -208,7 +208,6 @@ func (service SearchCommandService) cachedRankedResults(query string, projectRoo
 	return results, nil
 }
 
-
 func (service SearchCommandService) validateDependencies() error {
 	if service.projectTree == nil {
 		return fmt.Errorf("failed to run search: got nil projectTree dependency, expected non-nil ports.ProjectTree")
@@ -228,4 +227,3 @@ func (service SearchCommandService) validateDependencies() error {
 
 	return nil
 }
-

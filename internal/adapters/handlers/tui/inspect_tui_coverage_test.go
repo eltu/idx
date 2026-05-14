@@ -839,7 +839,6 @@ func TestUpdateInspectDocumentsSelectionDownIncrementsWhenBelowMax(t *testing.T)
 	}
 }
 
-
 // --- updateInspectCommandInputMode backspace and unknown command ---
 
 func TestUpdateInspectCommandInputModeBackspace(t *testing.T) {

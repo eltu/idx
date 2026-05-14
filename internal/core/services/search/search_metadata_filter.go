@@ -188,33 +188,38 @@ func matchedMetadataPatternDocuments(index map[string]map[string]bool, pattern s
 	if len(terms) == 0 {
 		return map[string]bool{}
 	}
-
-	matched := make(map[string]bool)
-	initialized := false
-	for _, term := range terms {
+	matched, ok := initialDocumentSet(index, terms[0])
+	if !ok {
+		return map[string]bool{}
+	}
+	for _, term := range terms[1:] {
 		documents := matchedMetadataDocuments(index, term)
 		if len(documents) == 0 {
 			return map[string]bool{}
 		}
+		retainIntersection(matched, documents)
+	}
+	return matched
+}
 
-		if !initialized {
-			for docName := range documents {
-				matched[docName] = true
-			}
-			initialized = true
-			continue
-		}
+func initialDocumentSet(index map[string]map[string]bool, term string) (map[string]bool, bool) {
+	documents := matchedMetadataDocuments(index, term)
+	if len(documents) == 0 {
+		return nil, false
+	}
+	matched := make(map[string]bool, len(documents))
+	for docName := range documents {
+		matched[docName] = true
+	}
+	return matched, true
+}
 
-		for docName := range matched {
-			if documents[docName] {
-				continue
-			}
-
+func retainIntersection(matched map[string]bool, documents map[string]bool) {
+	for docName := range matched {
+		if !documents[docName] {
 			delete(matched, docName)
 		}
 	}
-
-	return matched
 }
 
 func matchedMetadataDocuments(index map[string]map[string]bool, term string) map[string]bool {
