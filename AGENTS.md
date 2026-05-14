@@ -87,6 +87,7 @@
 - ADR 0011: Destroy disables daemon before removing indices.
 - ADR 0012: Search supports indexed metadata filtering by file extension (`--ext`).
 - ADR 0013: Skills install command uses `git clone` (not curl-pipe) and explicit required editor argument.
+- ADR 0014: Project-level `.idx.yml` at Git root; pointer-field YAML adapter for override detection; defaults → file → CLI flag precedence.
 
 ## Formatting
 
