@@ -1,12 +1,16 @@
 package indexing
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -101,13 +105,15 @@ func (service InitCommandService) removeStaleDirectories(staleDirectories []stri
 }
 
 func (service InitCommandService) syncEligibleDirectories(directories []string, projectRoot string, matcher ports.IgnoreMatcher) error {
-	for _, directoryPath := range directories {
-		if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
-			return err
-		}
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(runtime.NumCPU())
+	for _, dir := range directories {
+		dir := dir
+		g.Go(func() error {
+			return service.syncDirectoryIndex(dir, projectRoot, matcher)
+		})
 	}
-
-	return nil
+	return g.Wait()
 }
 
 func (service InitCommandService) removeDirectoryIndex(directoryPath string) error {

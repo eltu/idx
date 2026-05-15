@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"sync"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -134,15 +135,20 @@ func (indexer *fakeBM25Indexer) BuildIndex(documents []domain.IndexDocument) (*d
 }
 
 type fakeIndexRepository struct {
+	mu           sync.RWMutex
 	savedIndices map[string]*domain.InvertedIndex
 }
 
 func (repo *fakeIndexRepository) SaveIndex(directoryPath string, index *domain.InvertedIndex) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.savedIndices[directoryPath] = index
 	return nil
 }
 
 func (repo *fakeIndexRepository) LoadIndex(directoryPath string) (*domain.InvertedIndex, error) {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
 	index, ok := repo.savedIndices[directoryPath]
 	if !ok {
 		return nil, errors.New("index not found")
@@ -152,6 +158,7 @@ func (repo *fakeIndexRepository) LoadIndex(directoryPath string) (*domain.Invert
 }
 
 type fakeChecksumRepository struct {
+	mu        sync.RWMutex
 	checksums map[string]map[string]string
 	snapshots map[string]ports.DirectoryChecksumSnapshot
 	exists    map[string]bool
@@ -168,6 +175,8 @@ func newFakeChecksumRepository() *fakeChecksumRepository {
 }
 
 func (repo *fakeChecksumRepository) Load(directoryPath string) (map[string]string, bool, error) {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
 	if !repo.exists[directoryPath] {
 		return map[string]string{}, false, nil
 	}
@@ -189,6 +198,8 @@ func (repo *fakeChecksumRepository) Save(directoryPath string, checksums map[str
 		files[fileName] = ports.FileChecksumState{Checksum: checksum}
 	}
 
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.exists[directoryPath] = true
 	repo.checksums[directoryPath] = cloned
 	repo.snapshots[directoryPath] = ports.DirectoryChecksumSnapshot{Files: files}
@@ -197,6 +208,8 @@ func (repo *fakeChecksumRepository) Save(directoryPath string, checksums map[str
 }
 
 func (repo *fakeChecksumRepository) LoadSnapshot(directoryPath string) (ports.DirectoryChecksumSnapshot, bool, error) {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
 	if !repo.exists[directoryPath] {
 		return ports.DirectoryChecksumSnapshot{Files: map[string]ports.FileChecksumState{}}, false, nil
 	}
@@ -227,6 +240,8 @@ func (repo *fakeChecksumRepository) SaveSnapshot(directoryPath string, snapshot 
 		files[fileName] = state
 	}
 
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.exists[directoryPath] = true
 	repo.checksums[directoryPath] = checksums
 	repo.snapshots[directoryPath] = ports.DirectoryChecksumSnapshot{Files: files}

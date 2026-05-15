@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
@@ -207,9 +208,14 @@ func (matcher watchStartupMatcher) Matches(path string) (bool, error) {
 	return false, nil
 }
 
-type watchStartupIndexRepo struct{ savedDirectories []string }
+type watchStartupIndexRepo struct {
+	mu              sync.Mutex
+	savedDirectories []string
+}
 
 func (repo *watchStartupIndexRepo) SaveIndex(directoryPath string, _ *domain.InvertedIndex) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.savedDirectories = append(repo.savedDirectories, directoryPath)
 	return nil
 }
@@ -218,9 +224,14 @@ func (repo *watchStartupIndexRepo) LoadIndex(_ string) (*domain.InvertedIndex, e
 	return domain.NewInvertedIndex(), nil
 }
 
-type watchStartupChecksumRepo struct{ loadData map[string]map[string]string }
+type watchStartupChecksumRepo struct {
+	mu       sync.RWMutex
+	loadData map[string]map[string]string
+}
 
 func (repo *watchStartupChecksumRepo) Load(directoryPath string) (map[string]string, bool, error) {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
 	if repo.loadData == nil {
 		return map[string]string{}, false, nil
 	}
@@ -232,6 +243,8 @@ func (repo *watchStartupChecksumRepo) Load(directoryPath string) (map[string]str
 }
 
 func (repo *watchStartupChecksumRepo) Save(directoryPath string, checksums map[string]string) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	if repo.loadData == nil {
 		repo.loadData = map[string]map[string]string{}
 	}

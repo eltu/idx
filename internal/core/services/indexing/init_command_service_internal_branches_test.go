@@ -81,12 +81,6 @@ func TestInitCommandServiceHelpersCoverUncoveredBranches(t *testing.T) {
 		t.Fatalf("expected skip when snapshot state missing, got %d", len(got))
 	}
 
-	service := newValidInternalService(root)
-	children := []domain.DirectoryEntry{{Name: "not-dir", Path: filepath.Join(root, "f.txt"), IsDir: false}}
-	if err := service.indexChildren(children, root, internalMatcher{}); err != nil {
-		t.Fatalf("expected indexChildren to skip non-directories, got %v", err)
-	}
-
 	_, err := filterEntries([]domain.DirectoryEntry{{Name: "a.txt", Path: filepath.Join(root, "a.txt")}}, root, internalMatcher{err: errors.New("matcher failure")})
 	if err == nil {
 		t.Fatal("expected filterEntries matcher error")

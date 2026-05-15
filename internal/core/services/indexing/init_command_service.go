@@ -2,10 +2,14 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -214,81 +218,63 @@ func (service InitCommandService) initIndexing(currentDir, projectRoot string) e
 		return fmt.Errorf("failed to load ignore rules for %q: got error %v, expected a readable .gitignore configuration", projectRoot, err)
 	}
 	service.initProgress.StartCounting()
-	total, err := service.countEligibleDirectories(currentDir, projectRoot, matcher)
+	allDirs, err := service.collectAllDirectories(currentDir, projectRoot, matcher)
 	if err != nil {
-		return err
-	}
-	service.initProgress.SetTotal(total)
-	if err := service.indexDirectory(currentDir, projectRoot, matcher); err != nil {
 		service.initProgress.Finish()
-		if err == context.Canceled {
-			return nil
-		}
 		return err
 	}
+	service.initProgress.SetTotal(len(allDirs))
+	err = service.indexAllParallel(service.initProgress.Context(), allDirs, projectRoot, matcher)
 	service.initProgress.Finish()
-	return nil
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
-func (service InitCommandService) countEligibleDirectories(dirPath, projectRoot string, matcher ports.IgnoreMatcher) (int, error) {
+// collectAllDirectories returns all eligible directory paths under dirPath via DFS.
+func (service InitCommandService) collectAllDirectories(dirPath, projectRoot string, matcher ports.IgnoreMatcher) ([]string, error) {
 	entries, err := service.projectTree.ReadDir(dirPath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", dirPath, err)
-	}
-
-	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
-	if err != nil {
-		return 0, err
-	}
-
-	count := 1
-	for _, entry := range allowedEntries {
-		if !entry.IsDir {
-			continue
-		}
-		n, err := service.countEligibleDirectories(entry.Path, projectRoot, matcher)
-		if err != nil {
-			return 0, err
-		}
-		count += n
-	}
-	return count, nil
-}
-
-func (service InitCommandService) indexDirectory(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
-	if err := service.initProgress.Context().Err(); err != nil {
-		return context.Canceled
-	}
-	if err := service.validateDependencies(); err != nil {
-		return err
-	}
-	if err := service.syncDirectoryIndex(directoryPath, projectRoot, matcher); err != nil {
-		return err
-	}
-	service.initProgress.IncrementDir(directoryPath)
-	dirEntries, err := service.subdirectoryEntries(directoryPath, projectRoot, matcher)
-	if err != nil {
-		return err
-	}
-	return service.indexChildren(dirEntries, projectRoot, matcher)
-}
-
-func (service InitCommandService) subdirectoryEntries(directoryPath, projectRoot string, matcher ports.IgnoreMatcher) ([]domain.DirectoryEntry, error) {
-	entries, err := service.projectTree.ReadDir(directoryPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
+		return nil, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", dirPath, err)
 	}
 	allowedEntries, err := filterEntries(entries, projectRoot, matcher)
 	if err != nil {
 		return nil, err
 	}
-	dirEntries := make([]domain.DirectoryEntry, 0)
+	dirs := []string{dirPath}
 	for _, entry := range allowedEntries {
-		if entry.IsDir {
-			dirEntries = append(dirEntries, entry)
+		if !entry.IsDir {
+			continue
 		}
+		children, err := service.collectAllDirectories(entry.Path, projectRoot, matcher)
+		if err != nil {
+			return nil, err
+		}
+		dirs = append(dirs, children...)
 	}
-	return dirEntries, nil
+	return dirs, nil
+}
+
+// indexAllParallel indexes dirs concurrently with a worker limit of runtime.NumCPU().
+// Each directory writes to its own isolated path so no coordination between workers is needed.
+func (service InitCommandService) indexAllParallel(ctx context.Context, dirs []string, projectRoot string, matcher ports.IgnoreMatcher) error {
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
+	for _, dir := range dirs {
+		dir := dir
+		g.Go(func() error {
+			if gCtx.Err() != nil {
+				return context.Canceled
+			}
+			if err := service.syncDirectoryIndex(dir, projectRoot, matcher); err != nil {
+				return err
+			}
+			service.initProgress.IncrementDir(dir)
+			return nil
+		})
+	}
+	return g.Wait()
 }
 
 func (service InitCommandService) syncDirectoryIndex(directoryPath string, projectRoot string, matcher ports.IgnoreMatcher) error {
@@ -415,24 +401,6 @@ func buildChangedLogEntries(fileEntries []domain.DirectoryEntry, snapshot ports.
 	}
 
 	return entries
-}
-
-func (service InitCommandService) indexChildren(entries []domain.DirectoryEntry, projectRoot string, matcher ports.IgnoreMatcher) error {
-	if err := service.validateDependencies(); err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir {
-			continue
-		}
-
-		if err := service.indexDirectory(entry.Path, projectRoot, matcher); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func indexFilePath(directoryPath string) string {

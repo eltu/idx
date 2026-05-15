@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -90,7 +91,11 @@ func (service InitCommandService) ensureRootIndex(projectRoot string, matcher po
 		return err
 	}
 
-	if err := service.indexDirectory(projectRoot, projectRoot, matcher); err != nil {
+	allDirs, err := service.collectAllDirectories(projectRoot, projectRoot, matcher)
+	if err != nil {
+		return err
+	}
+	if err := service.indexAllParallel(context.Background(), allDirs, projectRoot, matcher); err != nil {
 		return err
 	}
 
