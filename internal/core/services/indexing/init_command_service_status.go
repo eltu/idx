@@ -3,23 +3,28 @@ package indexing
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"golang.org/x/sync/errgroup"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 )
 
 var (
-	statusPanelStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	statusSuccessStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
-	statusWarningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
-	statusMutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
-	statusPathStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
-	statusActionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
-	statusStaleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
+	statusPanelStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	statusSuccessStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
+	statusWarningStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
+	statusMutedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
+	statusPathStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
+	statusActionStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
+	statusStaleStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
+	statusCheckingLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#818CF8"))
+	statusSpinnerStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
 )
 
 type statusFileReport struct {
@@ -59,62 +64,168 @@ func (service InitCommandService) StatusWithProfile(profile bool) error {
 	return service.runStatus(profile)
 }
 
+type statusGatherResult struct {
+	projectRoot     string
+	directories     []string
+	reports         []statusDirectoryReport
+	summary         statusSummary
+	staleDirectories []string
+}
+
 func (service InitCommandService) runStatus(profile bool) error {
-	if err := service.validateDependencies(); err != nil {
+	stop := service.startStatusSpinner()
+	result, err := service.gatherStatus()
+	stop()
+	if err != nil {
 		return err
+	}
+	return service.writeStatusResult(profile, result.projectRoot, result.directories, result.reports, result.summary, result.staleDirectories)
+}
+
+func (service InitCommandService) gatherStatus() (statusGatherResult, error) {
+	if err := service.validateDependencies(); err != nil {
+		return statusGatherResult{}, err
 	}
 	projectRoot, matcher, err := service.statusMatcher()
 	if err != nil {
-		return err
+		return statusGatherResult{}, err
 	}
-	directories, err := IndexedDirectories(service.projectTree, projectRoot)
+	directories, eligible, err := service.classifyDirectories(projectRoot, matcher)
 	if err != nil {
-		return err
+		return statusGatherResult{}, err
 	}
 	if len(directories) == 0 {
-		return fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
+		return statusGatherResult{}, fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
 	}
-	if err := service.validateIndexCoverage(projectRoot, directories, matcher); err != nil {
-		return err
+	if err := service.validateIndexCoverage(projectRoot, directories, eligible); err != nil {
+		return statusGatherResult{}, err
 	}
-	reports, summary, staleDirectories, err := service.collectStatusReports(directories, projectRoot, matcher)
+	entriesByPath := buildEntriesIndex(eligible)
+	reports, summary, staleDirectories, err := service.collectStatusReports(directories, projectRoot, matcher, entriesByPath)
 	if err != nil {
-		return err
+		return statusGatherResult{}, err
 	}
-	return service.writeStatusResult(profile, projectRoot, directories, reports, summary, staleDirectories)
+	return statusGatherResult{projectRoot, directories, reports, summary, staleDirectories}, nil
 }
 
-func (service InitCommandService) validateIndexCoverage(projectRoot string, directories []string, matcher ports.IgnoreMatcher) error {
-	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
-	if err != nil {
-		return err
+var statusSpinnerFrames = []string{`|`, `/`, `-`, `\`}
+
+// spinnerClearWidth must be at least as wide as the spinner message rendered in the terminal.
+const spinnerClearWidth = 40
+
+// startStatusSpinner prints an animated spinner while status is being gathered.
+// Uses type assertion so outputs that don't support inline writing silently skip the animation.
+// The returned stop func blocks until the goroutine has cleared the spinner line.
+func (service InitCommandService) startStatusSpinner() func() {
+	inlineWriter, ok := service.output.(interface{ WriteInline(string) error })
+	if !ok {
+		return func() {}
 	}
-	eligibleWithFiles, err := service.filterDirectoriesWithFiles(eligible, projectRoot, matcher)
-	if err != nil {
-		return err
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	go func() {
+		defer wg.Done()
+		defer ticker.Stop()
+		_ = inlineWriter.WriteInline("\n")
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				_ = inlineWriter.WriteInline("\r" + strings.Repeat(" ", spinnerClearWidth) + "\r")
+				return
+			case <-ticker.C:
+				frame := statusSpinnerStyle.Render(statusSpinnerFrames[i%4])
+				label := statusCheckingLabelStyle.Render("Checking index status...")
+				_ = inlineWriter.WriteInline(fmt.Sprintf("\r  %s %s", label, frame))
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		wg.Wait()
 	}
-	missing := missingIndexDirectories(directories, eligibleWithFiles)
+}
+
+// classifyDirectories runs parallelIndexedDirectories and parallelEligibleDirectories concurrently.
+// Both are independent read-only tree walks, so they can overlap in time.
+func (service InitCommandService) classifyDirectories(projectRoot string, matcher ports.IgnoreMatcher) (indexed []string, eligible []eligibleDirectory, err error) {
+	var indexedErr, eligibleErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		indexed, indexedErr = parallelIndexedDirectories(service.projectTree, projectRoot)
+	}()
+	go func() {
+		defer wg.Done()
+		eligible, eligibleErr = parallelEligibleDirectories(service.projectTree, projectRoot, projectRoot, matcher)
+	}()
+	wg.Wait()
+	if indexedErr != nil {
+		return nil, nil, indexedErr
+	}
+	return indexed, eligible, eligibleErr
+}
+
+// buildEntriesIndex indexes eligible directories by path for O(1) lookup.
+func buildEntriesIndex(eligible []eligibleDirectory) map[string][]domain.DirectoryEntry {
+	m := make(map[string][]domain.DirectoryEntry, len(eligible))
+	for _, d := range eligible {
+		m[d.path] = d.fileEntries
+	}
+	return m
+}
+
+func (service InitCommandService) validateIndexCoverage(projectRoot string, indexed []string, eligible []eligibleDirectory) error {
+	withFiles := make([]string, 0, len(eligible))
+	for _, d := range eligible {
+		if len(d.fileEntries) > 0 {
+			withFiles = append(withFiles, d.path)
+		}
+	}
+	missing := missingIndexDirectories(indexed, withFiles)
 	if len(missing) > 0 {
 		return service.writeUnindexedDirectoriesError(projectRoot, missing)
 	}
 	return nil
 }
 
-func (service InitCommandService) collectStatusReports(directories []string, projectRoot string, matcher ports.IgnoreMatcher) ([]statusDirectoryReport, statusSummary, []string, error) {
-	reports := make([]statusDirectoryReport, 0, len(directories))
+func (service InitCommandService) collectStatusReports(directories []string, projectRoot string, matcher ports.IgnoreMatcher, entriesByPath map[string][]domain.DirectoryEntry) ([]statusDirectoryReport, statusSummary, []string, error) {
+	reports := make([]statusDirectoryReport, len(directories))
+
+	var g errgroup.Group
+	g.SetLimit(runtime.NumCPU())
+	for i, directoryPath := range directories {
+		i, directoryPath := i, directoryPath
+		g.Go(func() error {
+			fileEntries, ok := entriesByPath[directoryPath]
+			if !ok {
+				// fallback: indexed dir became gitignored since last sync
+				var err error
+				fileEntries, err = service.indexableFileEntries(directoryPath, projectRoot, matcher)
+				if err != nil {
+					return err
+				}
+			}
+			report, err := service.verifyDirectoryIndexCurrent(directoryPath, fileEntries)
+			if err != nil {
+				return err
+			}
+			reports[i] = report
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, statusSummary{}, nil, err
+	}
+
 	summary := statusSummary{CheckedDirectories: len(directories)}
 	staleDirectories := make([]string, 0)
-
-	for _, directoryPath := range directories {
-		report, err := service.verifyDirectoryIndexCurrent(directoryPath, projectRoot, matcher)
-		if err != nil {
-			return nil, statusSummary{}, nil, err
-		}
-
-		reports = append(reports, report)
+	for _, report := range reports {
 		summary = updateStatusSummary(summary, report)
 		if report.ShouldReindex {
-			staleDirectories = append(staleDirectories, directoryPath)
+			staleDirectories = append(staleDirectories, report.Path)
 		} else {
 			summary.UpdatedDirectories++
 		}
@@ -190,12 +301,7 @@ func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, 
 	return projectRoot, matcher, nil
 }
 
-func (service InitCommandService) verifyDirectoryIndexCurrent(directoryPath, projectRoot string, matcher ports.IgnoreMatcher) (statusDirectoryReport, error) {
-	fileEntries, err := service.indexableFileEntries(directoryPath, projectRoot, matcher)
-	if err != nil {
-		return statusDirectoryReport{}, err
-	}
-
+func (service InitCommandService) verifyDirectoryIndexCurrent(directoryPath string, fileEntries []domain.DirectoryEntry) (statusDirectoryReport, error) {
 	_, changedFileNames, shouldReindex, err := service.reindexState(directoryPath, fileEntries)
 	if err != nil {
 		return statusDirectoryReport{}, err
@@ -419,19 +525,3 @@ func missingIndexDirectories(indexed []string, eligible []string) []string {
 	return missing
 }
 
-// filterDirectoriesWithFiles returns only the directories that have at least one indexable file.
-func (service InitCommandService) filterDirectoriesWithFiles(directories []string, projectRoot string, matcher ports.IgnoreMatcher) ([]string, error) {
-	result := make([]string, 0, len(directories))
-	for _, directoryPath := range directories {
-		fileEntries, err := service.indexableFileEntries(directoryPath, projectRoot, matcher)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(fileEntries) > 0 {
-			result = append(result, directoryPath)
-		}
-	}
-
-	return result, nil
-}

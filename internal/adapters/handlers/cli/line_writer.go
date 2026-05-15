@@ -30,3 +30,13 @@ func (writer *LineWriter) WriteLine(text string) error {
 	_, err := fmt.Fprintln(writer.target, text)
 	return err
 }
+
+// WriteInline writes text without a trailing newline, allowing \r to overwrite the line.
+// Used by spinner animations to update the same terminal line in place.
+func (writer *LineWriter) WriteInline(text string) error {
+	if writer.quiet {
+		return nil
+	}
+	_, err := fmt.Fprint(writer.target, text)
+	return err
+}
