@@ -1,4 +1,4 @@
-package repository
+package indexstore
 
 import (
 	"encoding/json"
@@ -177,26 +177,6 @@ func TestDirectoryChecksumRepositoryLoadSnapshotSupportsLegacyPayload(t *testing
 	}
 }
 
-func TestCloneChecksumMapReturnsIndependentCopy(t *testing.T) {
-	original := map[string]string{"a.go": "111"}
-	cloned := cloneChecksumMap(original)
-
-	if cloned["a.go"] != "111" {
-		t.Fatalf("expected cloned value 111, got %q", cloned["a.go"])
-	}
-
-	original["a.go"] = "changed"
-	if cloned["a.go"] != "111" {
-		t.Fatalf("expected clone to remain immutable after source change, got %q", cloned["a.go"])
-	}
-}
-
-func TestCloneChecksumMapNilInputReturnsEmptyMap(t *testing.T) {
-	cloned := cloneChecksumMap(nil)
-	if len(cloned) != 0 {
-		t.Fatalf("expected empty map for nil input, got %d entries", len(cloned))
-	}
-}
 
 func TestDirectoryChecksumRepositoryLoadAndSaveSnapshotInvalidPathErrors(t *testing.T) {
 	repo := NewDirectoryChecksumRepository()

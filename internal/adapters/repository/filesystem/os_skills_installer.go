@@ -1,4 +1,4 @@
-package repository
+package filesystem
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ const skillsRepoURL = "https://github.com/eltu/idx-skills"
 type OSSkillsInstaller struct{}
 
 // NewOSSkillsInstaller creates an installer that uses the system git binary and shell.
-// Example: installer := repository.NewOSSkillsInstaller()
+// Example: installer := filesystem.NewOSSkillsInstaller()
 func NewOSSkillsInstaller() *OSSkillsInstaller {
 	return &OSSkillsInstaller{}
 }

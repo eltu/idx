@@ -13,7 +13,9 @@ import (
 
 	"idx/internal/adapters/handlers/cli"
 	"idx/internal/adapters/handlers/tui"
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/config"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/services/daemon"
 	"idx/internal/core/services/indexing"
 	"idx/internal/core/services/lifecycle"
@@ -188,19 +190,19 @@ func isPathSafeChar(char byte) bool {
 
 func run(arguments []string, output io.Writer) error {
 	writer := cli.NewLineWriter(output)
-	projectTree := repository.NewOSProjectTree()
-	matcherFactory := repository.NewGitIgnoreMatcherFactory()
-	fileReader := repository.NewOSFileReader()
+	projectTree := filesystem.NewOSProjectTree()
+	matcherFactory := filesystem.NewGitIgnoreMatcherFactory()
+	fileReader := filesystem.NewOSFileReader()
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository()
-	checksumRepo := repository.NewDirectoryChecksumRepository()
-	daemonStateRepo := repository.NewDaemonStateRepository()
-	processSpawner := &repository.OSProcessSpawner{}
+	indexRepo := indexstore.NewBinaryIndexRepository()
+	checksumRepo := indexstore.NewDirectoryChecksumRepository()
+	daemonStateRepo := config.NewDaemonStateRepository()
+	processSpawner := &filesystem.OSProcessSpawner{}
 	inspectRunner := tui.NewInspectRunner()
 	progressRunner := tui.NewInitProgressRunner()
 
 	// Load project config from .idx.yml (git root) to wire service defaults.
-	configRepo := repository.NewYAMLConfigRepository()
+	configRepo := config.NewYAMLConfigRepository()
 	cwd, _ := os.Getwd()
 	projectRoot := gitRootFrom(cwd)
 	cfg, overrides, _ := configRepo.Load(projectRoot)
@@ -221,7 +223,7 @@ func run(arguments []string, output io.Writer) error {
 			MaxWorkers:      cfg.Search.MaxWorkers,
 			CacheTTL:        cfg.Search.CacheTTL,
 		})
-	skillsInstaller := repository.NewOSSkillsInstaller()
+	skillsInstaller := filesystem.NewOSSkillsInstaller()
 	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
@@ -235,7 +237,7 @@ func run(arguments []string, output io.Writer) error {
 // earlyLoadConfigLogLevel reads only the log.level field from .idx.yml so the
 // logger can be initialised before the full DI graph is wired in run().
 func earlyLoadConfigLogLevel(projectRoot string) string {
-	configRepo := repository.NewYAMLConfigRepository()
+	configRepo := config.NewYAMLConfigRepository()
 	cfg, _, err := configRepo.Load(projectRoot)
 	if err != nil {
 		return ""

@@ -1,4 +1,4 @@
-package repository
+package indexstore
 
 import (
 	"encoding/json"
@@ -149,19 +149,6 @@ func (repo *DirectoryChecksumRepository) deleteCacheEntry(directoryPath string) 
 	repo.mu.Lock()
 	delete(repo.cache, directoryPath)
 	repo.mu.Unlock()
-}
-
-func cloneChecksumMap(source map[string]string) map[string]string {
-	if source == nil {
-		return map[string]string{}
-	}
-
-	cloned := make(map[string]string, len(source))
-	for fileName, checksum := range source {
-		cloned[fileName] = checksum
-	}
-
-	return cloned
 }
 
 func snapshotToChecksums(snapshot ports.DirectoryChecksumSnapshot) map[string]string {

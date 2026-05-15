@@ -2,29 +2,15 @@ package indexing
 
 import (
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"golang.org/x/sync/errgroup"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
-)
-
-var (
-	statusPanelStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	statusSuccessStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
-	statusWarningStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FBBF24"))
-	statusMutedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
-	statusPathStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
-	statusActionStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
-	statusStaleStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#F87171"))
-	statusCheckingLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#818CF8"))
-	statusSpinnerStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
 )
 
 type statusFileReport struct {
@@ -95,7 +81,7 @@ func (service InitCommandService) gatherStatus() (statusGatherResult, error) {
 		return statusGatherResult{}, err
 	}
 	if len(directories) == 0 {
-		return statusGatherResult{}, fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
+		return statusGatherResult{}, service.writeNoIndexError(projectRoot)
 	}
 	if err := service.validateIndexCoverage(projectRoot, directories, eligible); err != nil {
 		return statusGatherResult{}, err
@@ -128,16 +114,23 @@ func (service InitCommandService) startStatusSpinner() func() {
 	go func() {
 		defer wg.Done()
 		defer ticker.Stop()
-		_ = inlineWriter.WriteInline("\n")
+		started := false
 		for i := 0; ; i++ {
 			select {
 			case <-done:
-				_ = inlineWriter.WriteInline("\r" + strings.Repeat(" ", spinnerClearWidth) + "\r")
+				if started {
+					_ = inlineWriter.WriteInline("\r" + strings.Repeat(" ", spinnerClearWidth) + "\r")
+				}
 				return
 			case <-ticker.C:
 				frame := statusSpinnerStyle.Render(statusSpinnerFrames[i%4])
 				label := statusCheckingLabelStyle.Render("Checking index status...")
-				_ = inlineWriter.WriteInline(fmt.Sprintf("\r  %s %s", label, frame))
+				prefix := "\r"
+				if !started {
+					prefix = "\n\r"
+					started = true
+				}
+				_ = inlineWriter.WriteInline(fmt.Sprintf("%s  %s %s", prefix, label, frame))
 			}
 		}
 	}()
@@ -234,53 +227,6 @@ func (service InitCommandService) collectStatusReports(directories []string, pro
 	return reports, summary, staleDirectories, nil
 }
 
-func (service InitCommandService) writeStatusResult(profile bool, projectRoot string, directories []string, reports []statusDirectoryReport, summary statusSummary, staleDirectories []string) error {
-	if profile {
-		if err := service.writeStatusReport(projectRoot, reports, summary); err != nil {
-			return err
-		}
-	}
-
-	if len(staleDirectories) > 0 {
-		return service.writeStaleResult(profile, projectRoot, directories, summary, staleDirectories)
-	}
-
-	if profile {
-		return service.output.WriteLine("\n✅ Indices are up to date.\n")
-	}
-
-	return service.writeStatusOverviewPanel(statusPanelData{
-		projectRoot:     projectRoot,
-		summary:         summary,
-		directories:     directories,
-		configFilePath:  service.statusConfigFilePath,
-		configOverrides: service.statusConfigOverrides,
-		indexStatus:     statusSuccessStyle.Render("✅ up to date"),
-	})
-}
-
-func (service InitCommandService) writeStaleResult(profile bool, projectRoot string, directories []string, summary statusSummary, staleDirectories []string) error {
-	if profile {
-		return service.writeStaleIndexError(projectRoot, staleDirectories)
-	}
-
-	staleCount := len(staleDirectories)
-	indexLine := statusStaleStyle.Render(fmt.Sprintf("❌ %d director%s stale", staleCount, pluralSuffix(staleCount, "y", "ies"))) +
-		"  — run " + statusActionStyle.Render("idx sync")
-
-	if err := service.writeStatusOverviewPanel(statusPanelData{
-		projectRoot:     projectRoot,
-		summary:         summary,
-		directories:     directories,
-		configFilePath:  service.statusConfigFilePath,
-		configOverrides: service.statusConfigOverrides,
-		indexStatus:     indexLine,
-	}); err != nil {
-		return err
-	}
-
-	return fmt.Errorf("stale index")
-}
 
 func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, error) {
 	currentDir, err := service.projectTree.CurrentDir()
@@ -290,7 +236,7 @@ func (service InitCommandService) statusMatcher() (string, ports.IgnoreMatcher, 
 
 	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
 	if err != nil {
-		return "", nil, err
+		return "", nil, service.writeNotGitRepoError(currentDir)
 	}
 
 	matcher, err := service.matcherFactory.New(projectRoot)
@@ -346,166 +292,6 @@ func updateStatusSummary(summary statusSummary, report statusDirectoryReport) st
 	}
 
 	return summary
-}
-
-func (service InitCommandService) writeStatusReport(projectRoot string, reports []statusDirectoryReport, summary statusSummary) error {
-	if err := service.writeDirectoryReports(projectRoot, reports); err != nil {
-		return err
-	}
-	return service.writeStatusSummaryPanel(summary)
-}
-
-func (service InitCommandService) writeDirectoryReports(projectRoot string, reports []statusDirectoryReport) error {
-	for _, report := range reports {
-		if err := service.writeDirectoryReport(projectRoot, report); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (service InitCommandService) writeDirectoryReport(projectRoot string, report statusDirectoryReport) error {
-	directoryLabel, err := filepath.Rel(projectRoot, report.Path)
-	if err != nil {
-		directoryLabel = report.Path
-	}
-	if directoryLabel == "." {
-		directoryLabel = projectRoot
-	}
-	directoryState := "✅ updated"
-	if report.ShouldReindex {
-		directoryState = "❌ stale"
-	}
-	section := fmt.Sprintf("📂 %s\n%s\n\n%s", directoryLabel, directoryState, renderDirectoryTable(report.Files))
-	if report.StructuralChange {
-		section += "\n\n! note: file set changed (added/removed files) since last indexing"
-	}
-	return service.output.WriteLine("\n" + statusPanelStyle.Render(section))
-}
-
-func (service InitCommandService) writeStatusSummaryPanel(summary statusSummary) error {
-	latest := "n/a"
-	if summary.HasLatest {
-		latest = summary.LatestModifiedAt.Format(time.RFC3339)
-	}
-	summarySection := fmt.Sprintf(
-		"📊 Summary\n%s",
-		renderSummaryTable([][2]string{
-			{"directories checked", fmt.Sprintf("%d", summary.CheckedDirectories)},
-			{"directories updated", fmt.Sprintf("%d", summary.UpdatedDirectories)},
-			{"files checked", fmt.Sprintf("%d", summary.CheckedFiles)},
-			{"files updated", fmt.Sprintf("%d", summary.UpdatedFiles)},
-			{"latest file modification", latest},
-		}),
-	)
-	return service.output.WriteLine("\n" + statusPanelStyle.Render(summarySection))
-}
-
-func renderDirectoryTable(files []statusFileReport) string {
-	const fileWidth = 48
-
-	rows := []string{}
-	rows = append(rows, renderTableHeader(fileWidth))
-	rows = append(rows, renderSeparator(fileWidth))
-
-	for _, file := range files {
-		state := "✗"
-		if file.Updated {
-			state = "✓"
-		}
-
-		rows = append(rows, fmt.Sprintf("| %-48s | %-7s | %-20s |", truncateStatusColumn(file.Name, fileWidth), state, file.ModifiedAt.Format(time.RFC3339)))
-	}
-
-	return strings.Join(rows, "\n")
-}
-
-func renderSummaryTable(rows [][2]string) string {
-	maxMetric := len("metric")
-	for _, row := range rows {
-		if len(row[0]) > maxMetric {
-			maxMetric = len(row[0])
-		}
-	}
-
-	lines := []string{fmt.Sprintf("| %-*s | %-*s |", maxMetric, "metric", 26, "value")}
-	lines = append(lines, fmt.Sprintf("|-%s-|-%s-|", strings.Repeat("-", maxMetric), strings.Repeat("-", 26)))
-	for _, row := range rows {
-		lines = append(lines, fmt.Sprintf("| %-*s | %-26s |", maxMetric, row[0], row[1]))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func renderTableHeader(fileWidth int) string {
-	return fmt.Sprintf("| %-*s | %-7s | %-20s |", fileWidth, "file", "updated", "modified_at")
-}
-
-func renderSeparator(fileWidth int) string {
-	return fmt.Sprintf("|-%s-|-%s-|-%s-|", strings.Repeat("-", fileWidth), strings.Repeat("-", 7), strings.Repeat("-", 20))
-}
-
-func truncateStatusColumn(value string, maxWidth int) string {
-	if len(value) <= maxWidth {
-		return value
-	}
-
-	if maxWidth < 4 {
-		return value[:maxWidth]
-	}
-
-	return value[:maxWidth-3] + "..."
-}
-
-func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot string, missing []string) error {
-	header := statusWarningStyle.Render("⚠  Index out of sync")
-	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s not indexed yet:", len(missing), pluralSuffix(len(missing), "y", "ies")))
-	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
-
-	lines := []string{"", header, "", count}
-	for _, dir := range missing {
-		rel, err := filepath.Rel(projectRoot, dir)
-		if err != nil {
-			rel = dir
-		}
-		lines = append(lines, "  "+statusPathStyle.Render(rel))
-	}
-	lines = append(lines, "", "  "+action, "")
-
-	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
-		return err
-	}
-
-	return fmt.Errorf("unindexed directories found")
-}
-
-func (service InitCommandService) writeStaleIndexError(projectRoot string, stale []string) error {
-	header := statusStaleStyle.Render("✗  Stale index detected")
-	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s with outdated index:", len(stale), pluralSuffix(len(stale), "y", "ies")))
-	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
-
-	lines := []string{"", header, "", count}
-	for _, dir := range stale {
-		rel, err := filepath.Rel(projectRoot, dir)
-		if err != nil {
-			rel = dir
-		}
-		lines = append(lines, "  "+statusPathStyle.Render(rel))
-	}
-	lines = append(lines, "", "  "+action, "")
-
-	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
-		return err
-	}
-
-	return fmt.Errorf("stale index")
-}
-
-func pluralSuffix(n int, singular, plural string) string {
-	if n == 1 {
-		return singular
-	}
-	return plural
 }
 
 // missingIndexDirectories returns eligible directories that have no index yet.

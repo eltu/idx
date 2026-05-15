@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/services/indexing"
 )
 
@@ -149,13 +150,13 @@ func TestStatusFailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
 
 func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
 	return indexing.NewInitCommandService(
-		repository.NewOSProjectTree(),
+		filesystem.NewOSProjectTree(),
 		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
 		output,
-		repository.NewOSFileReader(),
+		filesystem.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(),
-		repository.NewDirectoryChecksumRepository(),
+		indexstore.NewBinaryIndexRepository(),
+		indexstore.NewDirectoryChecksumRepository(),
 		nil,
 	)
 }

@@ -1,4 +1,4 @@
-package repository
+package filesystem
 
 import (
 	"fmt"
@@ -6,8 +6,7 @@ import (
 )
 
 // OSFileReader reads file content from the operating system.
-type OSFileReader struct {
-}
+type OSFileReader struct{}
 
 // NewOSFileReader creates a new OS file reader.
 func NewOSFileReader() *OSFileReader {

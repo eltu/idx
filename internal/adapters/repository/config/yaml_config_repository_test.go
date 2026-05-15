@@ -1,4 +1,4 @@
-package repository_test
+package config_test
 
 import (
 	"os"
@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/config"
 	"idx/internal/core/domain"
 )
 
 func TestYAMLConfigRepositoryFilePathReturnEmptyWhenNoFile(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 
 	got := repo.FilePath(dir)
@@ -21,7 +21,7 @@ func TestYAMLConfigRepositoryFilePathReturnEmptyWhenNoFile(t *testing.T) {
 }
 
 func TestYAMLConfigRepositoryFilePathReturnsAbsolutePathWhenFileExists(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, "")
 
@@ -33,7 +33,7 @@ func TestYAMLConfigRepositoryFilePathReturnsAbsolutePathWhenFileExists(t *testin
 }
 
 func TestYAMLConfigRepositoryLoadReturnsDefaultsWhenFileAbsent(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 
 	cfg, overrides, err := repo.Load(dir)
@@ -54,7 +54,7 @@ func TestYAMLConfigRepositoryLoadReturnsDefaultsWhenFileAbsent(t *testing.T) {
 }
 
 func TestYAMLConfigRepositoryLoadParsesExplicitValues(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 search:
@@ -85,7 +85,7 @@ bm25:
 }
 
 func TestYAMLConfigRepositoryLoadTracksExactOverrides(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 search:
@@ -116,7 +116,7 @@ bm25:
 }
 
 func TestYAMLConfigRepositoryLoadKeepsDefaultsForUnsetKeys(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 search:
@@ -138,7 +138,7 @@ search:
 }
 
 func TestYAMLConfigRepositoryLoadParsesDurationStrings(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 search:
@@ -172,7 +172,7 @@ watch:
 }
 
 func TestYAMLConfigRepositoryLoadReturnsErrorForInvalidDuration(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 watch:
@@ -186,7 +186,7 @@ watch:
 }
 
 func TestYAMLConfigRepositoryLoadReturnsErrorForInvalidYAML(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 
 	if err := os.WriteFile(filepath.Join(dir, ".idx.yml"), []byte(":\tinvalid: yaml::\n"), 0o600); err != nil {
@@ -200,7 +200,7 @@ func TestYAMLConfigRepositoryLoadReturnsErrorForInvalidYAML(t *testing.T) {
 }
 
 func TestYAMLConfigRepositoryLoadParsesExcludePatterns(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 index:
@@ -231,7 +231,7 @@ index:
 }
 
 func TestYAMLConfigRepositoryLoadParsesLogLevel(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 log:
@@ -257,7 +257,7 @@ log:
 }
 
 func TestYAMLConfigRepositoryLoadEmptyFileReturnsDefaults(t *testing.T) {
-	repo := repository.NewYAMLConfigRepository()
+	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, "")
 

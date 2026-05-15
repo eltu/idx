@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 	"idx/internal/core/services/indexing"
@@ -117,9 +118,9 @@ func TestSyncAndSearchRunConcurrentlyWithoutInterference(t *testing.T) {
 
 	filePaths := createConcurrencyCorpus(t, rootDir, settings.files)
 	projectTree := concurrentProjectTree{root: rootDir}
-	fileReader := repository.NewOSFileReader()
-	indexRepo := repository.NewBinaryIndexRepository()
-	checksumRepo := repository.NewDirectoryChecksumRepository()
+	fileReader := filesystem.NewOSFileReader()
+	indexRepo := indexstore.NewBinaryIndexRepository()
+	checksumRepo := indexstore.NewDirectoryChecksumRepository()
 	indexService := indexing.NewInitCommandService(
 		projectTree,
 		allowAllIgnoreMatcherFactory{},
@@ -157,9 +158,9 @@ func TestSyncAndSearchRunConcurrentlyAcrossDirectories(t *testing.T) {
 
 	filePaths := createConcurrencyCorpusAcrossDirs(t, rootDir, settings.subdirs, settings.filesPerDir)
 	projectTree := concurrentProjectTree{root: rootDir}
-	fileReader := repository.NewOSFileReader()
-	indexRepo := repository.NewBinaryIndexRepository()
-	checksumRepo := repository.NewDirectoryChecksumRepository()
+	fileReader := filesystem.NewOSFileReader()
+	indexRepo := indexstore.NewBinaryIndexRepository()
+	checksumRepo := indexstore.NewDirectoryChecksumRepository()
 	indexService := indexing.NewInitCommandService(
 		projectTree,
 		allowAllIgnoreMatcherFactory{},

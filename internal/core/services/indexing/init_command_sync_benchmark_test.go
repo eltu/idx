@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
 	"idx/internal/core/services/indexing"
@@ -117,10 +118,10 @@ func benchmarkSyncScenario(b *testing.B, stripMetadata bool) {
 
 	projectTree := benchmarkProjectTree{root: rootDir, stripMetadata: stripMetadata}
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
-	fileReader := &benchmarkCountingFileReader{base: repository.NewOSFileReader()}
+	fileReader := &benchmarkCountingFileReader{base: filesystem.NewOSFileReader()}
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository()
-	checksumRepo := repository.NewDirectoryChecksumRepository()
+	indexRepo := indexstore.NewBinaryIndexRepository()
+	checksumRepo := indexstore.NewDirectoryChecksumRepository()
 	output := &capturingTextOutput{}
 	service := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
 

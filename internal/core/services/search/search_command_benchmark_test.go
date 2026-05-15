@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	"idx/internal/adapters/handlers/cli"
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/domain"
 	"idx/internal/core/services/indexing"
 	search "idx/internal/core/services/search"
@@ -151,11 +152,11 @@ func buildBenchmarkSearchService(b testing.TB, repositoryPath string) search.Sea
 	b.Helper()
 	projectTree := benchmarkProjectTree{currentDir: repositoryPath, rootDir: repositoryPath}
 	output := cli.NewLineWriter(io.Discard)
-	matcherFactory := repository.NewGitIgnoreMatcherFactory()
-	fileReader := repository.NewOSFileReader()
+	matcherFactory := filesystem.NewGitIgnoreMatcherFactory()
+	fileReader := filesystem.NewOSFileReader()
 	indexer := indexing.NewBM25IndexService()
-	indexRepo := repository.NewBinaryIndexRepository()
-	checksumRepo := repository.NewDirectoryChecksumRepository()
+	indexRepo := indexstore.NewBinaryIndexRepository()
+	checksumRepo := indexstore.NewDirectoryChecksumRepository()
 	initService := indexing.NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
 	if err := initService.Run(); err != nil {
 		b.Fatalf("expected benchmark indexing to succeed, got %v", err)

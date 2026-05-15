@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"idx/internal/adapters/repository"
+	"idx/internal/adapters/repository/filesystem"
+	"idx/internal/adapters/repository/indexstore"
 	"idx/internal/core/services/indexing"
 )
 
@@ -21,15 +22,15 @@ func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
 		t.Fatalf("expected seed file creation to succeed, got %v", err)
 	}
 
-	projectTree := repository.NewOSProjectTree()
+	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(
 		projectTree,
 		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
 		&capturingTextOutput{},
-		repository.NewOSFileReader(),
+		filesystem.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(),
-		repository.NewDirectoryChecksumRepository(),
+		indexstore.NewBinaryIndexRepository(),
+		indexstore.NewDirectoryChecksumRepository(),
 		nil)
 
 	originalDir, err := os.Getwd()
@@ -85,15 +86,15 @@ func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
 		t.Fatalf("expected seed file creation to succeed, got %v", err)
 	}
 
-	projectTree := repository.NewOSProjectTree()
+	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(
 		projectTree,
 		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
 		&capturingTextOutput{},
-		repository.NewOSFileReader(),
+		filesystem.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(),
-		repository.NewDirectoryChecksumRepository(),
+		indexstore.NewBinaryIndexRepository(),
+		indexstore.NewDirectoryChecksumRepository(),
 		nil)
 
 	originalDir, err := os.Getwd()
@@ -146,15 +147,15 @@ func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
 		t.Fatalf("expected file B creation to succeed, got %v", err)
 	}
 
-	projectTree := repository.NewOSProjectTree()
+	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(
 		projectTree,
 		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
 		&capturingTextOutput{},
-		repository.NewOSFileReader(),
+		filesystem.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(),
-		repository.NewDirectoryChecksumRepository(),
+		indexstore.NewBinaryIndexRepository(),
+		indexstore.NewDirectoryChecksumRepository(),
 		nil)
 
 	originalDir, err := os.Getwd()
@@ -222,15 +223,15 @@ func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
 		t.Fatalf("expected file B creation to succeed, got %v", err)
 	}
 
-	projectTree := repository.NewOSProjectTree()
+	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(
 		projectTree,
 		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
 		&capturingTextOutput{},
-		repository.NewOSFileReader(),
+		filesystem.NewOSFileReader(),
 		indexing.NewBM25IndexService(),
-		repository.NewBinaryIndexRepository(),
-		repository.NewDirectoryChecksumRepository(),
+		indexstore.NewBinaryIndexRepository(),
+		indexstore.NewDirectoryChecksumRepository(),
 		nil)
 
 	originalDir, err := os.Getwd()

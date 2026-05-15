@@ -1,4 +1,4 @@
-package repository
+package indexstore
 
 import (
 	"errors"
@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"idx/internal/adapters/repository/filesystem"
 	"idx/internal/core/domain"
 )
 
 func TestJSONIndexRepositorySaveAndLoadIndex(t *testing.T) {
-	tree := NewOSProjectTree()
+	tree := filesystem.NewOSProjectTree()
 	repo := NewJSONIndexRepository(tree)
 	dir := t.TempDir()
 
@@ -38,7 +39,7 @@ func TestJSONIndexRepositorySaveAndLoadIndex(t *testing.T) {
 }
 
 func TestJSONIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) {
-	tree := NewOSProjectTree()
+	tree := filesystem.NewOSProjectTree()
 	repo := NewJSONIndexRepository(tree)
 	_, err := repo.LoadIndex(t.TempDir())
 	if err == nil {
@@ -56,7 +57,7 @@ func TestJSONIndexRepositoryLoadIndexReturnsErrorForInvalidJSON(t *testing.T) {
 		t.Fatalf("expected invalid JSON write to succeed, got %v", err)
 	}
 
-	repo := NewJSONIndexRepository(NewOSProjectTree())
+	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
 	_, err := repo.LoadIndex(dir)
 	if err == nil {
 		t.Fatal("expected parse error for invalid JSON payload")
@@ -81,7 +82,7 @@ func TestJSONIndexRepositorySaveIndexReturnsErrorWhenWriteFails(t *testing.T) {
 }
 
 func TestJSONIndexRepositorySaveIndexReturnsErrorForNilIndex(t *testing.T) {
-	repo := NewJSONIndexRepository(NewOSProjectTree())
+	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
 
 	err := repo.SaveIndex(t.TempDir(), nil)
 	if err == nil {
