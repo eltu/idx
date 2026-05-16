@@ -104,7 +104,8 @@ Use `search` when:
 2. Optionally add `.idx.yml` at the project root to set defaults (run `idx config show` to inspect).
 3. Keep index fresh with `idx daemon` / `idx watch`, or run `idx sync` when needed.
 4. Run `idx search "your terms"` during development.
-5. Run `idx skills install <editor>` once to install AI coding skills into your editor.
+5. Use `idx read <path>` to stream files — each read is logged and boosts that file in future search rankings.
+6. Run `idx skills install <editor>` once to install AI coding skills into your editor.
 
 ---
 
@@ -118,6 +119,7 @@ All commands support the global flag `--quiet` (`-q`) to suppress informational 
 | [`idx sync`](features/sync.md) | Resync indexes using checksum-based incremental update |
 | [`idx status`](features/status.md) | Show index freshness and per-directory stats |
 | [`idx search`](features/search.md) | Search indexed content with BM25 ranking |
+| [`idx read`](features/read.md) | Stream a project file to stdout; logs access for search ranking boost |
 | [`idx inspect`](features/inspect.md) | Interactively browse index contents |
 | [`idx watch`](features/watch.md) | Keep indexes in sync in real time (foreground) |
 | [`idx daemon`](features/daemon.md) | Manage background watch processes |
@@ -188,6 +190,7 @@ Results are ranked by a combination of:
 | [ADR 0012](adr/0012-add-search-extension-metadata-filter.md) | `idx search` adds indexed metadata filter by file extension (`--ext`) |
 | [ADR 0013](adr/0013-skills-install-command.md) | `idx skills install` uses `git clone` over curl-pipe with explicit required editor argument |
 | [ADR 0014](adr/0014-project-level-config-file.md) | Project-level `.idx.yml` at Git root; pointer-field override detection; defaults → file → CLI flag precedence |
+| [ADR 0015](adr/0015-parallel-directory-indexing.md) | Parallel directory indexing with bounded concurrency for `idx init` and `idx sync` |
 
 ---
 

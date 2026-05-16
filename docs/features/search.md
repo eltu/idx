@@ -43,6 +43,7 @@ Compatibility alias:
 
 - Resolves project root and searches all indexed directories.
 - Tokenizes and deduplicates query terms.
+- Files accessed via `idx read` accumulate a read-count in `.idx/read_log.idx`; this count is used as a future ranking boost signal (currently collected, boost application is in progress).
 - Supports metadata-only search when query is empty and at least one metadata filter is set (`--path` and/or `--ext`).
 - Applies BM25 + normalization for ranking.
 - `--operator AND` (default): a document must contain **all** query terms to be ranked.

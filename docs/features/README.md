@@ -8,6 +8,7 @@ Detailed end-user command reference, organized by command.
 - [sync](sync.md)
 - [status](status.md)
 - [search](search.md)
+- [read](read.md)
 - [inspect](inspect.md)
 - [watch](watch.md)
 - [daemon](daemon.md)
@@ -29,7 +30,7 @@ All commands inherit the root global flags:
 | --- | --- |
 | Index Setup | `init`, `destroy` |
 | Index Sync | `sync`, `watch`, `daemon`, `status` |
-| Search | `search`, `inspect` |
+| Search | `search`, `inspect`, `read` |
 | About | `version` |
 | Tools | `skills` |
 | Config | `config`, `config show` |
@@ -40,5 +41,6 @@ All commands inherit the root global flags:
 2. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
 3. Verify index freshness with `idx status`.
 4. Use `idx search` during development.
-5. Run `idx skills install <editor>` once to install AI coding skills into your editor.
-6. Use `idx version` (or `idx --version`) when you need build/version info.
+5. Use `idx read <path>` to stream file content — repeated reads boost that file in future search rankings.
+6. Run `idx skills install <editor>` once to install AI coding skills into your editor.
+7. Use `idx version` (or `idx --version`) when you need build/version info.
