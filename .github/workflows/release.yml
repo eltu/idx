@@ -59,19 +59,9 @@ jobs:
           set -euo pipefail
           mkdir -p dist
 
-          base_name="idx-${TAG}-${GOOS}-${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
-            binary_name="${base_name}.exe"
-            archive_name="${base_name}.zip"
-            go build -trimpath -ldflags "-s -w" -o "dist/${binary_name}" ./cmd/idx
-            cd dist
-            zip -q "${archive_name}" "${binary_name}"
-          else
-            binary_name="${base_name}"
-            archive_name="${base_name}.tar.gz"
-            go build -trimpath -ldflags "-s -w" -o "dist/${binary_name}" ./cmd/idx
-            tar -C dist -czf "dist/${archive_name}" "${binary_name}"
-          fi
+          archive_base="idx-${TAG}-${GOOS}-${GOARCH}"
+          go build -trimpath -ldflags "-s -w" -o "dist/idx" ./cmd/idx
+          tar -C dist -czf "dist/${archive_base}.tar.gz" idx
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
