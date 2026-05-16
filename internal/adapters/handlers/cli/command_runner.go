@@ -25,6 +25,10 @@ type searchableCommand interface {
 	RunWithOptions(query string, options ports.SearchOptions) error
 }
 
+type readableCommand interface {
+	RunWithOptions(filePath string, fromLine, toLine int) error
+}
+
 // BuildInfo holds version and build date injected at compile time via -ldflags.
 type BuildInfo struct {
 	Version   string
@@ -36,6 +40,7 @@ type CommandRunner struct {
 	indexCommand    indexableCommand
 	destroyCommand  runnableCommand
 	searchCommand   searchableCommand
+	readCommand     readableCommand
 	daemonService   daemonableCommand
 	skillsCommand   skillsableCommand
 	buildInfo       BuildInfo
@@ -78,6 +83,13 @@ func (runner CommandRunner) WithBuildInfo(info BuildInfo) CommandRunner {
 // Example: runner = runner.WithSkillsCommand(skillsService).
 func (runner CommandRunner) WithSkillsCommand(s skillsableCommand) CommandRunner {
 	runner.skillsCommand = s
+	return runner
+}
+
+// WithReadCommand wires the file reader so 'idx read <path>' works.
+// Example: runner = runner.WithReadCommand(readService).
+func (runner CommandRunner) WithReadCommand(r readableCommand) CommandRunner {
+	runner.readCommand = r
 	return runner
 }
 
@@ -126,7 +138,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "watch", "destroy", "search", "daemon", "version", "skills", "config", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "daemon", "version", "skills", "config", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

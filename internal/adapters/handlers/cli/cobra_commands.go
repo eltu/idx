@@ -54,7 +54,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 
 	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
 	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newWatchCommand(), runner.newDaemonCommand(), runner.newStatusCommand())
-	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand())
+	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand(), runner.newReadCommand())
 	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
 	addCommandToGroup(root, groupTools, runner.newSkillsCommand())
 	addCommandToGroup(root, groupConfig, runner.newConfigCommand())

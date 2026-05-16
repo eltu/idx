@@ -19,6 +19,7 @@ import (
 	"idx/internal/core/services/daemon"
 	"idx/internal/core/services/indexing"
 	"idx/internal/core/services/lifecycle"
+	"idx/internal/core/services/read"
 	"idx/internal/core/services/search"
 	"idx/internal/core/services/skills"
 )
@@ -225,10 +226,15 @@ func run(arguments []string, output io.Writer) error {
 		})
 	skillsInstaller := filesystem.NewOSSkillsInstaller()
 	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
+	fileStreamer := filesystem.NewOSFileStreamer()
+	readLogRepo := indexstore.NewReadLogRepository()
+	readService := read.NewReadCommandService(projectTree, fileStreamer, writer).
+		WithReadLog(readLogRepo)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{writer, progressRunner}).
 		WithSkillsCommand(skillsService).
+		WithReadCommand(readService).
 		WithConfig(cfg, configFilePath, overrides)
 
 	return runner.Run()
