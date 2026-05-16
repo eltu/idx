@@ -191,6 +191,7 @@ Results are ranked by a combination of:
 | [ADR 0013](adr/0013-skills-install-command.md) | `idx skills install` uses `git clone` over curl-pipe with explicit required editor argument |
 | [ADR 0014](adr/0014-project-level-config-file.md) | Project-level `.idx.yml` at Git root; pointer-field override detection; defaults → file → CLI flag precedence |
 | [ADR 0015](adr/0015-parallel-directory-indexing.md) | Parallel directory indexing with bounded concurrency for `idx init` and `idx sync` |
+| [ADR 0016](adr/0016-read-command-and-access-log.md) | `idx read` streams files with buffered I/O; access log with 30-day TTL, inode rename detection, and 5-min write cache |
 
 ---
 

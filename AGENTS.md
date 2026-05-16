@@ -88,6 +88,8 @@
 - ADR 0012: Search supports indexed metadata filtering by file extension (`--ext`).
 - ADR 0013: Skills install command uses `git clone` (not curl-pipe) and explicit required editor argument.
 - ADR 0014: Project-level `.idx.yml` at Git root; pointer-field YAML adapter for override detection; defaults → file → CLI flag precedence.
+- ADR 0015: Parallel directory indexing with bounded concurrency (`runtime.NumCPU`) using a two-phase collect + index approach.
+- ADR 0016: `idx read` command streams files via `bufio.Scanner`; access log at `.idx/read_log.idx` tracks read counts with 30-day TTL, inode-based rename detection, deletion pruning, and a 5-min write cache.
 
 ## Formatting
 
