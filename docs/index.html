@@ -61,38 +61,52 @@ layout: landing
     relevant results instead.
   </p>
 
-  <div class="comparison-grid">
-    <div class="comparison-block comparison-block--bad">
-      <div class="comparison-label">
-        <span class="comparison-indicator bad">✗</span> grep -r "auth" .
+  <div class="session-mockup">
+    <div class="session-bar">
+      <div class="session-dots">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot amber"></span>
+        <span class="terminal-dot green"></span>
       </div>
-      <pre class="comparison-pre"><span class="cb-dim">middleware/session.go:12:</span>  session.Auth = true
-<span class="cb-dim">middleware/auth.go:8:</span>     func NewAuth(cfg Config) *Auth {
-<span class="cb-dim">middleware/auth.go:44:</span>    if err := auth.Validate(token); err != nil {
-<span class="cb-dim">handlers/login.go:3:</span>      "auth/middleware"
-<span class="cb-dim">handlers/login.go:91:</span>     authHeader := r.Header.Get("Authorization")
-<span class="cb-dim">handlers/login.go:102:</span>   return auth.NewToken(user)
-<span class="cb-dim">config/auth.go:17:</span>        AuthSecret = os.Getenv("AUTH_SECRET")
-<span class="cb-dim">config/auth.go:31:</span>        AuthTTL    = 3600
-<span class="cb-more">+ 94 more lines…</span></pre>
-      <div class="comparison-footer bad">burns context window</div>
+      <span class="session-title">Claude Code</span>
     </div>
 
-    <div class="comparison-block comparison-block--good">
-      <div class="comparison-label">
-        <span class="comparison-indicator good">✓</span> idx search "auth"
+    <div class="session-body">
+      <!-- User message -->
+      <div class="session-msg session-msg--user">
+        <div class="session-avatar session-avatar--user">You</div>
+        <div class="session-bubble session-bubble--user">
+          where is token validation handled in this codebase?
+        </div>
       </div>
-      <pre class="comparison-pre"><span class="cb-path">middleware/auth.go</span>    <span class="cb-score">0.97</span>
-<span class="cb-dim">  8 │</span> func NewAuth(cfg Config) *Auth {
 
-<span class="cb-path">handlers/login.go</span>    <span class="cb-score">0.81</span>
-<span class="cb-dim"> 91 │</span> authHeader := r.Header.Get("Authorization")
+      <!-- Claude response -->
+      <div class="session-msg session-msg--claude">
+        <div class="session-avatar session-avatar--claude">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        </div>
+        <div class="session-content">
+          <p class="session-text">Let me search the codebase for token validation.</p>
 
-<span class="cb-path">config/auth.go</span>       <span class="cb-score">0.74</span>
-<span class="cb-dim"> 17 │</span> AuthSecret = os.Getenv("AUTH_SECRET")
+          <!-- Tool call -->
+          <div class="session-tool">
+            <div class="session-tool-header">
+              <span class="session-tool-icon">⚡</span>
+              <span class="session-tool-name">idx search</span>
+              <span class="session-tool-args">"token validation" --ext go</span>
+            </div>
+            <pre class="session-tool-output"><span class="cb-path">internal/core/services/auth/token_service.go</span>   <span class="cb-score">0.97</span>
+<span class="cb-dim">  31 │</span> func (s *TokenService) Validate(raw string) (*Claims, error) {
 
-<span class="cb-dim">3 results · 2ms</span></pre>
-      <div class="comparison-footer good">precise · ranked · fast</div>
+<span class="cb-path">internal/adapters/handlers/cli/middleware.go</span>    <span class="cb-score">0.84</span>
+<span class="cb-dim">  12 │</span> if err := s.tokens.Validate(r.Header.Get("Authorization")); err != nil {
+
+<span class="cb-dim">2 results · 3ms</span></pre>
+          </div>
+
+          <p class="session-text">Token validation lives in <code>token_service.go</code> — the <code>Validate</code> method on line 31. The CLI middleware calls it on every request at line 12.</p>
+        </div>
+      </div>
     </div>
   </div>
 

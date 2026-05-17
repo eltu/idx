@@ -434,53 +434,147 @@ pre code .comment { color: var(--muted); }
 }
 
 /* ============================================================
-   Landing — AI agents comparison
+   Landing — Claude Code session mockup
    ============================================================ */
 
-.comparison-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 56px;
-}
-
-.comparison-block {
+.session-mockup {
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  max-width: 760px;
+  margin: 0 auto 56px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
 }
 
-.comparison-block--bad  { border: 1px solid rgba(248,113,113,0.25); }
-.comparison-block--good { border: 1px solid rgba(52,211,153,0.25); }
+.session-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
 
-.comparison-label {
+.session-dots { display: flex; gap: 6px; }
+
+.session-title {
+  flex: 1;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.session-body {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.session-msg {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.session-msg--user { flex-direction: row-reverse; }
+
+.session-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.session-avatar--user {
+  background: var(--selected);
+  color: var(--secondary);
+}
+
+.session-avatar--claude {
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: var(--secondary);
+}
+
+.session-bubble--user {
+  background: var(--selected);
+  color: #F8FAFC;
+  padding: 10px 16px;
+  border-radius: 16px 4px 16px 16px;
+  font-size: 0.9rem;
+  max-width: 480px;
+}
+
+.session-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+}
+
+.session-text {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.session-text code {
+  font-size: 0.82em;
+  color: var(--secondary);
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.2);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Tool call block */
+.session-tool {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.session-tool-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--path);
+  padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,0.02);
 }
 
-.comparison-indicator {
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-.comparison-indicator.bad  { color: var(--error); }
-.comparison-indicator.good { color: var(--success); }
+.session-tool-icon { font-size: 0.8rem; }
 
-.comparison-pre {
+.session-tool-name {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+.session-tool-args {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.session-tool-output {
   margin: 0;
-  padding: 16px 20px;
+  padding: 14px 16px;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.9;
-  flex: 1;
   background: none;
   border: none;
   border-radius: 0;
@@ -492,19 +586,6 @@ pre code .comment { color: var(--muted); }
 .cb-dim   { color: var(--muted); }
 .cb-path  { color: var(--secondary); }
 .cb-score { color: var(--success); }
-.cb-more  { color: var(--muted); font-style: italic; }
-
-.comparison-footer {
-  padding: 10px 16px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  border-top: 1px solid var(--border);
-  text-align: center;
-}
-.comparison-footer.bad  { color: var(--error);   background: rgba(248,113,113,0.05); }
-.comparison-footer.good { color: var(--success);  background: rgba(52,211,153,0.05); }
 
 /* Editor cards */
 
@@ -861,8 +942,7 @@ pre code .comment { color: var(--muted); }
 
 @media (max-width: 900px) {
   .quickstart-wrap { grid-template-columns: 1fr; }
-  .comparison-grid { grid-template-columns: 1fr; }
-  .editor-cards { grid-template-columns: 1fr; }
+.editor-cards { grid-template-columns: 1fr; }
   .docs-content { padding: 32px 24px; }
 }
 
