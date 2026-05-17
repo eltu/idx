@@ -9,14 +9,14 @@ layout: landing
   </h1>
 
   <p class="hero-sub">
-    Built to replace grep and rg inside AI coding sessions. idx returns ranked, relevant results — less context burned, better answers from your AI.
+    A local BM25 index for your codebase — ranked results, instant queries, zero network calls.
   </p>
 
   <div class="hero-pills">
     <span class="pill">No network calls</span>
-    <span class="pill">AND relaxation</span>
     <span class="pill">AND / OR queries</span>
     <span class="pill">Path &amp; ext filters</span>
+    <span class="pill">Daemon sync</span>
   </div>
 
   <div class="hero-actions">
@@ -56,141 +56,52 @@ layout: landing
   <div class="section-label">Why idx</div>
   <h2 class="section-title">Built for how developers actually search</h2>
   <p class="section-sub">
-    grep and ripgrep are great at finding strings. idx is built to find <em>relevant</em> code.
+    grep finds strings. idx finds <em>relevant</em> code.
   </p>
 
   <div class="features-grid">
     <div class="feature-card">
       <div class="feature-icon">🎯</div>
       <h3>Relevance ranking</h3>
-      <p>BM25 scoring with a filename-match bonus. Files whose names contain your query term always surface first — even if the content score is lower.</p>
+      <p>BM25 scoring with a filename-match bonus. Files whose names match your query always surface first.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon">⚡</div>
       <h3>Instant results</h3>
-      <p>Searches a pre-built inverted index, not raw files. No disk scanning at query time. Sub-millisecond lookups even in large monorepos.</p>
+      <p>Pre-built inverted index — no disk scanning at query time. Results arrive before grep opens its first file.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon">🔒</div>
       <h3>Offline &amp; private</h3>
-      <p>Everything runs locally. No telemetry, no cloud indexing, no data leaving your machine. Works without a network connection.</p>
+      <p>Everything runs locally. No telemetry, no cloud indexing, no data leaving your machine.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon">🔬</div>
       <h3>Precision filters</h3>
-      <p>Narrow searches by file extension (<code>--ext go</code>) or path prefix (<code>--path internal/core</code>). Combine AND / OR with relaxation fallback.</p>
+      <p>Narrow by extension (<code>--ext go</code>) or path (<code>--path internal/core</code>). AND / OR with relaxation fallback.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon">🔄</div>
-      <h3>Always fresh</h3>
-      <p>Run <code>idx daemon enable .</code> once and the index updates in real time as files change — no manual syncs needed during development.</p>
+      <h3>Always in sync</h3>
+      <p>File saved? Index updated. The background daemon tracks every change — no manual syncs during development.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon">📖</div>
       <h3>Read-aware ranking</h3>
-      <p><code>idx read &lt;file&gt;</code> logs every file access. Files you open frequently get a ranking boost in future searches — the index learns your workflow.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ===== AI IDE / SKILLS ===== -->
-<section class="section" id="ai-editors">
-  <div class="section-label">Works with your AI IDE</div>
-  <h2 class="section-title">Smarter search in every AI session</h2>
-  <p class="section-sub" style="margin-bottom: 48px;">
-    AI IDEs call grep and rg to search your project. Install the idx skill once and those calls return ranked, relevant results instead of raw line dumps.
-  </p>
-
-  <!-- 3-step flow diagram -->
-  <div class="skills-flow">
-    <div class="sf-step">
-      <div class="sf-icon">🤖</div>
-      <span class="sf-label">AI IDE calls grep or rg</span>
-    </div>
-    <div class="sf-arrow">→</div>
-    <div class="sf-step">
-      <div class="sf-icon">⚡</div>
-      <span class="sf-label">idx skill intercepts</span>
-    </div>
-    <div class="sf-arrow">→</div>
-    <div class="sf-step">
-      <div class="sf-icon">🎯</div>
-      <span class="sf-label">Ranked BM25 results returned</span>
-    </div>
-  </div>
-
-  <!-- Before / after comparison -->
-  <div class="skills-compare">
-    <div>
-      <span class="compare-label compare-label--bad">grep "auth middleware"</span>
-      <div class="hero-terminal compare-terminal--bad">
-        <div class="terminal-bar">
-          <span class="terminal-dot red"></span>
-          <span class="terminal-dot amber"></span>
-          <span class="terminal-dot green"></span>
-          <span class="terminal-title">without idx</span>
-        </div>
-        <div class="terminal-body">
-          <span class="t-line"><span class="t-muted">internal/adapters/handlers/cli/auth.go:3:</span> package cli</span>
-          <span class="t-line"><span class="t-muted">internal/adapters/handlers/cli/auth.go:12:</span> func NewAuth...</span>
-          <span class="t-line"><span class="t-muted">internal/adapters/handlers/tui/auth.go:89:</span> // auth setup</span>
-          <span class="t-line"><span class="t-muted">internal/adapters/handlers/tui/auth.go:104:</span> middleware...</span>
-          <span class="t-line"><span class="t-muted">vendor/auth/middleware.go:1:</span> package auth</span>
-          <span class="t-line"><span class="t-muted">vendor/auth/middleware.go:44:</span> func Apply(h http.Handler)</span>
-          <span class="t-line" style="margin-top:8px;"><span class="t-error">47 matches · all files · no ranking</span></span>
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <span class="compare-label compare-label--good">idx search "auth middleware"</span>
-      <div class="hero-terminal compare-terminal--good">
-        <div class="terminal-bar">
-          <span class="terminal-dot red"></span>
-          <span class="terminal-dot amber"></span>
-          <span class="terminal-dot green"></span>
-          <span class="terminal-title">with idx skill</span>
-        </div>
-        <div class="terminal-body">
-          <span class="t-line"><span class="t-path">internal/adapters/handlers/cli/auth_command.go</span>  <span class="t-score">0.94</span></span>
-          <span class="t-line"><span class="t-muted">  12 │</span> func NewAuthMiddleware(store TokenStore)</span>
-          <span class="t-line">&nbsp;</span>
-          <span class="t-line"><span class="t-path">internal/core/services/search/auth_filter.go</span>  <span class="t-score">0.81</span></span>
-          <span class="t-line"><span class="t-muted">   8 │</span> // applyAuthFilter validates JWT</span>
-          <span class="t-line">&nbsp;</span>
-          <span class="t-line"><span class="t-muted">2 results · 4ms</span></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Editor install cards -->
-  <p class="editor-intro">Install once per editor</p>
-  <div class="editor-cards">
-    <div class="editor-card editor-card--claude">
-      <div class="editor-card-name">Claude Code</div>
-      <code class="editor-install">idx skills install claude</code>
-    </div>
-    <div class="editor-card editor-card--cursor">
-      <div class="editor-card-name">Cursor</div>
-      <code class="editor-install">idx skills install cursor</code>
-    </div>
-    <div class="editor-card editor-card--copilot">
-      <div class="editor-card-name">GitHub Copilot</div>
-      <code class="editor-install">idx skills install copilot</code>
+      <p>Files you open frequently get a ranking boost in future searches — the index learns your workflow.</p>
     </div>
   </div>
 </section>
 
 <!-- ===== QUICK START ===== -->
-<section class="section" id="quickstart" style="padding-top: 0;">
+<section class="section" id="quickstart">
   <div class="section-label">Quick start</div>
-  <h2 class="section-title">Up and running in three commands</h2>
+  <h2 class="section-title">Up and running in minutes</h2>
   <p class="section-sub">Requires Go 1.26+ and a Git repository.</p>
 
   <div class="quickstart-wrap">
@@ -213,14 +124,14 @@ layout: landing
         <div class="qs-num">3</div>
         <div class="qs-step-body">
           <h4>Enable background sync</h4>
-          <p>The daemon watches for file changes and keeps the index up to date automatically.</p>
+          <p>Start once. The daemon keeps the index current with every file save.</p>
         </div>
       </div>
       <div class="qs-step">
         <div class="qs-num">4</div>
         <div class="qs-step-body">
           <h4>Search</h4>
-          <p>Use AND / OR logic, path filters, and extension filters to narrow results.</p>
+          <p>AND / OR logic, path and extension filters, results ranked by relevance.</p>
         </div>
       </div>
     </div>
@@ -260,3 +171,52 @@ layout: landing
   </div>
 </section>
 
+<!-- ===== AI EDITORS ===== -->
+<section class="section" id="ai-editors">
+  <div class="section-label">AI editors</div>
+  <h2 class="section-title">Replace grep in your AI sessions</h2>
+  <p class="section-sub">
+    One command installs the idx skill in your editor. grep and rg calls are intercepted — your AI gets ranked, compact results instead of raw line dumps.
+  </p>
+
+  <!-- Stat cards -->
+  <div class="ai-stat-grid">
+    <div class="ai-stat-card">
+      <span class="ai-stat-num">3<span class="ai-stat-unit">×</span></span>
+      <span class="ai-stat-title">Faster queries</span>
+      <span class="ai-stat-desc">Speed advantage over grep grows with codebase size. The bigger the repo, the wider the gap.</span>
+    </div>
+    <div class="ai-stat-card">
+      <span class="ai-stat-num">½<span class="ai-stat-unit">tokens</span></span>
+      <span class="ai-stat-title">Half the token usage</span>
+      <span class="ai-stat-desc">Ranked, compact results burn significantly fewer context tokens than raw rg output in equivalent sessions.</span>
+    </div>
+    <div class="ai-stat-card">
+      <span class="ai-stat-num">↓<span class="ai-stat-unit">searches</span></span>
+      <span class="ai-stat-title">Fewer tool calls</span>
+      <span class="ai-stat-desc">Relevance ranking gets the AI to the right file faster — fewer back-and-forth iterations per task.</span>
+    </div>
+    <div class="ai-stat-card">
+      <span class="ai-stat-num">BM25<span class="ai-stat-unit">scored</span></span>
+      <span class="ai-stat-title">Ranked by relevance</span>
+      <span class="ai-stat-desc">The most relevant file is always first. Your AI reads less noise to reach the right answer.</span>
+    </div>
+  </div>
+
+  <!-- Editor install cards -->
+  <p class="editor-intro">Install once per editor</p>
+  <div class="editor-cards">
+    <div class="editor-card editor-card--claude">
+      <div class="editor-card-name">Claude Code</div>
+      <code class="editor-install">idx skills install claude</code>
+    </div>
+    <div class="editor-card editor-card--cursor">
+      <div class="editor-card-name">Cursor</div>
+      <code class="editor-install">idx skills install cursor</code>
+    </div>
+    <div class="editor-card editor-card--copilot">
+      <div class="editor-card-name">GitHub Copilot</div>
+      <code class="editor-install">idx skills install copilot</code>
+    </div>
+  </div>
+</section>
