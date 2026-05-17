@@ -54,59 +54,34 @@ layout: landing
 <!-- ===== AI AGENTS ===== -->
 <section class="section" id="ai-agents">
   <div class="section-label">For AI agents</div>
-  <h2 class="section-title">Your AI searches smarter</h2>
-  <p class="section-sub">
-    When Claude Code, Cursor or Copilot needs to find code, they default to grep or rg —
-    returning hundreds of lines that eat your context window. idx gives AI agents ranked,
-    relevant results instead.
-  </p>
+  <h2 class="section-title">The search tool your AI actually needs</h2>
 
-  <div class="session-mockup">
-    <div class="session-bar">
-      <div class="session-dots">
-        <span class="terminal-dot red"></span>
-        <span class="terminal-dot amber"></span>
-        <span class="terminal-dot green"></span>
-      </div>
-      <span class="session-title">Claude Code</span>
+  <div class="ai-text-block">
+    <p>
+      When an AI agent searches your codebase with grep or rg, it gets back every match —
+      unsorted, without ranking, often hundreds of lines long. The agent has to read through
+      all of it before it can reason about your code. That burns context, slows down responses,
+      and increases the chance of a wrong answer.
+    </p>
+    <p>
+      idx was built to solve this. Instead of raw matches, it returns the top files ranked by
+      relevance — with just the key line as context. The AI gets exactly what it needs, nothing more.
+      The result is faster answers, better reasoning, and a context window used efficiently.
+    </p>
+  </div>
+
+  <div class="ai-benefits">
+    <div class="ai-benefit">
+      <span class="ai-benefit-label">Less noise</span>
+      <p>grep can return 200 lines for a simple query. idx returns the top 3 to 5 files, ranked. Your AI reads less and understands more.</p>
     </div>
-
-    <div class="session-body">
-      <!-- User message -->
-      <div class="session-msg session-msg--user">
-        <div class="session-avatar session-avatar--user">You</div>
-        <div class="session-bubble session-bubble--user">
-          where is token validation handled in this codebase?
-        </div>
-      </div>
-
-      <!-- Claude response -->
-      <div class="session-msg session-msg--claude">
-        <div class="session-avatar session-avatar--claude">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-        </div>
-        <div class="session-content">
-          <p class="session-text">Let me search the codebase for token validation.</p>
-
-          <!-- Tool call -->
-          <div class="session-tool">
-            <div class="session-tool-header">
-              <span class="session-tool-icon">⚡</span>
-              <span class="session-tool-name">idx search</span>
-              <span class="session-tool-args">"token validation" --ext go</span>
-            </div>
-            <pre class="session-tool-output"><span class="cb-path">internal/core/services/auth/token_service.go</span>   <span class="cb-score">0.97</span>
-<span class="cb-dim">  31 │</span> func (s *TokenService) Validate(raw string) (*Claims, error) {
-
-<span class="cb-path">internal/adapters/handlers/cli/middleware.go</span>    <span class="cb-score">0.84</span>
-<span class="cb-dim">  12 │</span> if err := s.tokens.Validate(r.Header.Get("Authorization")); err != nil {
-
-<span class="cb-dim">2 results · 3ms</span></pre>
-          </div>
-
-          <p class="session-text">Token validation lives in <code>token_service.go</code> — the <code>Validate</code> method on line 31. The CLI middleware calls it on every request at line 12.</p>
-        </div>
-      </div>
+    <div class="ai-benefit">
+      <span class="ai-benefit-label">Better context</span>
+      <p>BM25 ranking surfaces the most relevant files first. The AI spends its context budget on signal, not on every file that happens to contain the word.</p>
+    </div>
+    <div class="ai-benefit">
+      <span class="ai-benefit-label">Transparent integration</span>
+      <p>One install command adds idx as a skill inside your editor. From that point on, the AI uses it automatically — no changes to your workflow.</p>
     </div>
   </div>
 
