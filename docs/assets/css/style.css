@@ -406,8 +406,13 @@ pre code .comment { color: var(--muted); }
   font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 2;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
+
+.terminal-body::-webkit-scrollbar        { height: 4px; }
+.terminal-body::-webkit-scrollbar-track  { background: transparent; }
+.terminal-body::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+.terminal-body::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 .t-prompt { color: var(--success); }
 .t-cmd    { color: #F8FAFC; }
@@ -415,7 +420,7 @@ pre code .comment { color: var(--muted); }
 .t-path   { color: var(--secondary); }
 .t-score  { color: var(--success); }
 .t-muted  { color: var(--muted); }
-.t-line   { display: block; margin: 2px 0; }
+.t-line   { display: block; margin: 2px 0; white-space: nowrap; }
 
 /* --- Features section --- */
 
