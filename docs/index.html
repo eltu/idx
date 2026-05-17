@@ -66,17 +66,15 @@ layout: landing
       <div class="comparison-label">
         <span class="comparison-indicator bad">✗</span> grep -r "auth" .
       </div>
-      <div class="comparison-body">
-        <span class="t-line"><span class="t-muted">middleware/session.go:12:</span>  session.Auth = true</span>
-        <span class="t-line"><span class="t-muted">middleware/auth.go:8:</span>     func NewAuth(cfg Config) *Auth {</span>
-        <span class="t-line"><span class="t-muted">middleware/auth.go:44:</span>    if err := auth.Validate(token); err != nil {</span>
-        <span class="t-line"><span class="t-muted">handlers/login.go:3:</span>      "auth/middleware"</span>
-        <span class="t-line"><span class="t-muted">handlers/login.go:91:</span>     authHeader := r.Header.Get("Authorization")</span>
-        <span class="t-line"><span class="t-muted">handlers/login.go:102:</span>    return auth.NewToken(user)</span>
-        <span class="t-line"><span class="t-muted">config/auth.go:17:</span>        AuthSecret = os.Getenv("AUTH_SECRET")</span>
-        <span class="t-line"><span class="t-muted">config/auth.go:31:</span>        AuthTTL    = 3600</span>
-        <span class="t-line cb-more">+ 94 more lines…</span>
-      </div>
+      <pre class="comparison-pre"><span class="cb-dim">middleware/session.go:12:</span>  session.Auth = true
+<span class="cb-dim">middleware/auth.go:8:</span>     func NewAuth(cfg Config) *Auth {
+<span class="cb-dim">middleware/auth.go:44:</span>    if err := auth.Validate(token); err != nil {
+<span class="cb-dim">handlers/login.go:3:</span>      "auth/middleware"
+<span class="cb-dim">handlers/login.go:91:</span>     authHeader := r.Header.Get("Authorization")
+<span class="cb-dim">handlers/login.go:102:</span>   return auth.NewToken(user)
+<span class="cb-dim">config/auth.go:17:</span>        AuthSecret = os.Getenv("AUTH_SECRET")
+<span class="cb-dim">config/auth.go:31:</span>        AuthTTL    = 3600
+<span class="cb-more">+ 94 more lines…</span></pre>
       <div class="comparison-footer bad">burns context window</div>
     </div>
 
@@ -84,18 +82,16 @@ layout: landing
       <div class="comparison-label">
         <span class="comparison-indicator good">✓</span> idx search "auth"
       </div>
-      <div class="comparison-body">
-        <span class="t-line"><span class="t-path">middleware/auth.go</span>  <span class="t-score">0.97</span></span>
-        <span class="t-line"><span class="t-muted">  8 │</span> func NewAuth(cfg Config) *Auth {</span>
-        <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="t-path">handlers/login.go</span>  <span class="t-score">0.81</span></span>
-        <span class="t-line"><span class="t-muted"> 91 │</span> authHeader := r.Header.Get("Authorization")</span>
-        <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="t-path">config/auth.go</span>  <span class="t-score">0.74</span></span>
-        <span class="t-line"><span class="t-muted"> 17 │</span> AuthSecret = os.Getenv("AUTH_SECRET")</span>
-        <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="t-muted">3 results · 2ms</span></span>
-      </div>
+      <pre class="comparison-pre"><span class="cb-path">middleware/auth.go</span>    <span class="cb-score">0.97</span>
+<span class="cb-dim">  8 │</span> func NewAuth(cfg Config) *Auth {
+
+<span class="cb-path">handlers/login.go</span>    <span class="cb-score">0.81</span>
+<span class="cb-dim"> 91 │</span> authHeader := r.Header.Get("Authorization")
+
+<span class="cb-path">config/auth.go</span>       <span class="cb-score">0.74</span>
+<span class="cb-dim"> 17 │</span> AuthSecret = os.Getenv("AUTH_SECRET")
+
+<span class="cb-dim">3 results · 2ms</span></pre>
       <div class="comparison-footer good">precise · ranked · fast</div>
     </div>
   </div>
