@@ -1,4 +1,31 @@
 (function () {
+  // Resources dropdown
+  const dropdown = document.getElementById('nav-resources');
+  const trigger = dropdown && dropdown.querySelector('.nav-dropdown-trigger');
+
+  function openDropdown() {
+    dropdown.setAttribute('data-open', '');
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeDropdown() {
+    dropdown.removeAttribute('data-open');
+    trigger && trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  trigger && trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    dropdown.hasAttribute('data-open') ? closeDropdown() : openDropdown();
+  });
+
+  document.addEventListener('click', function (e) {
+    if (dropdown && !dropdown.contains(e.target)) closeDropdown();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeDropdown();
+  });
+
   // Mobile sidebar toggle
   const sidebar = document.getElementById('docs-sidebar');
   const overlay = document.getElementById('sidebar-overlay');

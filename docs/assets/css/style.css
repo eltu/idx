@@ -124,6 +124,89 @@ a:hover { color: var(--primary); text-decoration: underline; }
   margin-left: auto;
 }
 
+/* --- Nav dropdown --- */
+
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  color: var(--path);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-dropdown-trigger:hover,
+.nav-dropdown[data-open] .nav-dropdown-trigger {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.dropdown-chevron {
+  transition: transform 0.2s;
+  opacity: 0.6;
+}
+
+.nav-dropdown[data-open] .dropdown-chevron { transform: rotate(180deg); }
+
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.08);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.nav-dropdown[data-open] .nav-dropdown-menu { display: block; }
+
+.nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  text-decoration: none;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-dropdown-item:last-child { border-bottom: none; }
+.nav-dropdown-item:hover { background: var(--surface2); text-decoration: none; }
+
+.nav-dropdown-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+.nav-dropdown-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-dropdown-text strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #F8FAFC;
+}
+
+.nav-dropdown-text span {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 /* ============================================================
    Shared — Footer
    ============================================================ */
@@ -641,76 +724,6 @@ pre code .comment { color: var(--muted); }
 
 .docs-body strong { color: #F8FAFC; font-weight: 600; }
 
-/* ============================================================
-   Landing — Resources
-   ============================================================ */
-
-.resources-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.resource-card {
-  display: flex;
-  gap: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px;
-  text-decoration: none;
-  transition: border-color 0.2s, transform 0.2s;
-  position: relative;
-  overflow: hidden;
-}
-
-.resource-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--primary), var(--secondary));
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.resource-card:hover { border-color: rgba(99,102,241,0.4); transform: translateY(-2px); text-decoration: none; }
-.resource-card:hover::before { opacity: 1; }
-
-.resource-icon {
-  flex-shrink: 0;
-  width: 44px; height: 44px;
-  background: rgba(99,102,241,0.1);
-  border: 1px solid rgba(99,102,241,0.2);
-  border-radius: var(--radius);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.25rem;
-  color: var(--secondary);
-}
-
-.resource-body { display: flex; flex-direction: column; gap: 6px; }
-
-.resource-card h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #F8FAFC;
-  margin: 0;
-}
-
-.resource-card p {
-  font-size: 0.875rem;
-  color: var(--path);
-  line-height: 1.5;
-  margin: 0;
-  flex: 1;
-}
-
-.resource-link {
-  font-size: 0.8rem;
-  color: var(--secondary);
-  font-weight: 500;
-  margin-top: 4px;
-}
 
 /* ============================================================
    Sidebar — latest badge
@@ -735,7 +748,6 @@ pre code .comment { color: var(--muted); }
 
 @media (max-width: 900px) {
   .quickstart-wrap { grid-template-columns: 1fr; }
-  .resources-grid { grid-template-columns: 1fr; }
   .docs-content { padding: 32px 24px; }
 }
 
