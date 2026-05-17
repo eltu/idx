@@ -98,6 +98,95 @@ layout: landing
   </div>
 </section>
 
+<!-- ===== AI IDE / SKILLS ===== -->
+<section class="section" id="ai-editors">
+  <div class="section-label">Works with your AI IDE</div>
+  <h2 class="section-title">Smarter search in every AI session</h2>
+  <p class="section-sub" style="margin-bottom: 48px;">
+    AI IDEs call grep and rg to search your project. Install the idx skill once and those calls return ranked, relevant results instead of raw line dumps.
+  </p>
+
+  <!-- 3-step flow diagram -->
+  <div class="skills-flow">
+    <div class="sf-step">
+      <div class="sf-icon">🤖</div>
+      <span class="sf-label">AI IDE calls grep or rg</span>
+    </div>
+    <div class="sf-arrow">→</div>
+    <div class="sf-step">
+      <div class="sf-icon">⚡</div>
+      <span class="sf-label">idx skill intercepts</span>
+    </div>
+    <div class="sf-arrow">→</div>
+    <div class="sf-step">
+      <div class="sf-icon">🎯</div>
+      <span class="sf-label">Ranked BM25 results returned</span>
+    </div>
+  </div>
+
+  <!-- Before / after comparison -->
+  <div class="skills-compare">
+    <div>
+      <span class="compare-label compare-label--bad">grep "auth middleware"</span>
+      <div class="hero-terminal compare-terminal--bad">
+        <div class="terminal-bar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">without idx</span>
+        </div>
+        <div class="terminal-body">
+          <span class="t-line"><span class="t-muted">internal/adapters/handlers/cli/auth.go:3:</span> package cli</span>
+          <span class="t-line"><span class="t-muted">internal/adapters/handlers/cli/auth.go:12:</span> func NewAuth...</span>
+          <span class="t-line"><span class="t-muted">internal/adapters/handlers/tui/auth.go:89:</span> // auth setup</span>
+          <span class="t-line"><span class="t-muted">internal/adapters/handlers/tui/auth.go:104:</span> middleware...</span>
+          <span class="t-line"><span class="t-muted">vendor/auth/middleware.go:1:</span> package auth</span>
+          <span class="t-line"><span class="t-muted">vendor/auth/middleware.go:44:</span> func Apply(h http.Handler)</span>
+          <span class="t-line" style="margin-top:8px;"><span class="t-error">47 matches · all files · no ranking</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <span class="compare-label compare-label--good">idx search "auth middleware"</span>
+      <div class="hero-terminal compare-terminal--good">
+        <div class="terminal-bar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">with idx skill</span>
+        </div>
+        <div class="terminal-body">
+          <span class="t-line"><span class="t-path">internal/adapters/handlers/cli/auth_command.go</span>  <span class="t-score">0.94</span></span>
+          <span class="t-line"><span class="t-muted">  12 │</span> func NewAuthMiddleware(store TokenStore)</span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-path">internal/core/services/search/auth_filter.go</span>  <span class="t-score">0.81</span></span>
+          <span class="t-line"><span class="t-muted">   8 │</span> // applyAuthFilter validates JWT</span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-muted">2 results · 4ms</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor install cards -->
+  <p class="editor-intro">Install once per editor</p>
+  <div class="editor-cards">
+    <div class="editor-card editor-card--claude">
+      <div class="editor-card-name">Claude Code</div>
+      <code class="editor-install">idx skills install claude</code>
+    </div>
+    <div class="editor-card editor-card--cursor">
+      <div class="editor-card-name">Cursor</div>
+      <code class="editor-install">idx skills install cursor</code>
+    </div>
+    <div class="editor-card editor-card--copilot">
+      <div class="editor-card-name">GitHub Copilot</div>
+      <code class="editor-install">idx skills install copilot</code>
+    </div>
+  </div>
+</section>
+
 <!-- ===== QUICK START ===== -->
 <section class="section" id="quickstart" style="padding-top: 0;">
   <div class="section-label">Quick start</div>
