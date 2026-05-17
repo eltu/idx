@@ -32,7 +32,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { font-size: 16px; scroll-behavior: smooth; }
+html { font-size: 16px; scroll-behavior: smooth; overflow-x: hidden; }
 
 body {
   font-family: var(--font-sans);
@@ -406,6 +406,7 @@ pre code .comment { color: var(--muted); }
   font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 2;
+  overflow-x: hidden;
 }
 
 .t-prompt { color: var(--success); }
@@ -534,7 +535,7 @@ pre code .comment { color: var(--muted); }
 
 .ai-stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 56px;
 }
@@ -670,7 +671,7 @@ pre code .comment { color: var(--muted); }
 
 .quickstart-wrap {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 48px;
   align-items: start;
 }
@@ -902,7 +903,7 @@ pre code .comment { color: var(--muted); }
   .ai-benefits { grid-template-columns: 1fr; }
   .editor-cards { grid-template-columns: 1fr; }
   .docs-content { padding: 32px 24px; }
-  .ai-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .ai-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 768px) {
