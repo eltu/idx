@@ -9,7 +9,7 @@ layout: landing
   </h1>
 
   <p class="hero-sub">
-    idx builds a local BM25 index for your project and returns results ranked by relevance — not just grep matches sorted by line number.
+    Built to replace grep and rg inside AI coding sessions. idx returns ranked, relevant results — less context burned, better answers from your AI.
   </p>
 
   <div class="hero-pills">
@@ -47,6 +47,72 @@ layout: landing
       <span class="t-line"><span class="t-muted">   8 │</span> // applyAuthFilter validates JWT before search proceeds</span>
       <span class="t-line">&nbsp;</span>
       <span class="t-line"><span class="t-muted">2 results · 4ms</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== AI AGENTS ===== -->
+<section class="section" id="ai-agents">
+  <div class="section-label">For AI agents</div>
+  <h2 class="section-title">Your AI searches smarter</h2>
+  <p class="section-sub">
+    When Claude Code, Cursor or Copilot needs to find code, they default to grep or rg —
+    returning hundreds of lines that eat your context window. idx gives AI agents ranked,
+    relevant results instead.
+  </p>
+
+  <div class="comparison-grid">
+    <div class="comparison-block comparison-block--bad">
+      <div class="comparison-label">
+        <span class="comparison-indicator bad">✗</span> grep -r "auth" .
+      </div>
+      <div class="comparison-body">
+        <span class="t-line"><span class="t-muted">middleware/session.go:12:</span>  session.Auth = true</span>
+        <span class="t-line"><span class="t-muted">middleware/auth.go:8:</span>     func NewAuth(cfg Config) *Auth {</span>
+        <span class="t-line"><span class="t-muted">middleware/auth.go:44:</span>    if err := auth.Validate(token); err != nil {</span>
+        <span class="t-line"><span class="t-muted">handlers/login.go:3:</span>      "auth/middleware"</span>
+        <span class="t-line"><span class="t-muted">handlers/login.go:91:</span>     authHeader := r.Header.Get("Authorization")</span>
+        <span class="t-line"><span class="t-muted">handlers/login.go:102:</span>    return auth.NewToken(user)</span>
+        <span class="t-line"><span class="t-muted">config/auth.go:17:</span>        AuthSecret = os.Getenv("AUTH_SECRET")</span>
+        <span class="t-line"><span class="t-muted">config/auth.go:31:</span>        AuthTTL    = 3600</span>
+        <span class="t-line cb-more">+ 94 more lines…</span>
+      </div>
+      <div class="comparison-footer bad">burns context window</div>
+    </div>
+
+    <div class="comparison-block comparison-block--good">
+      <div class="comparison-label">
+        <span class="comparison-indicator good">✓</span> idx search "auth"
+      </div>
+      <div class="comparison-body">
+        <span class="t-line"><span class="t-path">middleware/auth.go</span>  <span class="t-score">0.97</span></span>
+        <span class="t-line"><span class="t-muted">  8 │</span> func NewAuth(cfg Config) *Auth {</span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-path">handlers/login.go</span>  <span class="t-score">0.81</span></span>
+        <span class="t-line"><span class="t-muted"> 91 │</span> authHeader := r.Header.Get("Authorization")</span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-path">config/auth.go</span>  <span class="t-score">0.74</span></span>
+        <span class="t-line"><span class="t-muted"> 17 │</span> AuthSecret = os.Getenv("AUTH_SECRET")</span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="t-muted">3 results · 2ms</span></span>
+      </div>
+      <div class="comparison-footer good">precise · ranked · fast</div>
+    </div>
+  </div>
+
+  <p class="editor-intro">Works with your editor</p>
+  <div class="editor-cards">
+    <div class="editor-card editor-card--claude">
+      <div class="editor-card-name">Claude Code</div>
+      <code class="editor-install">idx skills install claude</code>
+    </div>
+    <div class="editor-card editor-card--cursor">
+      <div class="editor-card-name">Cursor</div>
+      <code class="editor-install">idx skills install cursor</code>
+    </div>
+    <div class="editor-card editor-card--copilot">
+      <div class="editor-card-name">GitHub Copilot</div>
+      <code class="editor-install">idx skills install copilot</code>
     </div>
   </div>
 </section>
