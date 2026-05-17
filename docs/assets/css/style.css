@@ -290,20 +290,20 @@ pre code .comment { color: var(--muted); }
   pointer-events: none;
 }
 
-.hero-badge {
+.hero-logo {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #F8FAFC;
+  background: var(--primary);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--secondary);
-  background: rgba(99,102,241,0.1);
-  border: 1px solid rgba(99,102,241,0.3);
-  padding: 4px 12px;
-  border-radius: 20px;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   margin-bottom: 28px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  box-shadow: 0 0 0 8px rgba(99,102,241,0.12);
 }
 
 .hero h1 {
