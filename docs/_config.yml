@@ -1,0 +1,13 @@
+title: idx
+description: Fast BM25 code search for Git repositories
+baseurl: ""
+url: "https://idx.eltu.blog"
+
+exclude:
+  - "**/.idx"
+
+defaults:
+  - scope:
+      path: "features"
+    values:
+      layout: default

@@ -1,0 +1,174 @@
+---
+layout: landing
+---
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <span class="hero-badge">⚡ BM25 · Offline · Terminal-native</span>
+
+  <h1>
+    Fast, <span>ranked</span> code search<br>for Git repositories
+  </h1>
+
+  <p class="hero-sub">
+    idx builds a local BM25 index for your project and returns results ranked by relevance — not just grep matches sorted by line number.
+  </p>
+
+  <div class="hero-pills">
+    <span class="pill">No network calls</span>
+    <span class="pill">CamelCase aware</span>
+    <span class="pill">AND / OR queries</span>
+    <span class="pill">Path &amp; ext filters</span>
+  </div>
+
+  <div class="hero-actions">
+    <a href="https://github.com/eltu/idx/releases" class="btn-primary" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install
+    </a>
+    <a href="/features/search" class="btn-secondary">
+      Read the docs
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </a>
+  </div>
+
+  <div class="hero-terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dot red"></span>
+      <span class="terminal-dot amber"></span>
+      <span class="terminal-dot green"></span>
+      <span class="terminal-title">~/myproject — idx search</span>
+    </div>
+    <div class="terminal-body">
+      <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">idx search</span> <span class="t-arg">"auth middleware"</span></span>
+      <span class="t-line">&nbsp;</span>
+      <span class="t-line"><span class="t-path">internal/adapters/handlers/cli/auth_command.go</span>  <span class="t-score">0.94</span></span>
+      <span class="t-line"><span class="t-muted">  12 │</span> func NewAuthMiddleware(store TokenStore) *AuthMiddleware {</span>
+      <span class="t-line">&nbsp;</span>
+      <span class="t-line"><span class="t-path">internal/core/services/search/auth_filter.go</span>  <span class="t-score">0.81</span></span>
+      <span class="t-line"><span class="t-muted">   8 │</span> // applyAuthFilter validates JWT before search proceeds</span>
+      <span class="t-line">&nbsp;</span>
+      <span class="t-line"><span class="t-muted">2 results · 4ms</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section class="section" id="features">
+  <div class="section-label">Why idx</div>
+  <h2 class="section-title">Built for how developers actually search</h2>
+  <p class="section-sub">
+    grep and ripgrep are great at finding strings. idx is built to find <em>relevant</em> code.
+  </p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>Relevance ranking</h3>
+      <p>BM25 scoring with a filename-match bonus. Files whose names contain your query term always surface first — even if the content score is lower.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>Instant results</h3>
+      <p>Searches a pre-built inverted index, not raw files. No disk scanning at query time. Sub-millisecond lookups even in large monorepos.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <h3>Offline &amp; private</h3>
+      <p>Everything runs locally. No telemetry, no cloud indexing, no data leaving your machine. Works without a network connection.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔬</div>
+      <h3>Precision filters</h3>
+      <p>Narrow searches by file extension (<code>--ext go</code>) or path prefix (<code>--path internal/core</code>). Combine AND / OR with relaxation fallback.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔄</div>
+      <h3>Always fresh</h3>
+      <p>Run <code>idx daemon enable .</code> once and the index updates in real time as files change — no manual syncs needed during development.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">📖</div>
+      <h3>Read-aware ranking</h3>
+      <p><code>idx read &lt;file&gt;</code> logs every file access. Files you open frequently get a ranking boost in future searches — the index learns your workflow.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== QUICK START ===== -->
+<section class="section" id="quickstart" style="padding-top: 0;">
+  <div class="section-label">Quick start</div>
+  <h2 class="section-title">Up and running in three commands</h2>
+  <p class="section-sub">Requires Go 1.26+ and a Git repository.</p>
+
+  <div class="quickstart-wrap">
+    <div class="quickstart-steps">
+      <div class="qs-step">
+        <div class="qs-num">1</div>
+        <div class="qs-step-body">
+          <h4>Build &amp; install</h4>
+          <p>Clone the repo and build the binary. Add it to your <code>$PATH</code>.</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">2</div>
+        <div class="qs-step-body">
+          <h4>Index your project</h4>
+          <p>Run once per project. Builds the BM25 index for every directory.</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">3</div>
+        <div class="qs-step-body">
+          <h4>Enable background sync</h4>
+          <p>The daemon watches for file changes and keeps the index up to date automatically.</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">4</div>
+        <div class="qs-step-body">
+          <h4>Search</h4>
+          <p>Use AND / OR logic, path filters, and extension filters to narrow results.</p>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="hero-terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">zsh</span>
+        </div>
+        <div class="terminal-body">
+          <span class="t-line"><span class="t-muted"># 1. build</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">make build &amp;&amp; cp bin/idx /usr/local/bin/</span></span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-muted"># 2. index your project</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">idx init</span></span>
+          <span class="t-line"><span class="t-muted">  ✓ indexed 847 files in 312ms</span></span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-muted"># 3. enable background sync</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">idx daemon enable</span> <span class="t-arg">.</span></span>
+          <span class="t-line"><span class="t-muted">  ✓ daemon started (pid 48291)</span></span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-muted"># 4. search</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">idx search</span> <span class="t-arg">"rate limit"</span> <span class="t-cmd">--ext</span> <span class="t-arg">go</span></span>
+          <span class="t-line"><span class="t-path">internal/core/services/search/limiter.go</span>  <span class="t-score">0.97</span></span>
+        </div>
+      </div>
+
+      <p style="margin-top: 20px; text-align: center;">
+        <a href="/features/search" style="color: var(--secondary); font-size: 0.9rem;">
+          Full command reference →
+        </a>
+      </p>
+    </div>
+  </div>
+</section>
