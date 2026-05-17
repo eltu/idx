@@ -11,3 +11,7 @@ defaults:
       path: "features"
     values:
       layout: default
+  - scope:
+      path: "releases"
+    values:
+      layout: default
