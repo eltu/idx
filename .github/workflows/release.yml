@@ -5,9 +5,6 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-
 jobs:
   test:
     name: Run Tests
@@ -75,6 +72,8 @@ jobs:
     name: Publish Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     environment:
       name: release
     steps:
