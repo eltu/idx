@@ -30,4 +30,5 @@ type SearchOptions struct {
 	Operator               string
 	RelaxationEnabled      bool
 	RelaxationMinExclusive int
+	PopularityWeight       float64
 }

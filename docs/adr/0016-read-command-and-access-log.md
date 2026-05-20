@@ -69,8 +69,9 @@ This also means a warm-cache call succeeds even if the log file is temporarily c
 **System paths excluded from logging**
 Files under `.git/` and `.idx/` are never logged. These directories are infrastructure, not project content, and would add noise to the ranking signal without benefit.
 
-**Write-only port (`ReadLogRepository`)**
-The port declares only `RecordRead(projectRoot, relativePath string) error`. A `LoadAll` method (for reading the log into the search ranker) is intentionally deferred — the log is collected now, consumed later.
+**`ReadLogRepository` port**
+The port was introduced with only `RecordRead(projectRoot, relativePath string) error`.
+A `LoadAll(projectRoot string) ([]ReadLogEntry, error)` method was added in ADR 0017 when the search ranking pipeline began consuming the log as a popularity signal.
 
 **Log errors are silently swallowed**
 `recordReadAccess` ignores errors returned by `RecordRead`. The log is a supplementary signal; a disk-full or permissions error must not prevent the user from reading their file.
@@ -81,7 +82,7 @@ The log is local and machine-specific — commit histories should not contain it
 ## Consequences
 
 - `idx read` is a safe, memory-constant file reader that integrates with the idx ranking ecosystem.
-- `.idx/read_log.idx` accumulates per-file read counts that can be used as a future boost factor in `idx search` ranking, weighted by recency (timestamp) and frequency (count).
+- `.idx/read_log.idx` accumulates per-file read counts used as a boost factor in `idx search` ranking, weighted by recency and frequency — see ADR 0017.
 - The log is bounded: at most one entry per project file, entries expire after 30 days, deleted and renamed files are handled correctly.
 - Rename detection requires that the rename and the next `idx read` of the new path happen within the same cold-load window (i.e. the old entry must still be in the log). Files renamed after their log entry expired will start with count 1.
 - The 5-minute write cache accepts a window of cross-process count divergence: two processes writing to the same log within the TTL may each work from stale in-memory state and overwrite each other's counts. This is an acceptable trade-off for a boost signal that does not need exact precision.

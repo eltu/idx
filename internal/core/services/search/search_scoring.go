@@ -4,6 +4,7 @@ import (
 	"math"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"idx/internal/core/domain"
 	"idx/internal/core/ports"
@@ -339,4 +340,31 @@ func fileNameTokens(fileName string) []string {
 	}
 
 	return tokens
+}
+
+// popularityBonus returns an additive score boost based on how frequently and how
+// recently a file has been read via `idx read`. Applied after per-directory normalisation,
+// so it is additive in the same scale as fileNameMatchBonus.
+//
+// Formula: log1p(readCount) / log1p(10) × 0.5^(daysSince/14) × weight
+// A file read 10+ times today receives the full weight as boost.
+// A file read 10+ times 14 days ago receives half the weight.
+// A file with no read history (ReadCount == 0) always returns 0.
+func popularityBonus(entry ports.ReadLogEntry, now time.Time, weight float64) float64 {
+	if entry.ReadCount == 0 || weight == 0 {
+		return 0
+	}
+	// log1p(10) ≈ 2.398 — normalises so ~10 reads maps to raw=1.0 before decay.
+	const normFactor = 2.398
+	const halfLifeDays = 14.0
+	daysSince := now.Sub(entry.LastReadAt).Hours() / 24.0
+	if daysSince < 0 {
+		daysSince = 0
+	}
+	decayFactor := math.Pow(0.5, daysSince/halfLifeDays)
+	raw := math.Log1p(float64(entry.ReadCount)) / normFactor * decayFactor
+	if raw > 1.0 {
+		raw = 1.0
+	}
+	return raw * weight
 }

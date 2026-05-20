@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"idx/internal/core/domain"
+	"idx/internal/core/ports"
 	read "idx/internal/core/services/read"
 )
 
@@ -489,4 +490,8 @@ type capturingReadLogRepository struct {
 func (r *capturingReadLogRepository) RecordRead(projectRoot, relativePath string) error {
 	r.calls = append(r.calls, readLogCall{projectRoot: projectRoot, relativePath: relativePath})
 	return r.err
+}
+
+func (r *capturingReadLogRepository) LoadAll(_ string) ([]ports.ReadLogEntry, error) {
+	return nil, nil
 }

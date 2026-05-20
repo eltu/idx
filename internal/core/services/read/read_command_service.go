@@ -13,7 +13,8 @@ import (
 // noopReadLog is the default when no log repository is injected.
 type noopReadLog struct{}
 
-func (noopReadLog) RecordRead(_, _ string) error { return nil }
+func (noopReadLog) RecordRead(_, _ string) error                   { return nil }
+func (noopReadLog) LoadAll(_ string) ([]ports.ReadLogEntry, error) { return nil, nil }
 
 // fileStreamer abstracts opening a file for sequential reading and checking if a path is a directory.
 type fileStreamer interface {

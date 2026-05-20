@@ -35,9 +35,10 @@ type IndexConfig struct {
 
 // BM25Config holds BM25 relevance-tuning parameters.
 type BM25Config struct {
-	K1              float64 `yaml:"k1"`
-	B               float64 `yaml:"b"`
-	ProximityWeight float64 `yaml:"proximity_weight"`
+	K1               float64 `yaml:"k1"`
+	B                float64 `yaml:"b"`
+	ProximityWeight  float64 `yaml:"proximity_weight"`
+	PopularityWeight float64 `yaml:"popularity_weight"`
 }
 
 // LogConfig controls logging verbosity.
@@ -67,9 +68,10 @@ func DefaultIdxConfig() IdxConfig {
 			Exclude: []string{},
 		},
 		BM25: BM25Config{
-			K1:              1.5,
-			B:               0.75,
-			ProximityWeight: 3.0,
+			K1:               1.5,
+			B:                0.75,
+			ProximityWeight:  3.0,
+			PopularityWeight: 0.3,
 		},
 		Log: LogConfig{
 			Level: "error",

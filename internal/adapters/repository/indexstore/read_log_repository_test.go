@@ -407,6 +407,82 @@ func TestReadLogRepositoryRecordReadTransfersCountOnFileRename(t *testing.T) {
 	t.Fatal("expected new_name.go entry in log after rename, found none")
 }
 
+func TestReadLogRepositoryLoadAllEmptyWhenNoFile(t *testing.T) {
+	root := t.TempDir()
+	repo := indexstore.NewReadLogRepository()
+
+	entries, err := repo.LoadAll(root)
+	if err != nil {
+		t.Fatalf("expected no error when log missing, got %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected empty entries when log missing, got %d", len(entries))
+	}
+}
+
+func TestReadLogRepositoryLoadAllReturnsRecordedEntries(t *testing.T) {
+	root := t.TempDir()
+	repo := indexstore.NewReadLogRepository()
+
+	if err := repo.RecordRead(root, "cmd/main.go"); err != nil {
+		t.Fatalf("unexpected RecordRead error: %v", err)
+	}
+	if err := repo.RecordRead(root, "cmd/main.go"); err != nil {
+		t.Fatalf("unexpected RecordRead error: %v", err)
+	}
+	if err := repo.RecordRead(root, "go.mod"); err != nil {
+		t.Fatalf("unexpected RecordRead error: %v", err)
+	}
+
+	// Use a fresh repo to bypass the write cache and read from disk.
+	freshRepo := indexstore.NewReadLogRepository()
+	entries, err := freshRepo.LoadAll(root)
+	if err != nil {
+		t.Fatalf("expected no LoadAll error, got %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+
+	byPath := map[string]int{}
+	for _, e := range entries {
+		byPath[e.Path] = e.ReadCount
+		if e.LastReadAt.IsZero() {
+			t.Fatalf("expected non-zero LastReadAt for %q", e.Path)
+		}
+	}
+	if byPath["cmd/main.go"] != 2 {
+		t.Fatalf("expected cmd/main.go read count 2, got %d", byPath["cmd/main.go"])
+	}
+	if byPath["go.mod"] != 1 {
+		t.Fatalf("expected go.mod read count 1, got %d", byPath["go.mod"])
+	}
+}
+
+func TestReadLogRepositoryLoadAllUsesCache(t *testing.T) {
+	root := t.TempDir()
+	repo := indexstore.NewReadLogRepository()
+
+	if err := repo.RecordRead(root, "main.go"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// First LoadAll populates the read cache.
+	first, err := repo.LoadAll(root)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Second call should return cached result (same count, no disk re-read).
+	second, err := repo.LoadAll(root)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(first) != len(second) {
+		t.Fatalf("expected cache to return same entries: first %d, second %d", len(first), len(second))
+	}
+}
+
 // readLogLines reads and returns non-empty lines from the read log file.
 func readLogLines(t *testing.T, root string) []string {
 	t.Helper()

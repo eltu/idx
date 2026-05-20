@@ -10,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"idx/internal/core/ports"
 )
 
 const (
@@ -94,6 +96,35 @@ func (r *ReadLogRepository) RecordRead(projectRoot, relativePath string) error {
 
 	r.writeStateExp = now.Add(readLogCacheTTL)
 	return nil
+}
+
+// LoadAll returns a snapshot of all current read log entries for projectRoot.
+// Results are cached for readLogCacheTTL to avoid repeated disk reads during a
+// search session. Returns an empty slice (not an error) if the log does not exist.
+func (r *ReadLogRepository) LoadAll(projectRoot string) ([]ports.ReadLogEntry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if time.Now().Before(r.readSnapExp) {
+		return toPortEntries(r.readSnap), nil
+	}
+
+	entries, err := loadReadLogEntries(readLogPath(projectRoot))
+	if err != nil {
+		return nil, err
+	}
+
+	r.readSnap = entries
+	r.readSnapExp = time.Now().Add(readLogCacheTTL)
+	return toPortEntries(entries), nil
+}
+
+func toPortEntries(entries []readLogEntry) []ports.ReadLogEntry {
+	out := make([]ports.ReadLogEntry, len(entries))
+	for i, e := range entries {
+		out[i] = ports.ReadLogEntry{Path: e.path, ReadCount: e.readCount, LastReadAt: e.updatedAt}
+	}
+	return out
 }
 
 // coldReconcile is called on cache miss. It prunes expired and deleted entries,

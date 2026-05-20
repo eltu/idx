@@ -216,18 +216,20 @@ func run(arguments []string, output io.Writer) error {
 	daemonService := cli.NewDaemonServiceAdapter(daemonServiceImpl)
 
 	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
+	readLogRepo := indexstore.NewReadLogRepository()
 	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo).
 		WithTuning(search.SearchServiceOptions{
-			BM25K1:          cfg.BM25.K1,
-			BM25B:           cfg.BM25.B,
-			ProximityWeight: cfg.BM25.ProximityWeight,
-			MaxWorkers:      cfg.Search.MaxWorkers,
-			CacheTTL:        cfg.Search.CacheTTL,
-		})
+			BM25K1:           cfg.BM25.K1,
+			BM25B:            cfg.BM25.B,
+			ProximityWeight:  cfg.BM25.ProximityWeight,
+			PopularityWeight: cfg.BM25.PopularityWeight,
+			MaxWorkers:       cfg.Search.MaxWorkers,
+			CacheTTL:         cfg.Search.CacheTTL,
+		}).
+		WithReadLog(readLogRepo)
 	skillsInstaller := filesystem.NewOSSkillsInstaller()
 	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
 	fileStreamer := filesystem.NewOSFileStreamer()
-	readLogRepo := indexstore.NewReadLogRepository()
 	readService := read.NewReadCommandService(projectTree, fileStreamer, writer).
 		WithReadLog(readLogRepo)
 	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).

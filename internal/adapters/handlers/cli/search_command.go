@@ -44,6 +44,7 @@ type searchCommandConfig struct {
 	relaxation        string
 	relaxationMin     int
 	relaxationEnabled bool
+	popularityWeight  float64
 }
 
 func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args []string, config *searchCommandConfig) error {
@@ -77,6 +78,7 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().IntVar(&config.size, "size", cfg.Size, "Limit results to top N files")
 	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
 	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", cfg.Relaxation, "Relax AND query with trailing-term fallback. Format: >N")
+	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
 }
 
 func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {
@@ -186,6 +188,7 @@ func (config searchCommandConfig) options() ports.SearchOptions {
 		Operator:               config.operator,
 		RelaxationEnabled:      config.relaxationEnabled,
 		RelaxationMinExclusive: config.relaxationMin,
+		PopularityWeight:       config.popularityWeight,
 	}
 
 	if len(config.pathQueries) > 0 {

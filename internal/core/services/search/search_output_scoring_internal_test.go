@@ -1,6 +1,11 @@
 package search
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"idx/internal/core/ports"
+)
 
 func TestColoredHelpersAndAbsInt(t *testing.T) {
 	if coloredFilePath("a.go", false) != "a.go" {
@@ -104,4 +109,58 @@ func TestFileNameTokensCamelCase(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("missing tokens from CamelCase split: %v", want)
 	}
+}
+
+func TestPopularityBonus(t *testing.T) {
+	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+
+	t.Run("zero read count returns zero", func(t *testing.T) {
+		entry := ports.ReadLogEntry{ReadCount: 0, LastReadAt: now}
+		if got := popularityBonus(entry, now, 0.3); got != 0 {
+			t.Fatalf("expected 0 bonus for unread file, got %f", got)
+		}
+	})
+
+	t.Run("zero weight returns zero", func(t *testing.T) {
+		entry := ports.ReadLogEntry{ReadCount: 10, LastReadAt: now}
+		if got := popularityBonus(entry, now, 0); got != 0 {
+			t.Fatalf("expected 0 bonus when weight is zero, got %f", got)
+		}
+	})
+
+	t.Run("10 reads today approaches full weight", func(t *testing.T) {
+		entry := ports.ReadLogEntry{ReadCount: 10, LastReadAt: now}
+		got := popularityBonus(entry, now, 0.3)
+		// log1p(10)/log1p(10) * decay(0) * 0.3 = 1.0 * 1.0 * 0.3 = 0.3
+		if got < 0.29 || got > 0.31 {
+			t.Fatalf("expected ~0.30 bonus, got %f", got)
+		}
+	})
+
+	t.Run("14-day-old read has half decay", func(t *testing.T) {
+		past := now.Add(-14 * 24 * time.Hour)
+		entry := ports.ReadLogEntry{ReadCount: 10, LastReadAt: past}
+		got := popularityBonus(entry, now, 0.3)
+		// decay(14 days) = 0.5; raw = 1.0 * 0.5 * 0.3 = 0.15
+		if got < 0.14 || got > 0.16 {
+			t.Fatalf("expected ~0.15 bonus at 14-day half-life, got %f", got)
+		}
+	})
+
+	t.Run("bonus is capped at weight even for very high read counts", func(t *testing.T) {
+		entry := ports.ReadLogEntry{ReadCount: 10000, LastReadAt: now}
+		got := popularityBonus(entry, now, 0.3)
+		if got > 0.3+1e-9 {
+			t.Fatalf("expected bonus capped at weight 0.3, got %f", got)
+		}
+	})
+
+	t.Run("future timestamp treated as now (no negative decay)", func(t *testing.T) {
+		future := now.Add(24 * time.Hour)
+		entry := ports.ReadLogEntry{ReadCount: 5, LastReadAt: future}
+		got := popularityBonus(entry, now, 0.3)
+		if got < 0 {
+			t.Fatalf("expected non-negative bonus for future timestamp, got %f", got)
+		}
+	})
 }

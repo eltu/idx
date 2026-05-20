@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -12,28 +13,31 @@ import (
 // SearchServiceOptions holds tuning parameters for the search service.
 // Zero values are replaced by DefaultIdxConfig() equivalents in WithTuning.
 type SearchServiceOptions struct {
-	BM25K1          float64
-	BM25B           float64
-	ProximityWeight float64
-	MaxWorkers      int
-	CacheTTL        time.Duration
+	BM25K1           float64
+	BM25B            float64
+	ProximityWeight  float64
+	PopularityWeight float64
+	MaxWorkers       int
+	CacheTTL         time.Duration
 }
 
 type searchTuning struct {
-	bm25K1          float64
-	bm25B           float64
-	proximityWeight float64
-	maxWorkers      int
-	cacheTTL        time.Duration
+	bm25K1           float64
+	bm25B            float64
+	proximityWeight  float64
+	popularityWeight float64
+	maxWorkers       int
+	cacheTTL         time.Duration
 }
 
 func defaultSearchTuning() searchTuning {
 	return searchTuning{
-		bm25K1:          1.5,
-		bm25B:           0.75,
-		proximityWeight: 3.00,
-		maxWorkers:      4,
-		cacheTTL:        time.Minute,
+		bm25K1:           1.5,
+		bm25B:            0.75,
+		proximityWeight:  3.00,
+		popularityWeight: 0.3,
+		maxWorkers:       4,
+		cacheTTL:         time.Minute,
 	}
 }
 
@@ -53,6 +57,7 @@ type SearchCommandService struct {
 	output       ports.TextOutput
 	fileReader   ports.FileReader
 	indexRepo    searchableIndexRepository
+	readLogRepo  ports.ReadLogRepository
 	cache        *searchCache
 	cacheEnabled bool
 	tuning       searchTuning
@@ -113,6 +118,9 @@ func (service SearchCommandService) WithTuning(opts SearchServiceOptions) Search
 	if opts.ProximityWeight > 0 {
 		service.tuning.proximityWeight = opts.ProximityWeight
 	}
+	if opts.PopularityWeight > 0 {
+		service.tuning.popularityWeight = opts.PopularityWeight
+	}
 	if opts.MaxWorkers > 0 {
 		service.tuning.maxWorkers = opts.MaxWorkers
 	}
@@ -123,6 +131,33 @@ func (service SearchCommandService) WithTuning(opts SearchServiceOptions) Search
 		}
 	}
 	return service
+}
+
+// WithReadLog attaches a read log repository so search can apply a popularity boost.
+// When not set, the popularity weight in SearchOptions is still applied but every
+// file gets a boost of zero (no read history available).
+// Example: service = service.WithReadLog(readLogRepo).
+func (service SearchCommandService) WithReadLog(repo ports.ReadLogRepository) SearchCommandService {
+	service.readLogRepo = repo
+	return service
+}
+
+// loadPopularityMap loads all read log entries and indexes them by absolute file path
+// so buildSearchResult can do O(1) lookups by filepath.Join(directoryPath, fileName).
+// Returns nil when no repository is wired or on load error (silently degrades).
+func (service SearchCommandService) loadPopularityMap(projectRoot string) map[string]ports.ReadLogEntry {
+	if service.readLogRepo == nil {
+		return nil
+	}
+	entries, err := service.readLogRepo.LoadAll(projectRoot)
+	if err != nil {
+		return nil
+	}
+	m := make(map[string]ports.ReadLogEntry, len(entries))
+	for _, e := range entries {
+		m[filepath.Join(projectRoot, e.Path)] = e
+	}
+	return m
 }
 
 // SetCacheEnabled toggles the search cache. Useful for deterministic unit tests.
@@ -137,7 +172,7 @@ func (service *SearchCommandService) SetCacheEnabled(enabled bool) {
 // Run executes search with default options.
 // Example: err := service.Run("module idx").
 func (service SearchCommandService) Run(query string) error {
-	return service.RunWithOptions(query, ports.SearchOptions{})
+	return service.RunWithOptions(query, ports.SearchOptions{PopularityWeight: service.tuning.popularityWeight})
 }
 
 // RunWithOptions executes search with explicit output and context options.

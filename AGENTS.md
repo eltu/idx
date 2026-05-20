@@ -90,6 +90,7 @@
 - ADR 0014: Project-level `.idx.yml` at Git root; pointer-field YAML adapter for override detection; defaults → file → CLI flag precedence.
 - ADR 0015: Parallel directory indexing with bounded concurrency (`runtime.NumCPU`) using a two-phase collect + index approach.
 - ADR 0016: `idx read` command streams files via `bufio.Scanner`; access log at `.idx/read_log.idx` tracks read counts with 30-day TTL, inode-based rename detection, deletion pruning, and a 5-min write cache.
+- ADR 0017: Read popularity boost in search ranking — additive log1p-normalised bonus with 14-day exponential decay; weight configurable via `bm25.popularity_weight` in `.idx.yml` and `--popularity-weight` CLI flag.
 
 ## Formatting
 
