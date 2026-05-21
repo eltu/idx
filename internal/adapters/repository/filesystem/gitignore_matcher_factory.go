@@ -12,6 +12,7 @@ type GitIgnoreMatcherFactory struct{}
 
 type gitIgnoreMatcher struct {
 	projectRoot string
+	gitBin      string
 }
 
 // NewGitIgnoreMatcherFactory builds the adapter that evaluates .gitignore rules.
@@ -21,7 +22,12 @@ func NewGitIgnoreMatcherFactory() GitIgnoreMatcherFactory {
 }
 
 func (factory GitIgnoreMatcherFactory) New(projectRoot string) (ports.IgnoreMatcher, error) {
-	matcher := gitIgnoreMatcher{projectRoot: projectRoot}
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		return nil, fmt.Errorf("git binary not found in PATH: %w", err)
+	}
+
+	matcher := gitIgnoreMatcher{projectRoot: projectRoot, gitBin: gitBin}
 	if err := matcher.verifyGitBinary(); err != nil {
 		return nil, err
 	}
@@ -43,12 +49,12 @@ func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
 }
 
 func (matcher gitIgnoreMatcher) runCheckIgnore(path string) error {
-	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path) //nolint:gosec
+	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path)
 	return command.Run()
 }
 
 func (matcher gitIgnoreMatcher) verifyGitBinary() error {
-	command := exec.CommandContext(context.Background(), "git", "-C", matcher.projectRoot, "rev-parse", "--git-dir") //nolint:gosec
+	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "rev-parse", "--git-dir")
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("failed to validate git project %q: got error %v, expected a directory with a readable git repository", matcher.projectRoot, err)
 	}

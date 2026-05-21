@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 
 	"go.uber.org/zap"
@@ -15,7 +16,12 @@ func (s *OSProcessSpawner) SpawnWatchProcess(projectPath string) (int, error) {
 	logger := zap.L()
 	logger.Info("spawning watch process", zap.String("projectPath", projectPath))
 
-	cmd := exec.Command("idx", "watch", "--debounce", "1ms")
+	selfPath, err := os.Executable()
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	cmd := exec.Command(selfPath, "watch", "--debounce", "1ms")
 	cmd.Dir = projectPath
 	cmd.Env = append(cmd.Environ(), "IDX_DAEMON_CHILD=1")
 	cmd.Stdout = nil

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 const skillsRepoURL = "https://github.com/eltu/idx-skills"
@@ -20,12 +21,17 @@ func NewOSSkillsInstaller() *OSSkillsInstaller {
 
 // CloneRepo clones skillsRepoURL into a fresh temp directory, streaming git output to out.
 func (i *OSSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		return "", fmt.Errorf("git binary not found in PATH: %w", err)
+	}
+
 	tempDir, err := os.MkdirTemp("", "idx-skills-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	cmd := exec.Command("git", "clone", skillsRepoURL, tempDir) //nolint:gosec
+	cmd := exec.Command(gitBin, "clone", skillsRepoURL, tempDir)
 	cmd.Stdout = out
 	cmd.Stderr = out
 	if err := cmd.Run(); err != nil {
@@ -36,10 +42,10 @@ func (i *OSSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
 	return tempDir, nil
 }
 
-// RunInstallScript executes ./install-skills.sh <editor> inside dir,
+// RunInstallScript executes install-skills.sh <editor> inside dir,
 // streaming stdout and stderr to out for real-time display.
 func (i *OSSkillsInstaller) RunInstallScript(dir, editor string, out io.Writer) error {
-	cmd := exec.Command("./install-skills.sh", editor) //nolint:gosec
+	cmd := exec.Command(filepath.Join(dir, "install-skills.sh"), editor)
 	cmd.Dir = dir
 	cmd.Stdout = out
 	cmd.Stderr = out
