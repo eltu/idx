@@ -1,7 +1,7 @@
 package search
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -24,7 +24,7 @@ func cacheKeyFor(query string, options ports.SearchOptions) string {
 		fmt.Sprintf("rel-min:%d", options.RelaxationMinExclusive),
 	}
 	keyStr := strings.Join(keyParts, "|")
-	hash := md5.Sum([]byte(keyStr))
+	hash := sha256.Sum256([]byte(keyStr))
 	return fmt.Sprintf("%x", hash)
 }
 
