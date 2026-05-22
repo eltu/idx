@@ -198,7 +198,7 @@ func run(arguments []string, output io.Writer) error {
 	indexRepo := indexstore.NewBinaryIndexRepository()
 	checksumRepo := indexstore.NewDirectoryChecksumRepository()
 	daemonStateRepo := config.NewDaemonStateRepository()
-	processSpawner := &filesystem.OSProcessSpawner{}
+	processSpawner := filesystem.NewOSProcessSpawner()
 	inspectRunner := tui.NewInspectRunner()
 	progressRunner := tui.NewInitProgressRunner()
 
