@@ -5,19 +5,23 @@ import (
 	"os"
 
 	"idx/internal/core/ports"
-	"idx/internal/core/services/indexing"
 )
+
+// initRunner is the subset of indexing.InitCommandService used by InitCommandAdapter.
+type initRunner interface {
+	Run() error
+}
 
 // InitCommandAdapter wraps InitCommandService to satisfy ports.InitCommandInterface
 // by chdir-ing into the target path before delegating to the service.
 type InitCommandAdapter struct {
-	initService indexing.InitCommandService
+	initService initRunner
 	projectTree ports.ProjectTree
 }
 
 // NewInitCommandAdapter constructs an adapter implementing ports.InitCommandInterface.
 // Example: adapter := NewInitCommandAdapter(initService, projectTree).
-func NewInitCommandAdapter(initService indexing.InitCommandService, projectTree ports.ProjectTree) *InitCommandAdapter {
+func NewInitCommandAdapter(initService initRunner, projectTree ports.ProjectTree) *InitCommandAdapter {
 	return &InitCommandAdapter{initService: initService, projectTree: projectTree}
 }
 
