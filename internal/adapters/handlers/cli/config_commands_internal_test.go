@@ -7,6 +7,16 @@ import (
 	"idx/internal/core/domain"
 )
 
+func newConfigTestRunner() CommandRunner {
+	return NewCommandRunner(
+		[]string{"idx"},
+		noOpIndexCommand{},
+		noOpDestroyCommand{},
+		noOpSearchCommand{},
+		noOpDaemonCommand{},
+	)
+}
+
 func TestFormatConfigFloatRoundsToFourSignificantDigits(t *testing.T) {
 	if got := formatConfigFloat(1.5); got != "1.5" {
 		t.Fatalf("expected '1.5', got %q", got)
@@ -61,14 +71,7 @@ func TestDefaultConfigValuesHasExpectedKeys(t *testing.T) {
 }
 
 func TestBuildConfigRowsReturnsAllExpectedKeys(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	runner.WithConfig(domain.DefaultIdxConfig(), "", nil)
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), "", nil)
 
 	rows := buildConfigRows(runner)
 	keys := make(map[string]bool, len(rows))
@@ -84,70 +87,58 @@ func TestBuildConfigRowsReturnsAllExpectedKeys(t *testing.T) {
 }
 
 func TestWriteConfigDetailsNoConfigFile(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	// configFilePath is empty — should print defaults message without error
+	runner := newConfigTestRunner()
 	if err := runner.writeConfigDetails(); err != nil {
 		t.Fatalf("expected no error for empty config path, got %v", err)
 	}
 }
 
-func TestWriteConfigDetailsWithConfigFile(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	runner.WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
-
+func TestWriteConfigDetailsWithConfigFileNoOverrides(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", nil)
 	if err := runner.writeConfigDetails(); err != nil {
-		t.Fatalf("expected no error with config file, got %v", err)
+		t.Fatalf("expected no error with config file and no overrides, got %v", err)
+	}
+}
+
+func TestWriteConfigDetailsWithOverridesRendersTable(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
+	if err := runner.writeConfigDetails(); err != nil {
+		t.Fatalf("expected no error with overrides, got %v", err)
 	}
 }
 
 func TestShowConfigBannerNoConfigFile(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	// Should be a no-op — no panic, no output
+	runner := newConfigTestRunner()
+	runner.showConfigBanner() // no-op when configFilePath is empty
+}
+
+func TestShowConfigBannerWithNoOverrides(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", nil)
 	runner.showConfigBanner()
 }
 
-func TestShowConfigBannerWithOverrides(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	runner.WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1", "bm25.b"})
-	runner.showConfigBanner()
-	// Validates no panic and plural "overrides" path is exercised.
+func TestShowConfigBannerWithSingleOverride(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
+	runner.showConfigBanner() // exercises singular "override" path
+}
+
+func TestShowConfigBannerWithMultipleOverrides(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1", "bm25.b"})
+	runner.showConfigBanner() // exercises plural "overrides" path
+}
+
+func TestNewConfigShowCommandRunECallsWriteConfigDetails(t *testing.T) {
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
+	cmd := runner.newConfigShowCommand()
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("expected config show to succeed, got %v", err)
+	}
 }
 
 func TestRenderConfigRowOverrideLabel(t *testing.T) {
-	runner := NewCommandRunner(
-		[]string{"idx"},
-		noOpIndexCommand{},
-		noOpDestroyCommand{},
-		noOpSearchCommand{},
-		noOpDaemonCommand{},
-	)
-	runner.WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
-
+	runner := newConfigTestRunner().WithConfig(domain.DefaultIdxConfig(), ".idx.yml", []string{"bm25.k1"})
 	rows := buildConfigRows(runner)
+
 	var k1Row *configRow
 	for i := range rows {
 		if rows[i].key == "bm25.k1" {
