@@ -11,31 +11,51 @@ import (
 const skillsRepoURL = "https://github.com/eltu/idx-skills"
 
 // OSSkillsInstaller implements ports.SkillsInstaller using local git and shell execution.
-type OSSkillsInstaller struct{}
+type OSSkillsInstaller struct {
+	lookPath       func(file string) (string, error)
+	mkdirTemp      func(dir, pattern string) (string, error)
+	commandBuilder func(name string, args ...string) *exec.Cmd
+	removeAll      func(path string) error
+}
 
 // NewOSSkillsInstaller creates an installer that uses the system git binary and shell.
 // Example: installer := filesystem.NewOSSkillsInstaller()
 func NewOSSkillsInstaller() *OSSkillsInstaller {
-	return &OSSkillsInstaller{}
+	return NewOSSkillsInstallerWithDeps(exec.LookPath, os.MkdirTemp, exec.Command, os.RemoveAll)
+}
+
+// NewOSSkillsInstallerWithDeps creates an installer with injected OS dependencies for testing.
+func NewOSSkillsInstallerWithDeps(
+	lookPath func(file string) (string, error),
+	mkdirTemp func(dir, pattern string) (string, error),
+	commandBuilder func(name string, args ...string) *exec.Cmd,
+	removeAll func(path string) error,
+) *OSSkillsInstaller {
+	return &OSSkillsInstaller{
+		lookPath:       lookPath,
+		mkdirTemp:      mkdirTemp,
+		commandBuilder: commandBuilder,
+		removeAll:      removeAll,
+	}
 }
 
 // CloneRepo clones skillsRepoURL into a fresh temp directory, streaming git output to out.
 func (i *OSSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
-	gitBin, err := exec.LookPath("git")
+	gitBin, err := i.lookPath("git")
 	if err != nil {
 		return "", fmt.Errorf("git binary not found in PATH: %w", err)
 	}
 
-	tempDir, err := os.MkdirTemp("", "idx-skills-*")
+	tempDir, err := i.mkdirTemp("", "idx-skills-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	cmd := exec.Command(gitBin, "clone", skillsRepoURL, tempDir)
+	cmd := i.commandBuilder(gitBin, "clone", skillsRepoURL, tempDir)
 	cmd.Stdout = out
 	cmd.Stderr = out
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tempDir) //nolint:errcheck
+		i.removeAll(tempDir) //nolint:errcheck
 		return "", fmt.Errorf("git clone failed: %w", err)
 	}
 
@@ -45,7 +65,7 @@ func (i *OSSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
 // RunInstallScript executes install-skills.sh <editor> inside dir,
 // streaming stdout and stderr to out for real-time display.
 func (i *OSSkillsInstaller) RunInstallScript(dir, editor string, out io.Writer) error {
-	cmd := exec.Command(filepath.Join(dir, "install-skills.sh"), editor)
+	cmd := i.commandBuilder(filepath.Join(dir, "install-skills.sh"), editor)
 	cmd.Dir = dir
 	cmd.Stdout = out
 	cmd.Stderr = out
@@ -57,7 +77,7 @@ func (i *OSSkillsInstaller) RunInstallScript(dir, editor string, out io.Writer) 
 
 // Cleanup removes tempDir and all its contents.
 func (i *OSSkillsInstaller) Cleanup(tempDir string) error {
-	if err := os.RemoveAll(tempDir); err != nil {
+	if err := i.removeAll(tempDir); err != nil {
 		return fmt.Errorf("failed to remove temp directory %q: %w", tempDir, err)
 	}
 	return nil
