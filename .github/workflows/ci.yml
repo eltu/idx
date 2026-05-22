@@ -27,5 +27,11 @@ jobs:
       - name: Run cyclomatic complexity check
         run: make complexity
 
-      - name: Run unit tests
-        run: make test
+      - name: Run unit tests with coverage
+        run: make coverage
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

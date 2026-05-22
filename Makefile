@@ -31,6 +31,10 @@ lint:
 test:
 	go test $(ALL_PKGS)
 
+## Run unit tests with coverage report (used by SonarCloud)
+coverage:
+	go test $(ALL_PKGS) -coverprofile=coverage.out -covermode=atomic
+
 ## Fail when any function exceeds cyclomatic complexity threshold
 complexity:
 	@go run github.com/fzipp/gocyclo/cmd/gocyclo@latest . | sort -rn | awk -v limit=$(CYCLO_LIMIT) '$$0 !~ /_test\.go:/ && $$1 > limit {print; found=1} END {if (found) exit 1}'
