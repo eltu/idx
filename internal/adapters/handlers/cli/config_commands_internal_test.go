@@ -26,14 +26,14 @@ func TestFormatConfigFloatRoundsToFourSignificantDigits(t *testing.T) {
 	}
 }
 
-func TestFormatExcludePatternsEmptyReturnsEmpty(t *testing.T) {
-	if got := formatExcludePatterns(nil); got != "[]" {
+func TestFormatIgnorePatternsEmptyReturnsEmpty(t *testing.T) {
+	if got := formatIgnorePatterns(nil); got != "[]" {
 		t.Fatalf("expected '[]', got %q", got)
 	}
 }
 
-func TestFormatExcludePatternsWithValuesJoinsThem(t *testing.T) {
-	got := formatExcludePatterns([]string{"vendor", "dist"})
+func TestFormatIgnorePatternsWithValuesJoinsThem(t *testing.T) {
+	got := formatIgnorePatterns([]string{"vendor", "dist"})
 	if got != "[vendor, dist]" {
 		t.Fatalf("expected '[vendor, dist]', got %q", got)
 	}

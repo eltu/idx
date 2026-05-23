@@ -128,7 +128,7 @@ func buildConfigRows(runner CommandRunner) []configRow {
 		{"search.cache_ttl", cfg.Search.CacheTTL.String(), def["search.cache_ttl"]},
 		{"search.max_workers", fmt.Sprintf("%d", cfg.Search.MaxWorkers), def["search.max_workers"]},
 		{"watch.debounce", cfg.Watch.Debounce.String(), def["watch.debounce"]},
-		{"index.exclude", formatExcludePatterns(cfg.Index.Exclude), def["index.exclude"]},
+		{"index.ignore", formatIgnorePatterns(cfg.Index.Ignore), def["index.ignore"]},
 		{"bm25.k1", formatConfigFloat(cfg.BM25.K1), def["bm25.k1"]},
 		{"bm25.b", formatConfigFloat(cfg.BM25.B), def["bm25.b"]},
 		{"bm25.proximity_weight", formatConfigFloat(cfg.BM25.ProximityWeight), def["bm25.proximity_weight"]},
@@ -146,7 +146,7 @@ func defaultConfigValues() map[string]string {
 		"search.cache_ttl":      time.Minute.String(),
 		"search.max_workers":    "4",
 		"watch.debounce":        (750 * time.Millisecond).String(),
-		"index.exclude":         "[]",
+		"index.ignore":          "[]",
 		"bm25.k1":               "1.5",
 		"bm25.b":                "0.75",
 		"bm25.proximity_weight": "3",
@@ -158,7 +158,7 @@ func formatConfigFloat(f float64) string {
 	return fmt.Sprintf("%.4g", f)
 }
 
-func formatExcludePatterns(patterns []string) string {
+func formatIgnorePatterns(patterns []string) string {
 	if len(patterns) == 0 {
 		return "[]"
 	}

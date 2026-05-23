@@ -30,7 +30,7 @@ type WatchConfig struct {
 
 // IndexConfig controls what gets indexed.
 type IndexConfig struct {
-	Exclude []string `yaml:"exclude"`
+	Ignore []string `yaml:"ignore"`
 }
 
 // BM25Config holds BM25 relevance-tuning parameters.
@@ -65,7 +65,7 @@ func DefaultIdxConfig() IdxConfig {
 			Debounce: 750 * time.Millisecond,
 		},
 		Index: IndexConfig{
-			Exclude: []string{},
+			Ignore: []string{},
 		},
 		BM25: BM25Config{
 			K1:               1.5,

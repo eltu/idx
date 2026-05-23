@@ -199,12 +199,12 @@ func TestYAMLConfigRepositoryLoadReturnsErrorForInvalidYAML(t *testing.T) {
 	}
 }
 
-func TestYAMLConfigRepositoryLoadParsesExcludePatterns(t *testing.T) {
+func TestYAMLConfigRepositoryLoadParsesIgnorePatterns(t *testing.T) {
 	repo := config.NewYAMLConfigRepository()
 	dir := t.TempDir()
 	writeConfig(t, dir, `
 index:
-  exclude:
+  ignore:
     - vendor/
     - "*.pb.go"
 `)
@@ -214,19 +214,19 @@ index:
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(cfg.Index.Exclude) != 2 {
-		t.Fatalf("expected 2 exclude patterns, got %d: %v", len(cfg.Index.Exclude), cfg.Index.Exclude)
+	if len(cfg.Index.Ignore) != 2 {
+		t.Fatalf("expected 2 ignore patterns, got %d: %v", len(cfg.Index.Ignore), cfg.Index.Ignore)
 	}
-	if cfg.Index.Exclude[0] != "vendor/" {
-		t.Fatalf("expected first pattern vendor/, got %q", cfg.Index.Exclude[0])
+	if cfg.Index.Ignore[0] != "vendor/" {
+		t.Fatalf("expected first pattern vendor/, got %q", cfg.Index.Ignore[0])
 	}
 
 	overrideSet := make(map[string]bool)
 	for _, k := range overrides {
 		overrideSet[k] = true
 	}
-	if !overrideSet["index.exclude"] {
-		t.Error("expected index.exclude to be tracked as override")
+	if !overrideSet["index.ignore"] {
+		t.Error("expected index.ignore to be tracked as override")
 	}
 }
 

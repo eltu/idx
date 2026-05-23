@@ -66,11 +66,11 @@ func TestDefaultIdxConfigLogDefaults(t *testing.T) {
 func TestDefaultIdxConfigIndexDefaults(t *testing.T) {
 	cfg := domain.DefaultIdxConfig()
 
-	if cfg.Index.Exclude == nil {
-		t.Fatal("expected index.exclude to be non-nil slice, got nil")
+	if cfg.Index.Ignore == nil {
+		t.Fatal("expected index.ignore to be non-nil slice, got nil")
 	}
-	if len(cfg.Index.Exclude) != 0 {
-		t.Fatalf("expected empty index.exclude, got %v", cfg.Index.Exclude)
+	if len(cfg.Index.Ignore) != 0 {
+		t.Fatalf("expected empty index.ignore, got %v", cfg.Index.Ignore)
 	}
 }
 

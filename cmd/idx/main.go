@@ -21,6 +21,7 @@ import (
 	"idx/internal/core/services/lifecycle"
 	"idx/internal/core/services/read"
 	"idx/internal/core/services/search"
+	"idx/internal/core/ports"
 	"idx/internal/core/services/skills"
 )
 
@@ -192,7 +193,7 @@ func isPathSafeChar(char byte) bool {
 func run(arguments []string, output io.Writer) error {
 	writer := cli.NewLineWriter(output)
 	projectTree := filesystem.NewOSProjectTree()
-	matcherFactory := filesystem.NewGitIgnoreMatcherFactory()
+	var matcherFactory ports.IgnoreMatcherFactory = filesystem.NewGitIgnoreMatcherFactory()
 	fileReader := filesystem.NewOSFileReader()
 	indexer := indexing.NewBM25IndexService()
 	indexRepo := indexstore.NewBinaryIndexRepository()
@@ -208,6 +209,11 @@ func run(arguments []string, output io.Writer) error {
 	projectRoot := gitRootFrom(cwd)
 	cfg, overrides, _ := configRepo.Load(projectRoot)
 	configFilePath := configRepo.FilePath(projectRoot)
+
+	matcherFactory = filesystem.NewCompositeIgnoreMatcherFactory(
+		matcherFactory,
+		filesystem.NewGlobIgnoreMatcherFactory(cfg.Index.Ignore),
+	)
 
 	initCommand := indexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner, progressRunner)
 

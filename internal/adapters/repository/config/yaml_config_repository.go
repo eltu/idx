@@ -81,7 +81,7 @@ type yamlWatchConfig struct {
 }
 
 type yamlIndexConfig struct {
-	Exclude []string `yaml:"exclude"`
+	Ignore []string `yaml:"ignore"`
 }
 
 type yamlBM25Config struct {
@@ -182,11 +182,11 @@ func applyWatchOverrides(cfg *domain.WatchConfig, w *yamlWatchConfig) ([]string,
 }
 
 func applyIndexOverrides(cfg *domain.IndexConfig, i *yamlIndexConfig) []string {
-	if i.Exclude == nil {
+	if i.Ignore == nil {
 		return nil
 	}
-	cfg.Exclude = i.Exclude
-	return []string{"index.exclude"}
+	cfg.Ignore = i.Ignore
+	return []string{"index.ignore"}
 }
 
 func applyBM25Overrides(cfg *domain.BM25Config, b *yamlBM25Config) []string {
