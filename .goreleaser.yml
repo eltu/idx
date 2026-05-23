@@ -1,0 +1,53 @@
+version: 2
+project_name: idx
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: idx
+    main: ./cmd/idx
+    binary: idx
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: idx
+    name_template: "idx-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format: tar.gz
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: idx
+    repository:
+      owner: "{{ .Env.HOMEBREW_TAP_OWNER }}"
+      name: homebrew-idx
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/{{ .Env.HOMEBREW_TAP_OWNER }}/idx"
+    description: "Fast local file indexer and search tool"
+    license: BSD-3-Clause
+    test: |
+      system "#{bin}/idx", "--version"
+    install: |
+      bin.install "idx"
