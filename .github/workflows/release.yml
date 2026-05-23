@@ -43,7 +43,7 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@9c156ee8a17a3f2c3eb56d3ea3d66b3e2d1d7d14 # v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           version: latest
           args: release --clean
