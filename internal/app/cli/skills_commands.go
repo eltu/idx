@@ -87,18 +87,8 @@ func renderSkillsHelp() string {
 		"  " + skillsCmdMutedStyle.Render("Install idx skills for the specified editor") + "\n")
 	b.WriteString("\n")
 
-	b.WriteString("  " + skillsCmdSectionStyle.Render("Editors") + "\n")
-	for _, e := range skillsEditors {
-		b.WriteString("    " + skillsCmdArgStyle.Render(fmt.Sprintf("%-10s", e.id)) +
-			"  " + skillsCmdLabelStyle.Render(e.label) + "\n")
-	}
-	b.WriteString("\n")
-
-	b.WriteString("  " + skillsCmdSectionStyle.Render("Examples") + "\n")
-	for _, e := range skillsEditors {
-		b.WriteString("    " + skillsCmdMutedStyle.Render("idx skills install") + " " + skillsCmdArgStyle.Render(e.id) + "\n")
-	}
-	b.WriteString("\n")
+	appendSkillsEditorSection(&b)
+	appendSkillsInstallExamplesSection(&b)
 
 	b.WriteString("  " + skillsCmdDimStyle.Render("Run 'idx skills install --help' for more information.") + "\n")
 
@@ -117,22 +107,31 @@ func renderSkillsInstallHelp() string {
 	b.WriteString("    " + skillsCmdMutedStyle.Render("idx skills install") + " " + skillsCmdArgStyle.Render("<editor>") + "\n")
 	b.WriteString("\n")
 
+	appendSkillsEditorSection(&b)
+	appendSkillsInstallExamplesSection(&b)
+
+	b.WriteString("  " + skillsCmdDimStyle.Render("Requires git to be installed and available in $PATH.") + "\n")
+
+	return b.String()
+}
+
+// appendSkillsEditorSection writes the "Editors" table section into b.
+func appendSkillsEditorSection(b *strings.Builder) {
 	b.WriteString("  " + skillsCmdSectionStyle.Render("Editors") + "\n")
 	for _, e := range skillsEditors {
 		b.WriteString("    " + skillsCmdArgStyle.Render(fmt.Sprintf("%-10s", e.id)) +
 			"  " + skillsCmdLabelStyle.Render(e.label) + "\n")
 	}
 	b.WriteString("\n")
+}
 
+// appendSkillsInstallExamplesSection writes the "Examples" section with one install line per editor.
+func appendSkillsInstallExamplesSection(b *strings.Builder) {
 	b.WriteString("  " + skillsCmdSectionStyle.Render("Examples") + "\n")
 	for _, e := range skillsEditors {
 		b.WriteString("    " + skillsCmdMutedStyle.Render("idx skills install") + " " + skillsCmdArgStyle.Render(e.id) + "\n")
 	}
 	b.WriteString("\n")
-
-	b.WriteString("  " + skillsCmdDimStyle.Render("Requires git to be installed and available in $PATH.") + "\n")
-
-	return b.String()
 }
 
 func writeSkillsMissingEditorError(cmd *cobra.Command) {
