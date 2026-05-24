@@ -49,28 +49,28 @@
 ├── cmd/
 │   └── idx/                 # Dependency injection & app startup
 ├── internal/
-│   ├── core/                # The "Inside" (Business Logic)
-│   │   ├── domain/          # Entities/Models (structs)
-│   │   ├── ports/           # Interfaces (contracts for In/Out)
-│   │   └── services/
-│   │       ├── daemon/      # Daemon management use cases
-│   │       ├── indexing/    # Init & BM25 indexing use cases
-│   │       ├── search/      # Search use cases
-│   │       └── lifecycle/   # Destroy use cases
-│   └── adapters/            # The "Outside" (Infrastructure)
-│       ├── handlers/
-│       │   ├── cli/         # Input (CLI commands & adapters)
-│       │   └── tui/         # Input (TUI implementation & adapters)
-│       └── repository/      # Output (filesystem, index storage)
+│   ├── features/            # Self-contained feature packages (domain + ports + service + storage)
+│   │   ├── indexing/        # BM25 engine (domain, port, service, storage, tui)
+│   │   ├── search/          # Search ranking pipeline
+│   │   ├── daemon/          # Background process management
+│   │   ├── read/            # File streaming + read log
+│   │   ├── lifecycle/       # Destroy index
+│   │   └── skills/          # Skills installation
+│   ├── shared/              # Cross-feature concerns
+│   │   ├── config/          # .idx.yml parsing
+│   │   ├── filesystem/      # ProjectTree, FileReader, IgnoreMatcher
+│   │   └── output/          # Writer interface
+│   └── app/
+│       └── cli/             # Cobra commands — no business logic
 └── go.mod
 ```
 
 ## Port Conventions
 
-- Ports live in `core/ports/` and are plain Go interfaces owned by this project.
-- Each port describes one capability (e.g. `InspectUIRunner`, `IndexingRepository`).
-- The default implementation of a port that belongs to a service lives alongside that service (e.g. `services/indexing/inspect_ui_runner.go`).
-- Adapter implementations live in `adapters/` and wire the port to external infrastructure (e.g. `adapters/handlers/tui/`).
+- Ports are plain Go interfaces defined in `port.go` within each feature package.
+- Each port describes one capability (e.g. `InspectUIRunner`, `IndexRepository`).
+- Implementations live alongside the interface in the same feature package or in a `storage/` sub-package.
+- Features do not import Cobra or any delivery mechanism — CLI wiring lives in `internal/app/cli/`.
 
 ## Current Decisions
 
@@ -91,6 +91,7 @@
 - ADR 0015: Parallel directory indexing with bounded concurrency (`runtime.NumCPU`) using a two-phase collect + index approach.
 - ADR 0016: `idx read` command streams files via `bufio.Scanner`; access log at `.idx/read_log.idx` tracks read counts with 30-day TTL, inode-based rename detection, deletion pruning, and a 5-min write cache.
 - ADR 0017: Read popularity boost in search ranking — additive log1p-normalised bonus with 14-day exponential decay; weight configurable via `bm25.popularity_weight` in `.idx.yml` and `--popularity-weight` CLI flag.
+- ADR 0018: Codebase modularized by feature (`internal/features/<feature>/`); shared cross-cutting concerns in `internal/shared/`; CLI delivery in `internal/app/cli/`; features do not import Cobra.
 
 ## Formatting
 

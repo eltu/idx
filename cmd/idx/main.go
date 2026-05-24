@@ -11,18 +11,17 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"idx/internal/adapters/handlers/cli"
-	"idx/internal/adapters/handlers/tui"
-	"idx/internal/adapters/repository/config"
-	"idx/internal/adapters/repository/filesystem"
-	"idx/internal/adapters/repository/indexstore"
-	"idx/internal/core/services/daemon"
-	"idx/internal/core/services/indexing"
-	"idx/internal/core/services/lifecycle"
-	"idx/internal/core/services/read"
-	"idx/internal/core/services/search"
-	"idx/internal/core/ports"
-	"idx/internal/core/services/skills"
+	appcli "idx/internal/app/cli"
+	featdaemon "idx/internal/features/daemon"
+	featindexing "idx/internal/features/indexing"
+	idxstorage "idx/internal/features/indexing/storage"
+	idxtui "idx/internal/app/tui"
+	featlifecycle "idx/internal/features/lifecycle"
+	featread "idx/internal/features/read"
+	featsearch "idx/internal/features/search"
+	featskills "idx/internal/features/skills"
+	sharedconfig "idx/internal/shared/config"
+	sharedfs "idx/internal/shared/filesystem"
 )
 
 var exitProcess = os.Exit
@@ -191,40 +190,42 @@ func isPathSafeChar(char byte) bool {
 }
 
 func run(arguments []string, output io.Writer) error {
-	writer := cli.NewLineWriter(output)
-	projectTree := filesystem.NewOSProjectTree()
-	var matcherFactory ports.IgnoreMatcherFactory = filesystem.NewGitIgnoreMatcherFactory()
-	fileReader := filesystem.NewOSFileReader()
-	indexer := indexing.NewBM25IndexService()
-	indexRepo := indexstore.NewBinaryIndexRepository()
-	checksumRepo := indexstore.NewDirectoryChecksumRepository()
-	daemonStateRepo := config.NewDaemonStateRepository()
-	processSpawner := filesystem.NewOSProcessSpawner()
-	inspectRunner := tui.NewInspectRunner()
-	progressRunner := tui.NewInitProgressRunner()
+	writer := appcli.NewLineWriter(output)
+	projectTree := sharedfs.NewOSProjectTree()
+	matcherFactory := sharedfs.IgnoreMatcherFactory(sharedfs.NewGitIgnoreMatcherFactory())
+	fileReader := sharedfs.NewOSFileReader()
+	indexer := featindexing.NewBM25IndexService()
+	indexRepo := idxstorage.NewBinaryIndexRepository()
+	checksumRepo := idxstorage.NewDirectoryChecksumRepository()
+	daemonStateRepo := featdaemon.NewDaemonStateRepository()
+	processSpawner := featdaemon.NewOSProcessSpawner()
+	inspectRunner := idxtui.NewInspectRunner()
+	progressRunner := idxtui.NewInitProgressRunner()
 
 	// Load project config from .idx.yml (git root) to wire service defaults.
-	configRepo := config.NewYAMLConfigRepository()
+	configRepo := sharedconfig.NewYAMLRepository()
 	cwd, _ := os.Getwd()
 	projectRoot := gitRootFrom(cwd)
 	cfg, overrides, _ := configRepo.Load(projectRoot)
 	configFilePath := configRepo.FilePath(projectRoot)
 
-	matcherFactory = filesystem.NewCompositeIgnoreMatcherFactory(
+	matcherFactory = sharedfs.NewCompositeIgnoreMatcherFactory(
 		matcherFactory,
-		filesystem.NewGlobIgnoreMatcherFactory(cfg.Index.Ignore),
+		sharedfs.NewGlobIgnoreMatcherFactory(cfg.Index.Ignore),
 	)
 
-	initCommand := indexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonStateRepo, inspectRunner, progressRunner)
+	// Break DI cycle: DaemonService → InitCommand → DaemonService (ProjectMonitorChecker).
+	// Construct daemon first with nil initCommand, wire initCommand after it's built.
+	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, projectTree, writer, nil, processSpawner)
+	initCommand := featindexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonServiceImpl, inspectRunner, progressRunner)
+	initAdapter := appcli.NewInitCommandAdapter(initCommand, projectTree)
+	daemonServiceImpl.SetInitCommand(initAdapter)
 
-	initAdapter := cli.NewInitCommandAdapter(initCommand, projectTree)
-	daemonServiceImpl := daemon.NewDaemonService(daemonStateRepo, projectTree, writer, initAdapter, processSpawner)
-	daemonService := cli.NewDaemonServiceAdapter(daemonServiceImpl)
-
-	destroyCommand := lifecycle.NewDestroyCommandService(projectTree, writer)
-	readLogRepo := indexstore.NewReadLogRepository()
-	searchCommand := search.NewSearchCommandService(projectTree, writer, fileReader, indexRepo).
-		WithTuning(search.SearchServiceOptions{
+	daemonService := appcli.NewDaemonServiceAdapter(daemonServiceImpl)
+	destroyCommand := featlifecycle.NewDestroyCommandService(projectTree, writer)
+	readLogRepo := featread.NewReadLogRepository()
+	searchCommand := featsearch.NewSearchCommandService(projectTree, writer, fileReader, indexRepo).
+		WithTuning(featsearch.SearchServiceOptions{
 			BM25K1:           cfg.BM25.K1,
 			BM25B:            cfg.BM25.B,
 			ProximityWeight:  cfg.BM25.ProximityWeight,
@@ -233,13 +234,13 @@ func run(arguments []string, output io.Writer) error {
 			CacheTTL:         cfg.Search.CacheTTL,
 		}).
 		WithReadLog(readLogRepo)
-	skillsInstaller := filesystem.NewOSSkillsInstaller()
-	skillsService := skills.NewSkillsInstallService(skillsInstaller, output)
-	fileStreamer := filesystem.NewOSFileStreamer()
-	readService := read.NewReadCommandService(projectTree, fileStreamer, writer).
+	skillsInstaller := featskills.NewOSSkillsInstaller()
+	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
+	fileStreamer := featread.NewOSFileStreamer()
+	readService := featread.NewReadCommandService(projectTree, fileStreamer, writer).
 		WithReadLog(readLogRepo)
-	runner := cli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
-		WithBuildInfo(cli.BuildInfo{Version: version, BuildDate: buildDate}).
+	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
+		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{writer, progressRunner}).
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
@@ -251,7 +252,7 @@ func run(arguments []string, output io.Writer) error {
 // earlyLoadConfigLogLevel reads only the log.level field from .idx.yml so the
 // logger can be initialised before the full DI graph is wired in run().
 func earlyLoadConfigLogLevel(projectRoot string) string {
-	configRepo := config.NewYAMLConfigRepository()
+	configRepo := sharedconfig.NewYAMLRepository()
 	cfg, _, err := configRepo.Load(projectRoot)
 	if err != nil {
 		return ""
