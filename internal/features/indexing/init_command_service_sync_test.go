@@ -13,16 +13,16 @@ func TestInitCommandServiceSyncReturnsCurrentDirError(t *testing.T) {
 	tree := newFakeProjectTree("", "")
 	tree.currentErr = errors.New("cwd unavailable")
 
-	service := indexing.NewInitCommandService(
-		tree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		fakeFileReader{files: map[string]string{}},
-		&fakeBM25Indexer{},
-		&fakeIndexRepository{savedIndices: map[string]*indexing.InvertedIndex{}},
-		newFakeChecksumRepository(),
-		nil,
-	)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: map[string]*indexing.InvertedIndex{}},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err == nil {
@@ -31,7 +31,7 @@ func TestInitCommandServiceSyncReturnsCurrentDirError(t *testing.T) {
 }
 
 func TestInitCommandServiceSyncReturnsErrorWhenDependenciesAreNil(t *testing.T) {
-	service := indexing.NewInitCommandService(nil, nil, nil, nil, nil, nil, nil, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{})
 
 	err := service.Sync()
 	if err == nil {
@@ -44,16 +44,16 @@ func TestInitCommandServiceSyncReturnsMatcherFactoryError(t *testing.T) {
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 
-	service := indexing.NewInitCommandService(
-		tree,
-		fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")},
-		&capturingTextOutput{},
-		fakeFileReader{files: map[string]string{}},
-		&fakeBM25Indexer{},
-		&fakeIndexRepository{savedIndices: map[string]*indexing.InvertedIndex{}},
-		newFakeChecksumRepository(),
-		nil,
-	)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{err: errors.New("bad gitignore")},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: map[string]*indexing.InvertedIndex{}},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err == nil {
@@ -83,7 +83,16 @@ func TestInitCommandServiceSyncRebuildsAllIndexedDirectories(t *testing.T) {
 		filepath.Join(otherDir, "other.txt"):  "other content",
 	}}
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, output, fileReader, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         output,
+		FileReader:     fileReader,
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -114,7 +123,16 @@ func TestInitCommandServiceSyncSkipsReindexWhenChecksumsUnchanged(t *testing.T) 
 	checksumRepo := newFakeChecksumRepository()
 	checksumRepo.exists[rootDir] = true
 	checksumRepo.checksums[rootDir] = map[string]string{"root.txt": checksumFromContent("root content")}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{filePath: "root content"}}, &fakeBM25Indexer{}, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{filePath: "root content"}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -137,7 +155,16 @@ func TestInitCommandServiceSyncReindexesWhenChecksumsChanged(t *testing.T) {
 	checksumRepo := newFakeChecksumRepository()
 	checksumRepo.exists[rootDir] = true
 	checksumRepo.checksums[rootDir] = map[string]string{"root.txt": checksumFromContent("old root content")}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{filePath: "new root content"}}, &fakeBM25Indexer{}, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{filePath: "new root content"}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -155,7 +182,16 @@ func TestInitCommandServiceSyncRemovesIndexWhenDirectoryHasNoIndexableFiles(t *t
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
 	tree.readDirMap[rootDir] = []filesystem.DirectoryEntry{{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true}}
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{}}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -178,7 +214,16 @@ func TestInitCommandServiceSyncRemovesIndexForNowIgnoredDirectory(t *testing.T) 
 	tree.readDirMap[ignoredDir] = []filesystem.DirectoryEntry{{Name: "dep.txt", Path: filepath.Join(ignoredDir, "dep.txt"), IsDir: false}}
 
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{"vendor/": true}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{filepath.Join(rootDir, "root.txt"): "root content"}}, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{"vendor/": true}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{filepath.Join(rootDir, "root.txt"): "root content"}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -204,7 +249,16 @@ func TestInitCommandServiceSyncCreatesIndexWhenDirectoryLeavesGitignore(t *testi
 	tree.readDirMap[newlyAllowedDir] = []filesystem.DirectoryEntry{{Name: "app.txt", Path: filepath.Join(newlyAllowedDir, "app.txt"), IsDir: false}}
 
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{filepath.Join(rootDir, "root.txt"): "root content", filepath.Join(newlyAllowedDir, "app.txt"): "source content"}}, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{filepath.Join(rootDir, "root.txt"): "root content", filepath.Join(newlyAllowedDir, "app.txt"): "source content"}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -223,7 +277,16 @@ func TestInitCommandServiceSyncReindexesDirectoryWhenFileLeavesGitignore(t *test
 	tree.readDirMap[rootDir] = []filesystem.DirectoryEntry{{Name: ".idx", Path: filepath.Join(rootDir, ".idx"), IsDir: true}, {Name: "allowed.txt", Path: filepath.Join(rootDir, "allowed.txt"), IsDir: false}, {Name: "debug.log", Path: filepath.Join(rootDir, "debug.log"), IsDir: false}}
 
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: map[string]string{filepath.Join(rootDir, "allowed.txt"): "allowed content", filepath.Join(rootDir, "debug.log"): "log content"}}, &fakeBM25Indexer{}, indexRepo, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{filepath.Join(rootDir, "allowed.txt"): "allowed content", filepath.Join(rootDir, "debug.log"): "log content"}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -238,7 +301,16 @@ func TestInitCommandServiceSyncReindexesDirectoryWhenFileLeavesGitignore(t *test
 func TestInitCommandServiceSyncRequiresProjectRootIndex(t *testing.T) {
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: make(map[string]string)},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err == nil {
@@ -251,7 +323,16 @@ func TestInitCommandServiceSyncMustRunFromProjectRoot(t *testing.T) {
 	childDir := filepath.Join(rootDir, "child")
 	tree := newFakeProjectTree(childDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, fakeFileReader{files: make(map[string]string)}, &fakeBM25Indexer{}, &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}, newFakeChecksumRepository(), nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: make(map[string]string)},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err == nil {
@@ -272,7 +353,16 @@ func TestInitCommandServiceSyncSkipsRehashWhenMetadataUnchanged(t *testing.T) {
 	checksumRepo.exists[rootDir] = true
 	checksumRepo.snapshots[rootDir] = indexing.DirectoryChecksumSnapshot{Files: map[string]indexing.FileChecksumState{"root.txt": {Checksum: checksumFromContent("root content"), Size: int64(len("root content")), ModTimeUnixNano: 42}}}
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, reader, &fakeBM25Indexer{}, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     reader,
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {
@@ -297,7 +387,16 @@ func TestInitCommandServiceSyncRehashesWhenMetadataChanges(t *testing.T) {
 	checksumRepo.exists[rootDir] = true
 	checksumRepo.snapshots[rootDir] = indexing.DirectoryChecksumSnapshot{Files: map[string]indexing.FileChecksumState{"root.txt": {Checksum: checksumFromContent("old content"), Size: int64(len("old content")), ModTimeUnixNano: 100}}}
 
-	service := indexing.NewInitCommandService(tree, fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}, &capturingTextOutput{}, reader, &fakeBM25Indexer{}, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     reader,
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Sync()
 	if err != nil {

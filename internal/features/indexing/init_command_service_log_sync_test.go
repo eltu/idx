@@ -23,15 +23,16 @@ func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
 	}
 
 	projectTree := filesystem.NewOSProjectTree()
-	service := indexing.NewInitCommandService(
-		projectTree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		filesystem.NewOSFileReader(),
-		indexing.NewBM25IndexService(),
-		storage.NewBinaryIndexRepository(),
-		storage.NewDirectoryChecksumRepository(),
-		nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    projectTree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     filesystem.NewOSFileReader(),
+		Indexer:        indexing.NewBM25IndexService(),
+		IndexRepo:      storage.NewBinaryIndexRepository(),
+		ChecksumRepo:   storage.NewDirectoryChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -87,15 +88,16 @@ func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
 	}
 
 	projectTree := filesystem.NewOSProjectTree()
-	service := indexing.NewInitCommandService(
-		projectTree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		filesystem.NewOSFileReader(),
-		indexing.NewBM25IndexService(),
-		storage.NewBinaryIndexRepository(),
-		storage.NewDirectoryChecksumRepository(),
-		nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    projectTree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     filesystem.NewOSFileReader(),
+		Indexer:        indexing.NewBM25IndexService(),
+		IndexRepo:      storage.NewBinaryIndexRepository(),
+		ChecksumRepo:   storage.NewDirectoryChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -148,15 +150,16 @@ func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
 	}
 
 	projectTree := filesystem.NewOSProjectTree()
-	service := indexing.NewInitCommandService(
-		projectTree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		filesystem.NewOSFileReader(),
-		indexing.NewBM25IndexService(),
-		storage.NewBinaryIndexRepository(),
-		storage.NewDirectoryChecksumRepository(),
-		nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    projectTree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     filesystem.NewOSFileReader(),
+		Indexer:        indexing.NewBM25IndexService(),
+		IndexRepo:      storage.NewBinaryIndexRepository(),
+		ChecksumRepo:   storage.NewDirectoryChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -224,15 +227,16 @@ func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
 	}
 
 	projectTree := filesystem.NewOSProjectTree()
-	service := indexing.NewInitCommandService(
-		projectTree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		filesystem.NewOSFileReader(),
-		indexing.NewBM25IndexService(),
-		storage.NewBinaryIndexRepository(),
-		storage.NewDirectoryChecksumRepository(),
-		nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    projectTree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     filesystem.NewOSFileReader(),
+		Indexer:        indexing.NewBM25IndexService(),
+		IndexRepo:      storage.NewBinaryIndexRepository(),
+		ChecksumRepo:   storage.NewDirectoryChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	originalDir, err := os.Getwd()
 	if err != nil {

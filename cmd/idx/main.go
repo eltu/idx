@@ -217,7 +217,16 @@ func run(arguments []string, output io.Writer) error {
 	// Break DI cycle: DaemonService → InitCommand → DaemonService (ProjectMonitorChecker).
 	// Construct daemon first with nil initCommand, wire initCommand after it's built.
 	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, projectTree, writer, nil, processSpawner)
-	initCommand := featindexing.NewInitCommandServiceWithProgress(projectTree, matcherFactory, writer, fileReader, indexer, indexRepo, checksumRepo, daemonServiceImpl, inspectRunner, progressRunner)
+	initCommand := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
+		ProjectTree:    projectTree,
+		MatcherFactory: matcherFactory,
+		Output:         writer,
+		FileReader:     fileReader,
+		Indexer:        indexer,
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     daemonServiceImpl,
+	}, inspectRunner, progressRunner)
 	initAdapter := appcli.NewInitCommandAdapter(initCommand, projectTree)
 	daemonServiceImpl.SetInitCommand(initAdapter)
 

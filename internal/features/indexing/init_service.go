@@ -43,31 +43,44 @@ func (disabledInitProgress) IncrementDir(string)      { /* no-op: progress repor
 func (disabledInitProgress) Finish()                  { /* no-op: progress reporting disabled */ }
 func (disabledInitProgress) Context() context.Context { return context.Background() }
 
+// InitCommandServiceDeps groups all collaborators for InitCommandService constructors,
+// eliminating the SonarQube too-many-parameters violation on the three New* functions.
+type InitCommandServiceDeps struct {
+	ProjectTree    filesystem.ProjectTree
+	MatcherFactory filesystem.IgnoreMatcherFactory
+	Output         output.Writer
+	FileReader     filesystem.FileReader
+	Indexer        Indexer
+	IndexRepo      IndexRepository
+	ChecksumRepo   DirectoryChecksumRepository
+	DaemonRepo     ProjectMonitorChecker
+}
+
 // NewInitCommandService builds the init use case without TUI support.
 // Use NewInitCommandServiceWithInspectUI when the inspect command must launch the TUI.
-// Example: service := NewInitCommandService(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo).
-func NewInitCommandService(projectTree filesystem.ProjectTree, matcherFactory filesystem.IgnoreMatcherFactory, output output.Writer, fileReader filesystem.FileReader, indexer Indexer, indexRepo IndexRepository, checksumRepo DirectoryChecksumRepository, daemonRepo ProjectMonitorChecker) InitCommandService {
-	return NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, disabledInspectUIRunner{})
+// Example: service := NewInitCommandService(indexing.InitCommandServiceDeps{...}).
+func NewInitCommandService(deps InitCommandServiceDeps) InitCommandService {
+	return NewInitCommandServiceWithInspectUI(deps, disabledInspectUIRunner{})
 }
 
 // NewInitCommandServiceWithInspectUI builds the init use case with an injected inspect UI runner.
-// Example: service := NewInitCommandServiceWithInspectUI(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, inspectUI).
-func NewInitCommandServiceWithInspectUI(projectTree filesystem.ProjectTree, matcherFactory filesystem.IgnoreMatcherFactory, output output.Writer, fileReader filesystem.FileReader, indexer Indexer, indexRepo IndexRepository, checksumRepo DirectoryChecksumRepository, daemonRepo ProjectMonitorChecker, inspectUI InspectUIRunner) InitCommandService {
-	return NewInitCommandServiceWithProgress(projectTree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, daemonRepo, inspectUI, disabledInitProgress{})
+// Example: service := NewInitCommandServiceWithInspectUI(indexing.InitCommandServiceDeps{...}, inspectUI).
+func NewInitCommandServiceWithInspectUI(deps InitCommandServiceDeps, inspectUI InspectUIRunner) InitCommandService {
+	return NewInitCommandServiceWithProgress(deps, inspectUI, disabledInitProgress{})
 }
 
 // NewInitCommandServiceWithProgress builds the init use case with both inspect UI and a progress reporter.
-// Example: service := NewInitCommandServiceWithProgress(..., inspectUI, progressRunner).
-func NewInitCommandServiceWithProgress(projectTree filesystem.ProjectTree, matcherFactory filesystem.IgnoreMatcherFactory, output output.Writer, fileReader filesystem.FileReader, indexer Indexer, indexRepo IndexRepository, checksumRepo DirectoryChecksumRepository, daemonRepo ProjectMonitorChecker, inspectUI InspectUIRunner, progress Progress) InitCommandService {
+// Example: service := NewInitCommandServiceWithProgress(indexing.InitCommandServiceDeps{...}, inspectUI, progressRunner).
+func NewInitCommandServiceWithProgress(deps InitCommandServiceDeps, inspectUI InspectUIRunner, progress Progress) InitCommandService {
 	return InitCommandService{
-		projectTree:    projectTree,
-		matcherFactory: matcherFactory,
-		output:         output,
-		fileReader:     fileReader,
-		indexer:        indexer,
-		indexRepo:      indexRepo,
-		checksumRepo:   checksumRepo,
-		daemonRepo:     daemonRepo,
+		projectTree:    deps.ProjectTree,
+		matcherFactory: deps.MatcherFactory,
+		output:         deps.Output,
+		fileReader:     deps.FileReader,
+		indexer:        deps.Indexer,
+		indexRepo:      deps.IndexRepo,
+		checksumRepo:   deps.ChecksumRepo,
+		daemonRepo:     deps.DaemonRepo,
 		inspectUI:      inspectUI,
 		initProgress:   progress,
 	}

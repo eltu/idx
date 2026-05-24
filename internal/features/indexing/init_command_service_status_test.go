@@ -149,16 +149,16 @@ func TestStatusFailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
 }
 
 func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
-	return indexing.NewInitCommandService(
-		filesystem.NewOSProjectTree(),
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		output,
-		filesystem.NewOSFileReader(),
-		indexing.NewBM25IndexService(),
-		storage.NewBinaryIndexRepository(),
-		storage.NewDirectoryChecksumRepository(),
-		nil,
-	)
+	return indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    filesystem.NewOSProjectTree(),
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         output,
+		FileReader:     filesystem.NewOSFileReader(),
+		Indexer:        indexing.NewBM25IndexService(),
+		IndexRepo:      storage.NewBinaryIndexRepository(),
+		ChecksumRepo:   storage.NewDirectoryChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 }
 
 func ensureGitProject(t *testing.T, rootDir string) {

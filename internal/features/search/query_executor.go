@@ -15,6 +15,19 @@ import (
 	
 )
 
+// popularityContext bundles the popularity-boost inputs used throughout result scoring.
+type popularityContext struct {
+	weight  float64
+	entries map[string]read.LogEntry
+	now     time.Time
+}
+
+// searchWorkerOutput groups the output channels shared by directory-search workers.
+type searchWorkerOutput struct {
+	resultsCh chan<- []searchResult
+	errCh     chan<- error
+}
+
 func (service SearchCommandService) rankedResults(directories []string, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
 	if err := service.validateDependencies(); err != nil {
 		return nil, err
@@ -38,7 +51,8 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	resultsCh := make(chan []searchResult, len(directories))
 	errCh := make(chan error, 1)
 	workerCount := boundedSearchWorkerCount(len(directories), service.tuning.maxWorkers)
-	runDirectoryWorkers(service, workerCount, jobs, terms, options, resultsCh, errCh, popularityMap, now)
+	out := searchWorkerOutput{resultsCh: resultsCh, errCh: errCh}
+	service.runDirectoryWorkers(workerCount, jobs, terms, options, out, popularityMap, now)
 	for _, directoryPath := range directories {
 		jobs <- directoryPath
 	}
@@ -47,7 +61,7 @@ func (service SearchCommandService) parallelDirectoryResults(directories []strin
 	return collectDirectoryResults(resultsCh, errCh)
 }
 
-func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-chan string, terms []string, options Options, resultsCh chan<- []searchResult, errCh chan<- error, popularityMap map[string]read.LogEntry, now time.Time) {
+func (service SearchCommandService) runDirectoryWorkers(workerCount int, jobs <-chan string, terms []string, options Options, out searchWorkerOutput, popularityMap map[string]read.LogEntry, now time.Time) {
 	var workers sync.WaitGroup
 	for worker := 0; worker < workerCount; worker++ {
 		workers.Add(1)
@@ -57,20 +71,20 @@ func runDirectoryWorkers(service SearchCommandService, workerCount int, jobs <-c
 				results, err := service.searchDirectoryIndex(directoryPath, terms, options, popularityMap, now)
 				if err != nil {
 					select {
-					case errCh <- err:
+					case out.errCh <- err:
 					default:
 					}
 					return
 				}
 
-				resultsCh <- results
+				out.resultsCh <- results
 			}
 		}()
 	}
 
 	go func() {
 		workers.Wait()
-		close(resultsCh)
+		close(out.resultsCh)
 	}()
 }
 
@@ -139,7 +153,8 @@ func (service SearchCommandService) searchDirectoryIndex(directoryPath string, t
 	scores = filteredScores(scores, metadataMatches, len(terms) == 0)
 	normalizeScores(scores)
 
-	return service.buildSearchResults(directoryPath, terms, options.Context, scores, 0, options.PopularityWeight, popularityMap, now)
+	pop := popularityContext{weight: options.PopularityWeight, entries: popularityMap, now: now}
+	return service.buildSearchResults(directoryPath, terms, options.Context, scores, 0, pop)
 }
 
 func shouldRelaxSearch(terms []string, options Options) bool {
@@ -166,7 +181,8 @@ func (service SearchCommandService) relaxedDirectoryResults(index *indexing.Inve
 		candidateScores = filteredScores(candidateScores, metadataMatches, false)
 		normalizeScores(candidateScores)
 
-		candidateResults, err := service.buildSearchResults(directoryPath, candidateTerms, options.Context, candidateScores, len(candidateTerms), options.PopularityWeight, popularityMap, now)
+		pop := popularityContext{weight: options.PopularityWeight, entries: popularityMap, now: now}
+		candidateResults, err := service.buildSearchResults(directoryPath, candidateTerms, options.Context, candidateScores, len(candidateTerms), pop)
 		if err != nil {
 			return nil, err
 		}
@@ -213,12 +229,10 @@ func mapResults(combined map[string]searchResult) []searchResult {
 	return results
 }
 
-func (service SearchCommandService) buildSearchResults(directoryPath string, terms []string, contextSize int, scores map[string]float64, matchedTerms int, popularityWeight float64, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) buildSearchResults(directoryPath string, terms []string, contextSize int, scores map[string]float64, matchedTerms int, pop popularityContext) ([]searchResult, error) {
 	results := make([]searchResult, 0, len(scores))
 	for fileName, score := range scores {
-		absPath := filepath.Join(directoryPath, fileName)
-		popularityEntry := popularityMap[absPath]
-		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score, matchedTerms, popularityEntry, popularityWeight, now)
+		result, err := service.buildSearchResult(directoryPath, fileName, terms, contextSize, score, matchedTerms, pop)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				results = append(results, searchResult{directoryPath: directoryPath, fileName: fileName, score: score, stale: true})
@@ -231,17 +245,18 @@ func (service SearchCommandService) buildSearchResults(directoryPath string, ter
 	return results, nil
 }
 
-func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64, matchedTerms int, popularityEntry read.LogEntry, popularityWeight float64, now time.Time) (searchResult, error) {
+func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64, matchedTerms int, pop popularityContext) (searchResult, error) {
 	lines, err := service.resultMatchedLines(directoryPath, fileName, terms, contextSize)
 	if err != nil {
 		return searchResult{}, err
 	}
 
+	entry := pop.entries[filepath.Join(directoryPath, fileName)]
 	return searchResult{
 		directoryPath:     directoryPath,
 		fileName:          fileName,
 		matchedLines:      lines,
-		score:             score + fileNameMatchBonus(terms, fileName) + popularityBonus(popularityEntry, now, popularityWeight),
+		score:             score + fileNameMatchBonus(terms, fileName) + popularityBonus(entry, pop.now, pop.weight),
 		matchedTerms:      matchedTerms,
 		termConcentration: maxTermsOnLine(lines, terms),
 	}, nil

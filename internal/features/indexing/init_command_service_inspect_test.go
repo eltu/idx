@@ -50,7 +50,16 @@ func TestInitCommandServiceInspectWithoutPathRunsTUI(t *testing.T) {
 	indexRepo.savedIndices[childDir] = childIndex
 
 	stub := &stubInspectUIRunner{}
-	service := indexing.NewInitCommandServiceWithInspectUI(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil, stub)
+	service := indexing.NewInitCommandServiceWithInspectUI(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: matcherFactory,
+		Output:         output,
+		FileReader:     fileReader,
+		Indexer:        indexer,
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	}, stub)
 
 	err := service.Inspect("")
 	if err != nil {
@@ -79,16 +88,16 @@ func TestInitCommandServiceInspectWithoutPathFailsWhenProjectHasNoIndex(t *testi
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []filesystem.DirectoryEntry{}
 
-	service := indexing.NewInitCommandService(
-		tree,
-		fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
-		&capturingTextOutput{},
-		fakeFileReader{files: map[string]string{}},
-		&fakeBM25Indexer{},
-		&fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)},
-		newFakeChecksumRepository(),
-		nil,
-	)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}},
+		Output:         &capturingTextOutput{},
+		FileReader:     fakeFileReader{files: map[string]string{}},
+		Indexer:        &fakeBM25Indexer{},
+		IndexRepo:      &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)},
+		ChecksumRepo:   newFakeChecksumRepository(),
+		DaemonRepo:     nil,
+	})
 
 	err := service.Inspect("")
 	if err == nil {
@@ -117,7 +126,16 @@ func TestInitCommandServiceInspectWritesIndexPayloadFromPath(t *testing.T) {
 	preBuiltIndex.DocumentCount = 1
 	indexRepo.savedIndices[rootDir] = preBuiltIndex
 
-	service := indexing.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: matcherFactory,
+		Output:         output,
+		FileReader:     fileReader,
+		Indexer:        indexer,
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Inspect(".")
 	if err != nil {
@@ -147,7 +165,16 @@ func TestInitCommandServiceInspectFailsWhenNoIndexExists(t *testing.T) {
 	indexer := &fakeBM25Indexer{}
 	indexRepo := &fakeIndexRepository{savedIndices: make(map[string]*indexing.InvertedIndex)}
 	checksumRepo := newFakeChecksumRepository()
-	service := indexing.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: matcherFactory,
+		Output:         output,
+		FileReader:     fileReader,
+		Indexer:        indexer,
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Inspect("internal")
 	if err == nil {
@@ -179,7 +206,16 @@ func TestInitCommandServiceInspectLoadsNestedIndexFromRelativePath(t *testing.T)
 	preBuiltIndex.DocumentCount = 2
 	indexRepo.savedIndices[nestedDir] = preBuiltIndex
 
-	service := indexing.NewInitCommandService(tree, matcherFactory, output, fileReader, indexer, indexRepo, checksumRepo, nil)
+	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
+		ProjectTree:    tree,
+		MatcherFactory: matcherFactory,
+		Output:         output,
+		FileReader:     fileReader,
+		Indexer:        indexer,
+		IndexRepo:      indexRepo,
+		ChecksumRepo:   checksumRepo,
+		DaemonRepo:     nil,
+	})
 
 	err := service.Inspect("internal/")
 	if err != nil {

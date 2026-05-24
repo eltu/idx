@@ -12,6 +12,15 @@
 - String literals used more than once must be extracted as named constants.
   Applies to any string with >5 characters that contains non-alphanumeric characters
   (e.g. command names, format strings, file paths, error messages, key bindings).
+- Empty function bodies (including anonymous `func() {}`) must contain a comment
+  explaining why they are intentionally empty (e.g. `/* no-op: reason */`).
+- Cognitive complexity per function must stay below 15. When a closure or nested
+  control structure pushes a function over the limit, extract the body into a
+  named function or method.
+- Functions and methods must have at most 7 parameters. When the limit is exceeded,
+  group related parameters into a named struct (e.g. `FooDeps`, `BarContext`,
+  `BazOutput`). Prefer grouping by cohesion: dependencies together, output channels
+  together, contextual inputs together.
 - Early returns over nested ifs. Max 2 levels of indentation.
 - Exception messages must include the offending value and expected shape.
 
