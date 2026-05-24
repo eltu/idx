@@ -50,7 +50,7 @@ func inspectCommandSuggestions(query string) []string {
 	return suggestions
 }
 
-func inspectCommonPrefix(left string, right string) string {
+func inspectCommonPrefix(left, right string) string {
 	leftRunes := []rune(left)
 	rightRunes := []rune(right)
 	maxLen := len(leftRunes)

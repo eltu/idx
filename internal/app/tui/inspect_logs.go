@@ -7,7 +7,7 @@ import (
 )
 
 func sortInspectLogsNewestFirst(rows []inspectLogRow) {
-	sort.SliceStable(rows, func(i int, j int) bool {
+	sort.SliceStable(rows, func(i, j int) bool {
 		left := rows[i]
 		right := rows[j]
 
@@ -111,7 +111,7 @@ func parseInspectSummaryFields(summary string) (string, string, string) {
 	return indexedAt, pathValue, hash
 }
 
-func extractSummaryValue(summary string, key string) string {
+func extractSummaryValue(summary, key string) string {
 	patterns := []string{key + "=", key + ":"}
 	for _, pattern := range patterns {
 		start := strings.Index(summary, pattern)

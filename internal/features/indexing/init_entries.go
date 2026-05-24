@@ -19,7 +19,7 @@ func filterEntries(entries []filesystem.DirectoryEntry, projectRoot string, matc
 			allowedEntries = append(allowedEntries, entry)
 		}
 	}
-	sort.Slice(allowedEntries, func(left int, right int) bool {
+	sort.Slice(allowedEntries, func(left, right int) bool {
 		return allowedEntries[left].Name < allowedEntries[right].Name
 	})
 	return allowedEntries, nil

@@ -153,7 +153,7 @@ func (service InitCommandService) fileChecksum(entry filesystem.DirectoryEntry) 
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func sameSnapshotChecksums(stored map[string]FileChecksumState, current map[string]FileChecksumState) bool {
+func sameSnapshotChecksums(stored, current map[string]FileChecksumState) bool {
 	if len(stored) != len(current) {
 		return false
 	}
@@ -217,7 +217,7 @@ func (service InitCommandService) directoryChecksums(fileEntries []filesystem.Di
 	return checksums, nil
 }
 
-func sameChecksums(stored map[string]string, current map[string]string) bool {
+func sameChecksums(stored, current map[string]string) bool {
 	if len(stored) != len(current) {
 		return false
 	}

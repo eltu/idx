@@ -214,7 +214,7 @@ func initialDocumentSet(index map[string]map[string]bool, term string) (map[stri
 	return matched, true
 }
 
-func retainIntersection(matched map[string]bool, documents map[string]bool) {
+func retainIntersection(matched, documents map[string]bool) {
 	for docName := range matched {
 		if !documents[docName] {
 			delete(matched, docName)
@@ -241,7 +241,7 @@ func matchedMetadataDocuments(index map[string]map[string]bool, term string) map
 	return matched
 }
 
-func wildcardMatch(pattern string, value string) bool {
+func wildcardMatch(pattern, value string) bool {
 	if pattern == "*" {
 		return true
 	}
@@ -253,7 +253,7 @@ func wildcardMatch(pattern string, value string) bool {
 	return wildcardPartsMatch(pattern, value)
 }
 
-func singleWildcardMatch(pattern string, value string) bool {
+func singleWildcardMatch(pattern, value string) bool {
 	if strings.Count(pattern, "*") != 1 {
 		return false
 	}
@@ -269,7 +269,7 @@ func singleWildcardMatch(pattern string, value string) bool {
 	return false
 }
 
-func wildcardPartsMatch(pattern string, value string) bool {
+func wildcardPartsMatch(pattern, value string) bool {
 	parts := strings.Split(pattern, "*")
 	if len(parts) == 1 {
 		return value == pattern

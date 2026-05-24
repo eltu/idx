@@ -34,8 +34,8 @@ const (
 	skillsEditorArg  = "<editor>"
 )
 
-// skillsableCommand defines the Install method consumed by the skills command.
-type skillsableCommand interface {
+// Installer defines the Install method consumed by the skills command.
+type Installer interface {
 	Install(editor string, verbose bool) error
 }
 

@@ -176,7 +176,7 @@ func inspectRowsFromIndex(index *indexing.InvertedIndex) ([]inspectDirectoryRow,
 	byDirectory := indexDocumentsByDirectory(index)
 	directories := make([]inspectDirectoryRow, 0, len(byDirectory))
 	for directoryPath, rows := range byDirectory {
-		sort.Slice(rows, func(i int, j int) bool {
+		sort.Slice(rows, func(i, j int) bool {
 			if rows[i].path == rows[j].path {
 				return rows[i].name < rows[j].name
 			}
@@ -187,7 +187,7 @@ func inspectRowsFromIndex(index *indexing.InvertedIndex) ([]inspectDirectoryRow,
 			documentCount: len(rows),
 		})
 	}
-	sort.Slice(directories, func(i int, j int) bool {
+	sort.Slice(directories, func(i, j int) bool {
 		return directories[i].path < directories[j].path
 	})
 	return directories, byDirectory
@@ -216,7 +216,7 @@ func indexDocumentsByDirectory(index *indexing.InvertedIndex) map[string][]inspe
 	return byDirectory
 }
 
-func inspectDocumentDirectory(documentKey string, documentPath string) string {
+func inspectDocumentDirectory(documentKey, documentPath string) string {
 	const separator = "::"
 	if separatorIndex := strings.Index(documentKey, separator); separatorIndex > 0 {
 		return documentKey[:separatorIndex]

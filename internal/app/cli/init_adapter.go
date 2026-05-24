@@ -12,14 +12,14 @@ type initRunner interface {
 	Run() error
 }
 
-// InitCommandAdapter wraps InitCommandService to satisfy indexing.CommandInterface
+// InitCommandAdapter wraps InitCommandService to satisfy indexing.PathRunner
 // by chdir-ing into the target path before delegating to the service.
 type InitCommandAdapter struct {
 	initService initRunner
 	projectTree filesystem.ProjectTree
 }
 
-// NewInitCommandAdapter constructs an adapter implementing indexing.CommandInterface.
+// NewInitCommandAdapter constructs an adapter implementing indexing.PathRunner.
 // Example: adapter := NewInitCommandAdapter(initService, projectTree).
 func NewInitCommandAdapter(initService initRunner, projectTree filesystem.ProjectTree) *InitCommandAdapter {
 	return &InitCommandAdapter{initService: initService, projectTree: projectTree}

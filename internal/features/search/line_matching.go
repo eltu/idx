@@ -28,7 +28,7 @@ func matchingLinesInContent(content string, terms []string, contextSize int) []m
 	return result
 }
 
-func matchedLineIndexes(lines []string, terms []string) map[int]struct{} {
+func matchedLineIndexes(lines, terms []string) map[int]struct{} {
 	matchedIndexes := make(map[int]struct{})
 	for index, line := range lines {
 		if lineContainsAnyTerm(line, terms) {
@@ -117,7 +117,7 @@ func lineContainsAnyTerm(line string, terms []string) bool {
 	return false
 }
 
-func lineContainsTerm(lowerLine string, term string) bool {
+func lineContainsTerm(lowerLine, term string) bool {
 	start := 0
 	for {
 		idx := strings.Index(lowerLine[start:], term)

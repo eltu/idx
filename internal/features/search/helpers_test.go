@@ -234,7 +234,7 @@ func searchableIndexWithMetadataFilters(rootDir string) *indexing.InvertedIndex 
 	return index
 }
 
-func searchableIndexForMetadataPath(directoryPath string, fileName string) *indexing.InvertedIndex {
+func searchableIndexForMetadataPath(directoryPath, fileName string) *indexing.InvertedIndex {
 	index := indexing.NewInvertedIndex()
 	filePath := filepath.Join(directoryPath, fileName)
 	index.Documents[fileName] = &indexing.DocStats{Name: fileName, Path: filePath, Length: 1}
@@ -263,7 +263,7 @@ type fakeProjectTree struct {
 	gitRootErr error
 }
 
-func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
+func newFakeProjectTree(currentDir, gitRoot string) *fakeProjectTree {
 	return &fakeProjectTree{
 		currentDir: currentDir,
 		gitRoot:    gitRoot,

@@ -9,7 +9,7 @@ import (
 	"idx/internal/features/search"
 )
 
-type runnableCommand interface {
+type Runner interface {
 	Run() error
 }
 
@@ -21,11 +21,11 @@ type indexableCommand interface {
 	Watch(showUpdatedFiles bool, debounce time.Duration) error
 }
 
-type searchableCommand interface {
+type Searcher interface {
 	RunWithOptions(query string, options search.Options) error
 }
 
-type readableCommand interface {
+type Reader interface {
 	RunWithOptions(filePath string, fromLine, toLine int) error
 }
 
@@ -38,11 +38,11 @@ type BuildInfo struct {
 type CommandRunner struct {
 	arguments       []string
 	indexCommand    indexableCommand
-	destroyCommand  runnableCommand
-	searchCommand   searchableCommand
-	readCommand     readableCommand
+	destroyCommand  Runner
+	searchCommand   Searcher
+	readCommand     Reader
 	daemonService   daemonableCommand
-	skillsCommand   skillsableCommand
+	skillsCommand   Installer
 	buildInfo       BuildInfo
 	quietToggle     interface{ SetQuiet(bool) }
 	config          config.IdxConfig
@@ -61,7 +61,7 @@ type daemonableCommand interface {
 // Initialises config with DefaultIdxConfig so flag defaults are valid even
 // when WithConfig is not called (e.g. in unit tests).
 // Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand, daemonService).
-func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand runnableCommand, searchCommand searchableCommand, daemonService daemonableCommand) CommandRunner {
+func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand Runner, searchCommand Searcher, daemonService daemonableCommand) CommandRunner {
 	return CommandRunner{
 		arguments:      arguments,
 		indexCommand:   indexCommand,
@@ -81,14 +81,14 @@ func (runner CommandRunner) WithBuildInfo(info BuildInfo) CommandRunner {
 
 // WithSkillsCommand wires the skills installer so 'idx skills install' works.
 // Example: runner = runner.WithSkillsCommand(skillsService).
-func (runner CommandRunner) WithSkillsCommand(s skillsableCommand) CommandRunner {
+func (runner CommandRunner) WithSkillsCommand(s Installer) CommandRunner {
 	runner.skillsCommand = s
 	return runner
 }
 
 // WithReadCommand wires the file reader so 'idx read <path>' works.
 // Example: runner = runner.WithReadCommand(readService).
-func (runner CommandRunner) WithReadCommand(r readableCommand) CommandRunner {
+func (runner CommandRunner) WithReadCommand(r Reader) CommandRunner {
 	runner.readCommand = r
 	return runner
 }

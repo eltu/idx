@@ -212,7 +212,7 @@ func mergeRelaxedResults(combined map[string]searchResult, partial []searchResul
 	}
 }
 
-func relaxedResultBetter(candidate searchResult, current searchResult) bool {
+func relaxedResultBetter(candidate, current searchResult) bool {
 	if candidate.matchedTerms != current.matchedTerms {
 		return candidate.matchedTerms > current.matchedTerms
 	}
@@ -283,7 +283,7 @@ func (service SearchCommandService) allMatchingLines(directoryPath string, fileN
 	return matchingLinesInContent(content, terms, contextSize), nil
 }
 
-func relativeResultPath(projectRoot string, directoryPath string, documentName string) (string, error) {
+func relativeResultPath(projectRoot, directoryPath, documentName string) (string, error) {
 	absoluteFilePath := filepath.Join(directoryPath, documentName)
 	projectRelativePath, err := filepath.Rel(projectRoot, absoluteFilePath)
 	if err != nil {

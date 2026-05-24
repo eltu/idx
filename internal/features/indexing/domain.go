@@ -70,17 +70,17 @@ func (idx *InvertedIndex) AddDocument(docName string, docPath string, tokenCount
 }
 
 // AddFileNameTerms indexes filename tokens for filter-only lookups.
-func (idx *InvertedIndex) AddFileNameTerms(docName string, fileName string) {
+func (idx *InvertedIndex) AddFileNameTerms(docName, fileName string) {
 	addMetadataTerms(idx.FileNameTerms, docName, fileName)
 }
 
 // AddPathTerms indexes path tokens for filter-only lookups.
-func (idx *InvertedIndex) AddPathTerms(docName string, docPath string) {
+func (idx *InvertedIndex) AddPathTerms(docName, docPath string) {
 	addMetadataTerms(idx.PathTerms, docName, docPath)
 }
 
 // AddExtensionTerms indexes extension tokens for filter-only lookups.
-func (idx *InvertedIndex) AddExtensionTerms(docName string, extension string) {
+func (idx *InvertedIndex) AddExtensionTerms(docName, extension string) {
 	addMetadataTerms(idx.ExtensionTerms, docName, extension)
 }
 
@@ -123,7 +123,7 @@ func (idx *InvertedIndex) CalculateIDF() {
 }
 
 // idfScore computes BM25 IDF using standard formula.
-func idfScore(docCount int, docFreq int) float64 {
+func idfScore(docCount, docFreq int) float64 {
 	if docFreq == 0 {
 		return 0
 	}

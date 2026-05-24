@@ -78,7 +78,7 @@ func findHighlightSpans(line string, terms []string) []highlightSpan {
 	return spans
 }
 
-func isWholeWordMatch(line string, start int, length int) bool {
+func isWholeWordMatch(line string, start, length int) bool {
 	before := start == 0 || !isWordChar(line[start-1])
 	after := start+length >= len(line) || !isWordChar(line[start+length])
 	return before && after

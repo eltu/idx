@@ -92,6 +92,6 @@ func (service DestroyCommandService) processDestroyEntry(entry filesystem.Direct
 	return service.destroyIndexes(entry.Path)
 }
 
-func isProjectRoot(currentDir string, projectRoot string) bool {
+func isProjectRoot(currentDir, projectRoot string) bool {
 	return filepath.Clean(currentDir) == filepath.Clean(projectRoot)
 }

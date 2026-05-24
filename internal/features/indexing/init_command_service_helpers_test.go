@@ -24,7 +24,7 @@ type fakeProjectTree struct {
 	gitRootErr error
 }
 
-func newFakeProjectTree(currentDir string, gitRoot string) *fakeProjectTree {
+func newFakeProjectTree(currentDir, gitRoot string) *fakeProjectTree {
 	return &fakeProjectTree{
 		currentDir: currentDir,
 		gitRoot:    gitRoot,

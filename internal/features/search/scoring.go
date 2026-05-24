@@ -22,7 +22,7 @@ func sortResults(results []searchResult) {
 	}
 }
 
-func orderedSearchResult(left searchResult, right searchResult) bool {
+func orderedSearchResult(left, right searchResult) bool {
 	if left.matchedTerms != right.matchedTerms {
 		return left.matchedTerms > right.matchedTerms
 	}

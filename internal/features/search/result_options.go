@@ -167,7 +167,7 @@ func filesOnlyResults(results []searchResult) []searchResult {
 		filtered = append(filtered, result)
 	}
 
-	sort.Slice(filtered, func(i int, j int) bool {
+	sort.Slice(filtered, func(i, j int) bool {
 		if filtered[i].score != filtered[j].score {
 			return filtered[i].score > filtered[j].score
 		}

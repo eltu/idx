@@ -234,7 +234,7 @@ func inspectDocumentJSON(index *indexing.InvertedIndex, row inspectDocumentRow) 
 		}
 		terms = append(terms, inspectTermEntry{Term: term, TF: docTerm.TF, Positions: append([]int(nil), docTerm.Positions...)})
 	}
-	sort.Slice(terms, func(i int, j int) bool { return terms[i].Term < terms[j].Term })
+	sort.Slice(terms, func(i, j int) bool { return terms[i].Term < terms[j].Term })
 	payload := inspectDocumentPayload{Name: docStats.Name, Path: docStats.Path, Length: docStats.Length, UniqueTerms: len(terms), Terms: terms}
 	bytes, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {

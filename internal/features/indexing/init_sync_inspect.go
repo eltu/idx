@@ -128,7 +128,7 @@ func (service InitCommandService) removeDirectoryIndex(directoryPath string) err
 	return nil
 }
 
-func staleIndexedDirectories(indexed []string, eligible []string) []string {
+func staleIndexedDirectories(indexed, eligible []string) []string {
 	eligibleSet := make(map[string]struct{}, len(eligible))
 	for _, directoryPath := range eligible {
 		eligibleSet[directoryPath] = struct{}{}
@@ -301,7 +301,7 @@ func cloneInspectDocTermStats(docTermStats *DocTermStats) *DocTermStats {
 	return &DocTermStats{TF: docTermStats.TF, Positions: positions}
 }
 
-func inspectDocumentID(directoryPath string, documentName string) string {
+func inspectDocumentID(directoryPath, documentName string) string {
 	return directoryPath + "::" + documentName
 }
 

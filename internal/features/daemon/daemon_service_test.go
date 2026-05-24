@@ -247,7 +247,7 @@ func TestDaemonServiceDisableReturnsErrorWhenReadStateFails(t *testing.T) {
 	repo := mocks.NewMockDaemonRepository(ctrl)
 	tree := mocks.NewMockProjectTree(ctrl)
 	output := mocks.NewMockTextOutput(ctrl)
-	initCmd := mocks.NewMockInitCommandInterface(ctrl)
+	initCmd := mocks.NewMockInitPathRunner(ctrl)
 	spawner := mocks.NewMockProcessSpawner(ctrl)
 
 	repo.EXPECT().ReadState().Return(nil, errors.New("state read error")).AnyTimes()
@@ -296,7 +296,7 @@ func TestDaemonServiceEnableReturnsErrorWhenRegisterFails(t *testing.T) {
 	repo := mocks.NewMockDaemonRepository(ctrl)
 	tree := mocks.NewMockProjectTree(ctrl)
 	out := mocks.NewMockTextOutput(ctrl)
-	initCmd := mocks.NewMockInitCommandInterface(ctrl)
+	initCmd := mocks.NewMockInitPathRunner(ctrl)
 	spawner := mocks.NewMockProcessSpawner(ctrl)
 
 	repo.EXPECT().ReadState().Return(nil, nil).AnyTimes()
@@ -336,7 +336,7 @@ func TestDaemonServiceSetInitCommandWiresInitCommand(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
-	newCmd := mocks.NewMockInitCommandInterface(ctrl)
+	newCmd := mocks.NewMockInitPathRunner(ctrl)
 	svc.SetInitCommand(newCmd)
 
 	newCmd.EXPECT().RunFromPath(gomock.Any()).Return(nil).Times(0)

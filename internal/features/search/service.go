@@ -58,14 +58,15 @@ type SearchCommandService struct {
 	projectTree  filesystem.ProjectTree
 	output       output.Writer
 	fileReader   filesystem.FileReader
-	indexRepo    searchableIndexRepository
+	indexRepo    IndexLoader
 	readLogRepo  read.LogRepository
 	cache        *searchCache
 	cacheEnabled bool
 	tuning       searchTuning
 }
 
-type searchableIndexRepository interface {
+// IndexLoader loads an inverted index from a directory path.
+type IndexLoader interface {
 	LoadIndex(directoryPath string) (*indexing.InvertedIndex, error)
 }
 
@@ -94,7 +95,7 @@ type matchedLine struct {
 // NewSearchCommandService builds the search use case with built-in defaults.
 // Use WithTuning to override BM25 parameters or cache settings from .idx.yml.
 // Example: service := NewSearchCommandService(projectTree, output, fileReader, indexRepo).
-func NewSearchCommandService(projectTree filesystem.ProjectTree, output output.Writer, fileReader filesystem.FileReader, indexRepo searchableIndexRepository) SearchCommandService {
+func NewSearchCommandService(projectTree filesystem.ProjectTree, output output.Writer, fileReader filesystem.FileReader, indexRepo IndexLoader) SearchCommandService {
 	tuning := defaultSearchTuning()
 	return SearchCommandService{
 		projectTree:  projectTree,
@@ -259,7 +260,7 @@ func (service SearchCommandService) validateDependencies() error {
 	}
 
 	if service.indexRepo == nil {
-		return fmt.Errorf("failed to run search: got nil index repository dependency, expected non-nil searchableIndexRepository")
+		return fmt.Errorf("failed to run search: got nil index repository dependency, expected non-nil IndexLoader")
 	}
 
 	return nil

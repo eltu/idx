@@ -302,7 +302,7 @@ func updateStatusSummary(summary statusSummary, report statusDirectoryReport) st
 }
 
 // missingIndexDirectories returns eligible directories that have no index yet.
-func missingIndexDirectories(indexed []string, eligible []string) []string {
+func missingIndexDirectories(indexed, eligible []string) []string {
 	indexedSet := make(map[string]struct{}, len(indexed))
 	for _, d := range indexed {
 		indexedSet[d] = struct{}{}

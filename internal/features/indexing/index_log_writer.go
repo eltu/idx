@@ -86,7 +86,7 @@ func shouldRotateActiveLog(activePath string, incomingSize int) bool {
 	return info.Size()+int64(incomingSize) > indexLogMaxSizeBytes
 }
 
-func rotateActiveLogFile(logsDir string, activePath string) error {
+func rotateActiveLogFile(logsDir, activePath string) error {
 	rotatedName := fmt.Sprintf("tlog_%s.log", time.Now().Format("20060102150405"))
 	rotatedPath := filepath.Join(logsDir, rotatedName)
 	if _, err := os.Stat(rotatedPath); err == nil {
@@ -114,7 +114,7 @@ func cleanupRotatedLogs(logsDir string) error {
 		return nil
 	}
 
-	sort.Slice(files, func(left int, right int) bool {
+	sort.Slice(files, func(left, right int) bool {
 		return filepath.Base(files[left]) > filepath.Base(files[right])
 	})
 

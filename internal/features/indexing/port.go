@@ -41,8 +41,8 @@ type DirectoryChecksumSnapshotRepository interface {
 	SaveSnapshot(directoryPath string, snapshot DirectoryChecksumSnapshot) error
 }
 
-// CommandInterface defines the contract for initializing a project.
-type CommandInterface interface {
+// PathRunner defines the contract for initializing a project.
+type PathRunner interface {
 	// RunFromPath runs the index initialization from a specific directory.
 	RunFromPath(projectPath string) error
 }
@@ -65,7 +65,7 @@ type InspectUIRunner interface {
 
 // ProjectMonitorChecker reports whether a project is already being watched by the daemon.
 // Implemented by features/daemon; declared here to break the import cycle
-// (daemon imports indexing.CommandInterface; indexing uses this to guard manual watch).
+// (daemon imports indexing.PathRunner; indexing uses this to guard manual watch).
 type ProjectMonitorChecker interface {
 	IsProjectMonitored(projectRoot string) (bool, error)
 	// ProjectStatus returns daemon status details for the status panel.

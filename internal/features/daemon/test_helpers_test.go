@@ -17,7 +17,7 @@ type daemonTestEnv struct {
 	repo          *mocks.MockDaemonRepository
 	tree          *mocks.MockProjectTree
 	output        *mocks.MockTextOutput
-	initCommand   *mocks.MockInitCommandInterface
+	initCommand   *mocks.MockInitPathRunner
 	spawner       *mocks.MockProcessSpawner
 	state         *daemon.State
 	lines         []string
@@ -36,7 +36,7 @@ func newDaemonTestEnv(t *testing.T, initialState *daemon.State) *daemonTestEnv {
 		repo:         mocks.NewMockDaemonRepository(controller),
 		tree:         mocks.NewMockProjectTree(controller),
 		output:       mocks.NewMockTextOutput(controller),
-		initCommand:  mocks.NewMockInitCommandInterface(controller),
+		initCommand:  mocks.NewMockInitPathRunner(controller),
 		spawner:      mocks.NewMockProcessSpawner(controller),
 		state:        cloneDaemonState(initialState),
 		nextSpawnPID: 12345,

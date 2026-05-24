@@ -329,21 +329,21 @@ func inspectDividerWidth(width int) int {
 	return width
 }
 
-func minInt(a int, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func maxInt(a int, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-func clampInt(value int, low int, high int) int {
+func clampInt(value, low, high int) int {
 	if value < low {
 		return low
 	}

@@ -20,7 +20,7 @@ type DaemonService struct {
 	daemonRepo     Repository
 	projectTree    filesystem.ProjectTree
 	output         output.Writer
-	initCommand    indexing.CommandInterface
+	initCommand    indexing.PathRunner
 	processSpawner ProcessSpawner
 	processExists  func(int) bool
 }
@@ -30,7 +30,7 @@ func NewDaemonService(
 	daemonRepo Repository,
 	projectTree filesystem.ProjectTree,
 	output output.Writer,
-	initCommand indexing.CommandInterface,
+	initCommand indexing.PathRunner,
 	processSpawner ProcessSpawner,
 ) *DaemonService {
 	return NewDaemonServiceWithProcessChecker(daemonRepo, projectTree, output, initCommand, processSpawner, processRunning)
@@ -42,7 +42,7 @@ func NewDaemonServiceWithProcessChecker(
 	daemonRepo Repository,
 	projectTree filesystem.ProjectTree,
 	output output.Writer,
-	initCommand indexing.CommandInterface,
+	initCommand indexing.PathRunner,
 	processSpawner ProcessSpawner,
 	processExists func(int) bool,
 ) *DaemonService {
@@ -268,7 +268,7 @@ func (s *DaemonService) registerProject(projectPath string, pid int) error {
 
 // SetInitCommand wires the init command after construction, breaking the DI cycle:
 // DaemonService → InitCommand → DaemonService (as ProjectMonitorChecker).
-func (s *DaemonService) SetInitCommand(cmd indexing.CommandInterface) {
+func (s *DaemonService) SetInitCommand(cmd indexing.PathRunner) {
 	s.initCommand = cmd
 }
 

@@ -141,7 +141,7 @@ func hasSystemPathSegment(path string) bool {
 	return false
 }
 
-func eventDirectory(projectRoot string, path string) (string, bool) {
+func eventDirectory(projectRoot, path string) (string, bool) {
 	cleanedRoot := filepath.Clean(projectRoot)
 	cleanedPath := filepath.Clean(path)
 
@@ -157,7 +157,7 @@ func eventDirectory(projectRoot string, path string) (string, bool) {
 	return filepath.Dir(cleanedPath), true
 }
 
-func isWithinRoot(projectRoot string, path string) bool {
+func isWithinRoot(projectRoot, path string) bool {
 	relativePath, err := filepath.Rel(projectRoot, path)
 	if err != nil {
 		return false
