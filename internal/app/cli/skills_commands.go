@@ -29,6 +29,11 @@ var skillsEditors = []skillsEditorEntry{
 	{"cursor", "Cursor"},
 }
 
+const (
+	skillsInstallCmd = "idx skills install"
+	skillsEditorArg  = "<editor>"
+)
+
 // skillsableCommand defines the Install method consumed by the skills command.
 type skillsableCommand interface {
 	Install(editor string, verbose bool) error
@@ -52,7 +57,7 @@ func (runner CommandRunner) newSkillsInstallCommand() *cobra.Command {
 	var verbose bool
 	var installCmd *cobra.Command
 	installCmd = &cobra.Command{
-		Use:   "install <editor>",
+		Use:   "install " + skillsEditorArg,
 		Short: "Install idx skills for your editor",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -94,8 +99,8 @@ func renderSkillsInstallHelp() string {
 	return renderSkillsHelpPage(skillsHelpParams{
 		title:    "🎯 idx skills install",
 		subtitle: "Install idx skills from github.com/eltu/idx-skills.",
-		usage:    "idx skills install",
-		usageArg: "<editor>",
+		usage:    skillsInstallCmd,
+		usageArg: skillsEditorArg,
 		footer:   "Requires git to be installed and available in $PATH.",
 	})
 }
@@ -120,7 +125,7 @@ func renderSkillsHelpPage(p skillsHelpParams) string {
 
 func appendSkillsCommandsSection(b *strings.Builder) {
 	b.WriteString("  " + skillsCmdSectionStyle.Render("Commands") + "\n")
-	b.WriteString("    " + skillsCmdActionStyle.Render("install") + " " + skillsCmdArgStyle.Render("<editor>") +
+	b.WriteString("    " + skillsCmdActionStyle.Render("install") + " " + skillsCmdArgStyle.Render(skillsEditorArg) +
 		"  " + skillsCmdMutedStyle.Render("Install idx skills for the specified editor") + "\n")
 	b.WriteString("\n")
 }
@@ -138,7 +143,7 @@ func appendSkillsEditorSection(b *strings.Builder) {
 func appendSkillsInstallExamplesSection(b *strings.Builder) {
 	b.WriteString("  " + skillsCmdSectionStyle.Render("Examples") + "\n")
 	for _, e := range skillsEditors {
-		b.WriteString("    " + skillsCmdMutedStyle.Render("idx skills install") + " " + skillsCmdArgStyle.Render(e.id) + "\n")
+		b.WriteString("    " + skillsCmdMutedStyle.Render(skillsInstallCmd) + " " + skillsCmdArgStyle.Render(e.id) + "\n")
 	}
 	b.WriteString("\n")
 }
@@ -149,11 +154,11 @@ func renderSkillsEditorRow(e skillsEditorEntry) string {
 }
 
 func writeSkillsMissingEditorError(cmd *cobra.Command) {
-	usage := skillsCmdActionStyle.Render("idx skills install") + " " + skillsCmdArgStyle.Render("<editor>")
+	usage := skillsCmdActionStyle.Render(skillsInstallCmd) + " " + skillsCmdArgStyle.Render(skillsEditorArg)
 
 	rows := make([]string, 0, len(skillsEditors))
 	for _, e := range skillsEditors {
-		rows = append(rows, skillsCmdMutedStyle.Render("idx skills install")+" "+renderSkillsEditorRow(e))
+		rows = append(rows, skillsCmdMutedStyle.Render(skillsInstallCmd)+" "+renderSkillsEditorRow(e))
 	}
 
 	msg := fmt.Sprintf("\n%s\n\n  Usage:    %s\n\n  Editors:\n    %s\n",

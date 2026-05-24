@@ -11,6 +11,11 @@ import (
 	"idx/internal/features/search"
 )
 
+const (
+	searchCmdName            = "idx search"
+	errMsgRelaxationFormat   = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
+)
+
 func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	config := &searchCommandConfig{}
 	var searchCommand *cobra.Command
@@ -106,11 +111,7 @@ func validateSearchFlagValues(contextLines int, from int, size int, sizeChanged 
 		return fmt.Errorf("invalid --from value %d: expected a non-negative integer", from)
 	}
 
-	if size < 0 {
-		return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
-	}
-
-	if size == 0 && sizeChanged {
+	if size < 0 || (size == 0 && sizeChanged) {
 		return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
 	}
 
@@ -151,12 +152,12 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 
 	value := strings.TrimSpace(config.relaxation)
 	if !strings.HasPrefix(value, ">") || len(value) == 1 {
-		return fmt.Errorf("invalid --relaxation value %q: expected format >N where N is a non-negative integer", config.relaxation)
+		return fmt.Errorf(errMsgRelaxationFormat, config.relaxation)
 	}
 
 	parsed, err := strconv.Atoi(value[1:])
 	if err != nil || parsed < 0 {
-		return fmt.Errorf("invalid --relaxation value %q: expected format >N where N is a non-negative integer", config.relaxation)
+		return fmt.Errorf(errMsgRelaxationFormat, config.relaxation)
 	}
 
 	config.relaxationEnabled = true
@@ -210,11 +211,11 @@ var (
 )
 
 func writeSearchMissingQueryError(cmd *cobra.Command) {
-	usage := searchErrorActionStyle.Render("idx search") + " " + searchErrorPathStyle.Render("<terms>")
+	usage := searchErrorActionStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("<terms>")
 	examples := []string{
-		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("error handling"),
-		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("--ext go func main"),
-		searchErrorMutedStyle.Render("idx search") + " " + searchErrorPathStyle.Render("--path internal logger"),
+		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("error handling"),
+		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("--ext go func main"),
+		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("--path internal logger"),
 	}
 
 	msg := fmt.Sprintf("\n%s\n\n  Usage:  %s\n\n  Examples:\n    %s\n",

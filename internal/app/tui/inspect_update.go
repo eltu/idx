@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+const inspectQuitKey = "ctrl+c"
+
 func (model inspectModel) Init() tea.Cmd {
 	return inspectRealtimeRefreshCmd()
 }
@@ -76,7 +78,7 @@ func updateInspectDirectoriesMode(model inspectModel, key tea.KeyMsg) (tea.Model
 		return updateInspectDirectorySearchMode(model, key)
 	}
 	switch key.String() {
-	case "ctrl+c", "q":
+	case inspectQuitKey, "q":
 		model.quitting = true
 		return model, tea.Quit
 	case "/":
@@ -142,7 +144,7 @@ func updateInspectDocumentsMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 	}
 
 	keyString := key.String()
-	if keyString == "ctrl+c" || keyString == "q" {
+	if keyString == inspectQuitKey || keyString == "q" {
 		model.quitting = true
 		return model, tea.Quit
 	}
@@ -230,7 +232,7 @@ func updateInspectLogsMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.C
 	}
 
 	keyString := key.String()
-	if keyString == "ctrl+c" || keyString == "q" {
+	if keyString == inspectQuitKey || keyString == "q" {
 		model.quitting = true
 		return model, tea.Quit
 	}

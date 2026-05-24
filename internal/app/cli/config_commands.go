@@ -16,6 +16,22 @@ var (
 	configActionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
 )
 
+const (
+	configKeySearchFormat     = "search.format"
+	configKeySearchSize       = "search.size"
+	configKeySearchOperator   = "search.operator"
+	configKeySearchContext    = "search.context"
+	configKeySearchRelaxation = "search.relaxation"
+	configKeySearchCacheTTL   = "search.cache_ttl"
+	configKeySearchMaxWorkers = "search.max_workers"
+	configKeyWatchDebounce    = "watch.debounce"
+	configKeyIndexIgnore      = "index.ignore"
+	configKeyBM25K1           = "bm25.k1"
+	configKeyBM25B            = "bm25.b"
+	configKeyBM25ProxWeight   = "bm25.proximity_weight"
+	configKeyLogLevel         = "log.level"
+)
+
 func (runner CommandRunner) newConfigCommand() *cobra.Command {
 	configCommand := &cobra.Command{
 		Use:   "config",
@@ -126,37 +142,37 @@ func buildConfigRows(runner CommandRunner) []configRow {
 	def := defaultConfigValues()
 
 	return []configRow{
-		{"search.format", cfg.Search.Format, def["search.format"]},
-		{"search.size", fmt.Sprintf("%d", cfg.Search.Size), def["search.size"]},
-		{"search.operator", cfg.Search.Operator, def["search.operator"]},
-		{"search.context", fmt.Sprintf("%d", cfg.Search.Context), def["search.context"]},
-		{"search.relaxation", cfg.Search.Relaxation, def["search.relaxation"]},
-		{"search.cache_ttl", cfg.Search.CacheTTL.String(), def["search.cache_ttl"]},
-		{"search.max_workers", fmt.Sprintf("%d", cfg.Search.MaxWorkers), def["search.max_workers"]},
-		{"watch.debounce", cfg.Watch.Debounce.String(), def["watch.debounce"]},
-		{"index.ignore", formatIgnorePatterns(cfg.Index.Ignore), def["index.ignore"]},
-		{"bm25.k1", formatConfigFloat(cfg.BM25.K1), def["bm25.k1"]},
-		{"bm25.b", formatConfigFloat(cfg.BM25.B), def["bm25.b"]},
-		{"bm25.proximity_weight", formatConfigFloat(cfg.BM25.ProximityWeight), def["bm25.proximity_weight"]},
-		{"log.level", cfg.Log.Level, def["log.level"]},
+		{configKeySearchFormat, cfg.Search.Format, def[configKeySearchFormat]},
+		{configKeySearchSize, fmt.Sprintf("%d", cfg.Search.Size), def[configKeySearchSize]},
+		{configKeySearchOperator, cfg.Search.Operator, def[configKeySearchOperator]},
+		{configKeySearchContext, fmt.Sprintf("%d", cfg.Search.Context), def[configKeySearchContext]},
+		{configKeySearchRelaxation, cfg.Search.Relaxation, def[configKeySearchRelaxation]},
+		{configKeySearchCacheTTL, cfg.Search.CacheTTL.String(), def[configKeySearchCacheTTL]},
+		{configKeySearchMaxWorkers, fmt.Sprintf("%d", cfg.Search.MaxWorkers), def[configKeySearchMaxWorkers]},
+		{configKeyWatchDebounce, cfg.Watch.Debounce.String(), def[configKeyWatchDebounce]},
+		{configKeyIndexIgnore, formatIgnorePatterns(cfg.Index.Ignore), def[configKeyIndexIgnore]},
+		{configKeyBM25K1, formatConfigFloat(cfg.BM25.K1), def[configKeyBM25K1]},
+		{configKeyBM25B, formatConfigFloat(cfg.BM25.B), def[configKeyBM25B]},
+		{configKeyBM25ProxWeight, formatConfigFloat(cfg.BM25.ProximityWeight), def[configKeyBM25ProxWeight]},
+		{configKeyLogLevel, cfg.Log.Level, def[configKeyLogLevel]},
 	}
 }
 
 func defaultConfigValues() map[string]string {
 	return map[string]string{
-		"search.format":         "text",
-		"search.size":           "0",
-		"search.operator":       "AND",
-		"search.context":        "0",
-		"search.relaxation":     "",
-		"search.cache_ttl":      time.Minute.String(),
-		"search.max_workers":    "4",
-		"watch.debounce":        (750 * time.Millisecond).String(),
-		"index.ignore":          "[]",
-		"bm25.k1":               "1.5",
-		"bm25.b":                "0.75",
-		"bm25.proximity_weight": "3",
-		"log.level":             "error",
+		configKeySearchFormat:     "text",
+		configKeySearchSize:       "0",
+		configKeySearchOperator:   "AND",
+		configKeySearchContext:    "0",
+		configKeySearchRelaxation: "",
+		configKeySearchCacheTTL:   time.Minute.String(),
+		configKeySearchMaxWorkers: "4",
+		configKeyWatchDebounce:    (750 * time.Millisecond).String(),
+		configKeyIndexIgnore:      "[]",
+		configKeyBM25K1:           "1.5",
+		configKeyBM25B:            "0.75",
+		configKeyBM25ProxWeight:   "3",
+		configKeyLogLevel:         "error",
 	}
 }
 

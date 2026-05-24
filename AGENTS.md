@@ -9,6 +9,9 @@
   Prefer names that return <5 grep hits in the codebase.
 - Types: Must be explicit.
 - No code duplication. Extract shared logic into a function/module.
+- String literals used more than once must be extracted as named constants.
+  Applies to any string with >5 characters that contains non-alphanumeric characters
+  (e.g. command names, format strings, file paths, error messages, key bindings).
 - Early returns over nested ifs. Max 2 levels of indentation.
 - Exception messages must include the offending value and expected shape.
 

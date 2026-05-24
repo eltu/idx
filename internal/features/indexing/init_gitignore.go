@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const idxIgnoreLine = ".idx/\n"
+
 func (service InitCommandService) ensureIdxRuleInGitIgnore(projectRoot string) error {
 	gitIgnorePath := filepath.Join(projectRoot, ".gitignore")
 	content, err := service.fileReader.ReadFile(gitIgnorePath)
@@ -15,7 +17,7 @@ func (service InitCommandService) ensureIdxRuleInGitIgnore(projectRoot string) e
 			return fmt.Errorf("failed to read project .gitignore %q: got error %v, expected readable file", gitIgnorePath, err)
 		}
 
-		return service.projectTree.WriteFile(gitIgnorePath, []byte(".idx/\n"))
+		return service.projectTree.WriteFile(gitIgnorePath, []byte(idxIgnoreLine))
 	}
 
 	if hasIdxDirectoryIgnoreRule(content) {
@@ -54,14 +56,14 @@ func normalizeIgnorePattern(pattern string) string {
 func appendIdxDirectoryIgnoreRule(content string) string {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
-		return ".idx/\n"
+		return idxIgnoreLine
 	}
 
 	if strings.HasSuffix(content, "\n") {
-		return content + ".idx/\n"
+		return content + idxIgnoreLine
 	}
 
-	return content + "\n.idx/\n"
+	return content + "\n" + idxIgnoreLine
 }
 
 func isMissingFileError(err error) bool {

@@ -8,6 +8,14 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+const (
+	idxSyncCmdName        = "idx sync"
+	idxInitCmdName        = "idx init"
+	statusTimestampLayout = "2006-01-02T15:04:05Z07:00"
+	errMsgStaleIndex      = "stale index"
+	runCmdToUpdateFmt     = "Run %s to update."
+)
+
 var (
 	statusPanelStyle         = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 	statusSuccessStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#34D399"))
@@ -52,7 +60,7 @@ func (service InitCommandService) writeStaleResult(profile bool, projectRoot str
 
 	staleCount := len(staleDirectories)
 	indexLine := statusStaleStyle.Render(fmt.Sprintf("❌ %d director%s stale", staleCount, pluralSuffix(staleCount, "y", "ies"))) +
-		"  — run " + statusActionStyle.Render("idx sync")
+		"  — run " + statusActionStyle.Render(idxSyncCmdName)
 
 	if err := service.writeStatusOverviewPanel(statusPanelData{
 		projectRoot:     projectRoot,
@@ -65,7 +73,7 @@ func (service InitCommandService) writeStaleResult(profile bool, projectRoot str
 		return err
 	}
 
-	return fmt.Errorf("stale index")
+	return fmt.Errorf(errMsgStaleIndex)
 }
 
 func (service InitCommandService) writeStatusReport(projectRoot string, reports []statusDirectoryReport, summary statusSummary) error {
@@ -106,7 +114,7 @@ func (service InitCommandService) writeDirectoryReport(projectRoot string, repor
 func (service InitCommandService) writeStatusSummaryPanel(summary statusSummary) error {
 	latest := "n/a"
 	if summary.HasLatest {
-		latest = summary.LatestModifiedAt.Format("2006-01-02T15:04:05Z07:00")
+		latest = summary.LatestModifiedAt.Format(statusTimestampLayout)
 	}
 	summarySection := fmt.Sprintf(
 		"📊 Summary\n%s",
@@ -134,7 +142,7 @@ func renderDirectoryTable(files []statusFileReport) string {
 			state = "✓"
 		}
 
-		rows = append(rows, fmt.Sprintf("| %-48s | %-7s | %-20s |", truncateStatusColumn(file.Name, fileWidth), state, file.ModifiedAt.Format("2006-01-02T15:04:05Z07:00")))
+		rows = append(rows, fmt.Sprintf("| %-48s | %-7s | %-20s |", truncateStatusColumn(file.Name, fileWidth), state, file.ModifiedAt.Format(statusTimestampLayout)))
 	}
 
 	return strings.Join(rows, "\n")
@@ -181,7 +189,7 @@ func (service InitCommandService) writeNotGitRepoError(currentDir string) error 
 	header := statusWarningStyle.Render("⚠  Not a git repository")
 	detail := statusMutedStyle.Render("idx requires a git project to locate the repository root.")
 	path := statusPathStyle.Render(currentDir)
-	action := fmt.Sprintf("Navigate to a git project and run %s.", statusActionStyle.Render("idx init"))
+	action := fmt.Sprintf("Navigate to a git project and run %s.", statusActionStyle.Render(idxInitCmdName))
 
 	lines := []string{"", header, "", "  " + detail, "  " + path, "", "  " + action, ""}
 
@@ -195,7 +203,7 @@ func (service InitCommandService) writeNoIndexError(projectRoot string) error {
 	header := statusWarningStyle.Render("⚠  No index found")
 	detail := statusMutedStyle.Render("This project has not been indexed yet.")
 	path := statusPathStyle.Render(projectRoot)
-	action := fmt.Sprintf("Run %s to get started.", statusActionStyle.Render("idx init"))
+	action := fmt.Sprintf("Run %s to get started.", statusActionStyle.Render(idxInitCmdName))
 
 	lines := []string{"", header, "", "  " + detail, "  " + path, "", "  " + action, ""}
 
@@ -208,7 +216,7 @@ func (service InitCommandService) writeNoIndexError(projectRoot string) error {
 func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot string, missing []string) error {
 	header := statusWarningStyle.Render("⚠  Index out of sync")
 	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s not indexed yet:", len(missing), pluralSuffix(len(missing), "y", "ies")))
-	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
+	action := fmt.Sprintf(runCmdToUpdateFmt, statusActionStyle.Render(idxSyncCmdName))
 
 	lines := []string{"", header, "", count}
 	for _, dir := range missing {
@@ -230,7 +238,7 @@ func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot str
 func (service InitCommandService) writeStaleIndexError(projectRoot string, stale []string) error {
 	header := statusStaleStyle.Render("✗  Stale index detected")
 	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s with outdated index:", len(stale), pluralSuffix(len(stale), "y", "ies")))
-	action := fmt.Sprintf("Run %s to update.", statusActionStyle.Render("idx sync"))
+	action := fmt.Sprintf(runCmdToUpdateFmt, statusActionStyle.Render(idxSyncCmdName))
 
 	lines := []string{"", header, "", count}
 	for _, dir := range stale {
@@ -246,7 +254,7 @@ func (service InitCommandService) writeStaleIndexError(projectRoot string, stale
 		return err
 	}
 
-	return fmt.Errorf("stale index")
+	return fmt.Errorf(errMsgStaleIndex)
 }
 
 // reportedError is returned after a formatted diagnostic has been written to output.
