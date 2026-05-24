@@ -195,16 +195,7 @@ func (service InitCommandService) collectStatusReports(directories []string, pro
 	for i, directoryPath := range directories {
 		i, directoryPath := i, directoryPath
 		g.Go(func() error {
-			fileEntries, ok := entriesByPath[directoryPath]
-			if !ok {
-				// fallback: indexed dir became gitignored since last sync
-				var err error
-				fileEntries, err = service.indexableFileEntries(directoryPath, projectRoot, matcher)
-				if err != nil {
-					return err
-				}
-			}
-			report, err := service.verifyDirectoryIndexCurrent(directoryPath, fileEntries)
+			report, err := service.collectDirectoryReport(directoryPath, projectRoot, matcher, entriesByPath)
 			if err != nil {
 				return err
 			}
@@ -228,6 +219,19 @@ func (service InitCommandService) collectStatusReports(directories []string, pro
 	}
 
 	return reports, summary, staleDirectories, nil
+}
+
+func (service InitCommandService) collectDirectoryReport(directoryPath, projectRoot string, matcher filesystem.IgnoreMatcher, entriesByPath map[string][]filesystem.DirectoryEntry) (statusDirectoryReport, error) {
+	fileEntries, ok := entriesByPath[directoryPath]
+	if !ok {
+		// fallback: indexed dir became gitignored since last sync
+		var err error
+		fileEntries, err = service.indexableFileEntries(directoryPath, projectRoot, matcher)
+		if err != nil {
+			return statusDirectoryReport{}, err
+		}
+	}
+	return service.verifyDirectoryIndexCurrent(directoryPath, fileEntries)
 }
 
 

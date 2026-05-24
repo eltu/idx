@@ -141,7 +141,7 @@ func (w *indexedDirWalker) walk(path string) {
 	hasIndex, entries, err := w.scanDirectory(path)
 	if err != nil {
 		select {
-		case w.errCh <- fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", path, err):
+		case w.errCh <- fmt.Errorf(errReadDirFmt, path, err):
 		default:
 		}
 		return
@@ -188,7 +188,7 @@ func parallelEligibleDirectories(projectTree filesystem.ProjectTree, root, proje
 
 		if readErr != nil {
 			select {
-			case errCh <- fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", path, readErr):
+			case errCh <- fmt.Errorf(errReadDirFmt, path, readErr):
 			default:
 			}
 			return
