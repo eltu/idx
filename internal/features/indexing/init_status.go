@@ -101,41 +101,45 @@ const spinnerClearWidth = 40
 // startStatusSpinner prints an animated spinner while status is being gathered.
 // Uses type assertion so outputs that don't support inline writing silently skip the animation.
 // The returned stop func blocks until the goroutine has cleared the spinner line.
+type statusSpinnerWriter interface{ WriteInline(string) error }
+
 func (service InitCommandService) startStatusSpinner() func() {
-	inlineWriter, ok := service.output.(interface{ WriteInline(string) error })
+	inlineWriter, ok := service.output.(statusSpinnerWriter)
 	if !ok {
-		return func() {}
+		return func() { /* no-op: output does not support inline writing */ }
 	}
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ticker := time.NewTicker(100 * time.Millisecond)
-	go func() {
-		defer wg.Done()
-		defer ticker.Stop()
-		started := false
-		for i := 0; ; i++ {
-			select {
-			case <-done:
-				if started {
-					_ = inlineWriter.WriteInline("\r" + strings.Repeat(" ", spinnerClearWidth) + "\r")
-				}
-				return
-			case <-ticker.C:
-				frame := statusSpinnerStyle.Render(statusSpinnerFrames[i%4])
-				label := statusCheckingLabelStyle.Render("Checking index status...")
-				prefix := "\r"
-				if !started {
-					prefix = "\n\r"
-					started = true
-				}
-				_ = inlineWriter.WriteInline(fmt.Sprintf("%s  %s %s", prefix, label, frame))
-			}
-		}
-	}()
+	go runStatusSpinnerLoop(inlineWriter, done, ticker, &wg)
 	return func() {
 		close(done)
 		wg.Wait()
+	}
+}
+
+func runStatusSpinnerLoop(w statusSpinnerWriter, done <-chan struct{}, ticker *time.Ticker, wg *sync.WaitGroup) {
+	defer wg.Done()
+	defer ticker.Stop()
+	started := false
+	for i := 0; ; i++ {
+		select {
+		case <-done:
+			if started {
+				_ = w.WriteInline("\r" + strings.Repeat(" ", spinnerClearWidth) + "\r")
+			}
+			return
+		case <-ticker.C:
+			frame := statusSpinnerStyle.Render(statusSpinnerFrames[i%4])
+			label := statusCheckingLabelStyle.Render("Checking index status...")
+			prefix := "\r"
+			if !started {
+				prefix = "\n\r"
+				started = true
+			}
+			_ = w.WriteInline(fmt.Sprintf("%s  %s %s", prefix, label, frame))
+		}
 	}
 }
 

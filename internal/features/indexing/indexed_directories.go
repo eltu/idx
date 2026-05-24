@@ -9,6 +9,8 @@ import (
 
 )
 
+const errReadDirFmt = "failed to read directory %q: got error %v, expected a readable directory"
+
 // IndexedDirectories walks the project tree from projectRoot and returns all directories
 // that contain an .idx/index.idx file.
 func IndexedDirectories(projectTree filesystem.ProjectTree, projectRoot string) ([]string, error) {
@@ -42,7 +44,7 @@ func collectIndexedDirectories(projectTree filesystem.ProjectTree, directoryPath
 
 	entries, err := projectTree.ReadDir(directoryPath)
 	if err != nil {
-		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
+		return fmt.Errorf(errReadDirFmt, directoryPath, err)
 	}
 
 	for _, entry := range entries {
@@ -63,7 +65,7 @@ func collectEligibleDirectories(projectTree filesystem.ProjectTree, directoryPat
 
 	entries, err := projectTree.ReadDir(directoryPath)
 	if err != nil {
-		return fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)
+		return fmt.Errorf(errReadDirFmt, directoryPath, err)
 	}
 
 	allowedEntries, err := filterEntries(entries, projectRoot, matcher)

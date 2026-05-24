@@ -37,10 +37,10 @@ func (disabledInspectUIRunner) Run(_ *InvertedIndex) error {
 
 type disabledInitProgress struct{}
 
-func (disabledInitProgress) StartCounting()           {}
-func (disabledInitProgress) SetTotal(int)             {}
-func (disabledInitProgress) IncrementDir(string)      {}
-func (disabledInitProgress) Finish()                  {}
+func (disabledInitProgress) StartCounting()           { /* no-op: progress reporting disabled */ }
+func (disabledInitProgress) SetTotal(int)             { /* no-op: progress reporting disabled */ }
+func (disabledInitProgress) IncrementDir(string)      { /* no-op: progress reporting disabled */ }
+func (disabledInitProgress) Finish()                  { /* no-op: progress reporting disabled */ }
 func (disabledInitProgress) Context() context.Context { return context.Background() }
 
 // NewInitCommandService builds the init use case without TUI support.
