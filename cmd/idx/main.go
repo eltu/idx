@@ -192,7 +192,7 @@ func isPathSafeChar(char byte) bool {
 func run(arguments []string, output io.Writer) error {
 	writer := appcli.NewLineWriter(output)
 	projectTree := sharedfs.NewOSProjectTree()
-	matcherFactory := sharedfs.IgnoreMatcherFactory(sharedfs.NewGitIgnoreMatcherFactory())
+	matcherFactory := sharedfs.IgnoreMatcherBuilder(sharedfs.NewGitIgnoreMatcherFactory())
 	fileReader := sharedfs.NewOSFileReader()
 	indexer := featindexing.NewBM25IndexService()
 	indexRepo := idxstorage.NewBinaryIndexRepository()

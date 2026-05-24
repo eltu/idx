@@ -85,7 +85,7 @@ func isWholeWordMatch(line string, start, length int) bool {
 }
 
 func mergeHighlightSpans(spans []highlightSpan) []highlightSpan {
-	sort.Slice(spans, func(i int, j int) bool {
+	sort.Slice(spans, func(i, j int) bool {
 		return spans[i].start < spans[j].start
 	})
 

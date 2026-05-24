@@ -23,15 +23,17 @@
   together, contextual inputs together.
 - Early returns over nested ifs. Max 2 levels of indentation.
 - Exception messages must include the offending value and expected shape.
+- Consecutive parameters of the same type must be grouped: `func foo(a, b string)` not `func foo(a string, b string)`.
+- Single-method interfaces must follow the verb+"-er" naming convention (e.g. `Reader`, `Runner`, `Installer`).
+  Exception: domain port interfaces may use descriptive compound names (e.g. `IndexRepository`, `InspectUIRunner`).
+- Blank imports (`import _ "pkg"`) must have a comment explaining why the side-effect import is needed.
 
 ## Comments
 
-- Keep existing comments. Don't strip them on refactor — they carry
-  intent and provenance.
+- Keep existing comments. Don't strip them on refactor — they carry intent and provenance.
 - Write WHY, not WHAT. Skip `// increment counter` above `i++`.
-- Docstrings on public functions: intent + one usage example.
-- Reference issue numbers / commit SHAs when a line exists because
-  of a specific bug or upstream constraint.
+- Public functions must have a doc comment: one line of intent + one usage example.
+- Reference issue numbers / commit SHAs when a line exists because of a specific bug or upstream constraint.
 
 ## Tests
 
@@ -117,6 +119,6 @@
 - Keep messages concise and actionable.
 - Prefer emoji and visual hierarchy over plain text.
 
-## Logging
+## CLI rules
 
-- Plain text only for user-facing CLI output. 
+- Plain text only for user-facing CLI output (no ANSI in log lines, only in styled output blocks).

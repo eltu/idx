@@ -30,7 +30,7 @@ type IgnoreMatcher interface {
 	Matches(path string) (bool, error)
 }
 
-// IgnoreMatcherFactory builds an IgnoreMatcher for a given project root.
-type IgnoreMatcherFactory interface {
+// IgnoreMatcherBuilder builds an IgnoreMatcher for a given project root.
+type IgnoreMatcherBuilder interface {
 	New(projectRoot string) (IgnoreMatcher, error)
 }

@@ -1,6 +1,6 @@
 package filesystem
 
-// CompositeIgnoreMatcherFactory combines multiple IgnoreMatcherFactory instances.
+// CompositeIgnoreMatcherFactory combines multiple IgnoreMatcherBuilder instances.
 // The resulting matcher returns true (ignored) when any inner matcher matches.
 //
 // Example:
@@ -11,11 +11,11 @@ package filesystem
 //	)
 //	matcher, _ := factory.New(projectRoot)
 type CompositeIgnoreMatcherFactory struct {
-	factories []IgnoreMatcherFactory
+	factories []IgnoreMatcherBuilder
 }
 
 // NewCompositeIgnoreMatcherFactory returns a factory that delegates to all provided factories.
-func NewCompositeIgnoreMatcherFactory(factories ...IgnoreMatcherFactory) CompositeIgnoreMatcherFactory {
+func NewCompositeIgnoreMatcherFactory(factories ...IgnoreMatcherBuilder) CompositeIgnoreMatcherFactory {
 	return CompositeIgnoreMatcherFactory{factories: factories}
 }
 

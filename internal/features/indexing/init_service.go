@@ -14,7 +14,7 @@ const daemonChildEnvVar = "IDX_DAEMON_CHILD"
 
 type InitCommandService struct {
 	projectTree           filesystem.ProjectTree
-	matcherFactory        filesystem.IgnoreMatcherFactory
+	matcherFactory        filesystem.IgnoreMatcherBuilder
 	output                output.Writer
 	fileReader            filesystem.FileReader
 	indexer               Indexer
@@ -47,7 +47,7 @@ func (disabledInitProgress) Context() context.Context { return context.Backgroun
 // eliminating the SonarQube too-many-parameters violation on the three New* functions.
 type InitCommandServiceDeps struct {
 	ProjectTree    filesystem.ProjectTree
-	MatcherFactory filesystem.IgnoreMatcherFactory
+	MatcherFactory filesystem.IgnoreMatcherBuilder
 	Output         output.Writer
 	FileReader     filesystem.FileReader
 	Indexer        Indexer
@@ -147,7 +147,7 @@ func (service InitCommandService) validateDependencies() error {
 	}
 
 	if service.matcherFactory == nil {
-		return fmt.Errorf("failed to run init command: got nil matcherFactory dependency, expected non-nil filesystem.IgnoreMatcherFactory")
+		return fmt.Errorf("failed to run init command: got nil matcherFactory dependency, expected non-nil filesystem.IgnoreMatcherBuilder")
 	}
 
 	if service.output == nil {
