@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	
 )
 
 func cacheKeyFor(query string, options Options) string {
@@ -135,7 +133,7 @@ func applySearchResultOptions(results []searchResult, options Options, hasConten
 	return paginatedResults(filtered, options.From, options.Size)
 }
 
-func paginatedResults(results []searchResult, from int, size int) []searchResult {
+func paginatedResults(results []searchResult, from, size int) []searchResult {
 	if from < 0 {
 		from = 0
 	}
@@ -262,7 +260,7 @@ func (service SearchCommandService) writeSearchResults(results []searchResult, p
 	return service.writeResults(results, projectRoot, terms, true, options)
 }
 
-func (service SearchCommandService) writeResultsHeader(displayedCount int, totalCount int, options Options) error {
+func (service SearchCommandService) writeResultsHeader(displayedCount, totalCount int, _ Options) error {
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
@@ -332,7 +330,7 @@ func (service SearchCommandService) writeResultBlock(result searchResult, projec
 	}
 
 	if result.stale {
-		return service.output.WriteLine(fmt.Sprintf("└── ⚠ file not found — index is outdated, run idx sync"))
+		return service.output.WriteLine("└── ⚠ file not found — index is outdated, run idx sync")
 	}
 
 	if err := service.writeMatchedLinesWithOptions(result.matchedLines, terms, useANSI, options); err != nil {
@@ -369,7 +367,7 @@ func formattedMatchedLineCompact(line matchedLine) string {
 	return fmt.Sprintf("%s:%s", coloredLineNumber(line.lineNumber, false), lineContent)
 }
 
-func formattedMatchedLine(index int, total int, line matchedLine, terms []string, useANSI bool) string {
+func formattedMatchedLine(index, total int, line matchedLine, terms []string, useANSI bool) string {
 	prefix := "├──"
 	if index == total-1 {
 		prefix = "└──"

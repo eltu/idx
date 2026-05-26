@@ -12,7 +12,7 @@ type IdxConfig struct {
 	Log    LogConfig    `yaml:"log"`
 }
 
-// SearchConfig controls default search behaviour.
+// SearchConfig controls default search behavior.
 type SearchConfig struct {
 	Format     string        `yaml:"format"`
 	Size       int           `yaml:"size"`

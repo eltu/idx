@@ -5,8 +5,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"idx/internal/shared/config"
 	"idx/internal/features/search"
+	"idx/internal/shared/config"
 )
 
 type Runner interface {
@@ -58,7 +58,7 @@ type daemonableCommand interface {
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
-// Initialises config with DefaultIdxConfig so flag defaults are valid even
+// Initializes config with DefaultIdxConfig so flag defaults are valid even
 // when WithConfig is not called (e.g. in unit tests).
 // Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand, daemonService).
 func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand Runner, searchCommand Searcher, daemonService daemonableCommand) CommandRunner {

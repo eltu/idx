@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	searchCmdName            = "idx search"
-	errMsgRelaxationFormat   = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
+	searchCmdName          = "idx search"
+	errMsgRelaxationFormat = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
 )
 
 func (runner CommandRunner) newSearchCommand() *cobra.Command {
@@ -75,7 +75,7 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "Use compact text output optimized for agents (fewer tokens)")
 	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
 	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
-	searchCommand.Flags().MarkHidden("macthes-only")
+	_ = searchCommand.Flags().MarkHidden("macthes-only")
 	searchCommand.Flags().BoolVar(&config.filesOnly, "files-only", false, "Show only matched file paths")
 	searchCommand.Flags().StringArrayVar(&config.pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
 	searchCommand.Flags().StringArrayVar(&config.extensionQueries, "ext", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
@@ -102,7 +102,7 @@ func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {
 	return validateSearchRelaxation(config)
 }
 
-func validateSearchFlagValues(contextLines int, from int, size int, sizeChanged bool) error {
+func validateSearchFlagValues(contextLines, from, size int, sizeChanged bool) error {
 	if contextLines < 0 {
 		return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
 	}
@@ -165,7 +165,7 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 	return nil
 }
 
-func validateSearchInput(query string, pathQueries []string, extensionQueries []string, arguments []string) error {
+func validateSearchInput(query string, pathQueries, extensionQueries, arguments []string) error {
 	if query == "" && len(pathQueries) == 0 && len(extensionQueries) == 0 {
 		return fmt.Errorf("missing search query: got %v, expected idx search <terms>", arguments)
 	}
@@ -224,5 +224,5 @@ func writeSearchMissingQueryError(cmd *cobra.Command) {
 		strings.Join(examples, "\n    "),
 	)
 
-	fmt.Fprintln(cmd.OutOrStdout(), msg)
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), msg)
 }

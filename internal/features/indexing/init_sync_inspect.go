@@ -1,10 +1,10 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"context"
 	"encoding/json"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"golang.org/x/sync/errgroup"
-
 )
 
 func (service InitCommandService) Sync() error {

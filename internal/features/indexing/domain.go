@@ -64,7 +64,7 @@ func NewInvertedIndex() *InvertedIndex {
 }
 
 // AddDocument registers a new document in the index.
-func (idx *InvertedIndex) AddDocument(docName string, docPath string, tokenCount int) {
+func (idx *InvertedIndex) AddDocument(docName, docPath string, tokenCount int) {
 	idx.Documents[docName] = &DocStats{Name: docName, Path: docPath, Length: tokenCount}
 	idx.DocumentCount++
 }
@@ -85,7 +85,7 @@ func (idx *InvertedIndex) AddExtensionTerms(docName, extension string) {
 }
 
 // AddTerm adds a term occurrence to a document in the index.
-func (idx *InvertedIndex) AddTerm(term string, docName string, frequency int, positions []int) {
+func (idx *InvertedIndex) AddTerm(term, docName string, frequency int, positions []int) {
 	if idx.Terms[term] == nil {
 		idx.Terms[term] = &TermStats{
 			Docs: make(map[string]*DocTermStats),
@@ -132,7 +132,7 @@ func idfScore(docCount, docFreq int) float64 {
 	return math.Log1p(base)
 }
 
-func addMetadataTerms(index map[string]map[string]bool, docName string, text string) {
+func addMetadataTerms(index map[string]map[string]bool, docName, text string) {
 	for _, token := range TokenizeText(text) {
 		documents := index[token.Token]
 		if documents == nil {
@@ -256,7 +256,7 @@ func TokenizeFileName(fileName string) []TokenWithPosition {
 
 // splitCamelCaseWords splits a rune slice on CamelCase boundaries.
 // "InvertedIndex" → ["Inverted", "Index"]
-// "bm25Score"     → ["bm25", "Score"]
+// "bm25Score"     → ["bm25", "Score"].
 func splitCamelCaseWords(runes []rune) []string {
 	if len(runes) == 0 {
 		return nil
@@ -296,7 +296,7 @@ func CountTokenFrequencies(tokens []TokenWithPosition) (map[string]int, map[stri
 //   - avgDocLength: average document length in corpus
 //   - k1: saturation parameter (default: 1.5)
 //   - b: length normalization parameter (default: 0.75)
-func BM25Score(tf int, idf float64, docLength int, avgDocLength float64, k1 float64, b float64) float64 {
+func BM25Score(tf int, idf float64, docLength int, avgDocLength, k1, b float64) float64 {
 	if idf == 0 {
 		return 0
 	}

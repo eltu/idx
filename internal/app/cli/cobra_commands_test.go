@@ -167,8 +167,10 @@ func newRunnerWithStubIndex() CommandRunner {
 
 type stubIndexCommand struct{}
 
-func (s *stubIndexCommand) Run() error                                            { return nil }
-func (s *stubIndexCommand) Sync() error                                           { return nil }
-func (s *stubIndexCommand) Status() error                                         { return nil }
-func (s *stubIndexCommand) Inspect(_ string) error                                { return nil }
-func (s *stubIndexCommand) Watch(_ bool, _ time.Duration) error                   { return errors.New("watch not expected in test") }
+func (s *stubIndexCommand) Run() error             { return nil }
+func (s *stubIndexCommand) Sync() error            { return nil }
+func (s *stubIndexCommand) Status() error          { return nil }
+func (s *stubIndexCommand) Inspect(_ string) error { return nil }
+func (s *stubIndexCommand) Watch(_ bool, _ time.Duration) error {
+	return errors.New("watch not expected in test")
+}

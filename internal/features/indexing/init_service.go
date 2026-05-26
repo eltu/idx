@@ -1,13 +1,12 @@
 package indexing
 
 import (
-	"idx/internal/shared/output"
-	"idx/internal/shared/filesystem"
 	"context"
 	"fmt"
+	"idx/internal/shared/filesystem"
+	"idx/internal/shared/output"
 	"os"
 	"time"
-
 )
 
 const daemonChildEnvVar = "IDX_DAEMON_CHILD"
@@ -176,4 +175,3 @@ func (service InitCommandService) validateDependencies() error {
 
 	return nil
 }
-

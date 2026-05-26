@@ -1,9 +1,9 @@
 package search
 
 import (
-	"idx/internal/features/read"
 	"errors"
 	"fmt"
+	"idx/internal/features/read"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"idx/internal/features/indexing"
-	
-	
 )
 
 // popularityContext bundles the popularity-boost inputs used throughout result scoring.
@@ -28,7 +26,7 @@ type searchWorkerOutput struct {
 	errCh     chan<- error
 }
 
-func (service SearchCommandService) rankedResults(directories []string, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) rankedResults(directories, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
 	if err := service.validateDependencies(); err != nil {
 		return nil, err
 	}
@@ -42,7 +40,7 @@ func (service SearchCommandService) rankedResults(directories []string, terms []
 	return results, nil
 }
 
-func (service SearchCommandService) parallelDirectoryResults(directories []string, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) parallelDirectoryResults(directories, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
 	if len(directories) == 0 {
 		return []searchResult{}, nil
 	}
@@ -193,7 +191,7 @@ func (service SearchCommandService) relaxedDirectoryResults(index *indexing.Inve
 	return mapResults(combined), nil
 }
 
-func relaxationCandidates(terms []string, minExclusive int) [][]string {
+func relaxationCandidates(terms []string, _ int) [][]string {
 	candidates := make([][]string, 0, len(terms))
 	for size := len(terms); size >= 1; size-- {
 		candidates = append(candidates, terms[:size])
@@ -245,7 +243,7 @@ func (service SearchCommandService) buildSearchResults(directoryPath string, ter
 	return results, nil
 }
 
-func (service SearchCommandService) buildSearchResult(directoryPath string, fileName string, terms []string, contextSize int, score float64, matchedTerms int, pop popularityContext) (searchResult, error) {
+func (service SearchCommandService) buildSearchResult(directoryPath, fileName string, terms []string, contextSize int, score float64, matchedTerms int, pop popularityContext) (searchResult, error) {
 	lines, err := service.resultMatchedLines(directoryPath, fileName, terms, contextSize)
 	if err != nil {
 		return searchResult{}, err
@@ -262,7 +260,7 @@ func (service SearchCommandService) buildSearchResult(directoryPath string, file
 	}, nil
 }
 
-func (service SearchCommandService) resultMatchedLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
+func (service SearchCommandService) resultMatchedLines(directoryPath, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
 	if len(terms) == 0 {
 		return []matchedLine{}, nil
 	}
@@ -270,7 +268,7 @@ func (service SearchCommandService) resultMatchedLines(directoryPath string, fil
 	return service.allMatchingLines(directoryPath, fileName, terms, contextSize)
 }
 
-func (service SearchCommandService) allMatchingLines(directoryPath string, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
+func (service SearchCommandService) allMatchingLines(directoryPath, fileName string, terms []string, contextSize int) ([]matchedLine, error) {
 	if err := service.validateDependencies(); err != nil {
 		return nil, err
 	}

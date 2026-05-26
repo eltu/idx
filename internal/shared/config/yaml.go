@@ -33,7 +33,7 @@ func (r *YAMLRepository) Load(projectRoot string) (IdxConfig, []string, error) {
 	cfg := DefaultIdxConfig()
 
 	path := filepath.Join(projectRoot, idxConfigFileName)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is derived from the project root, not user input
 	if os.IsNotExist(err) {
 		return cfg, nil, nil
 	}

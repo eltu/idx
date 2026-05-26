@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"idx/internal/features/indexing"
-	
 )
 
 func metadataMatchedDocuments(index *indexing.InvertedIndex, options Options) map[string]struct{} {
@@ -282,7 +281,7 @@ func wildcardPartsMatch(pattern, value string) bool {
 	return matchesWildcardSuffix(pattern, value, parts)
 }
 
-func matchesWildcardParts(pattern string, value string, parts []string) bool {
+func matchesWildcardParts(pattern, value string, parts []string) bool {
 	position := 0
 	for index, part := range parts {
 		if part == "" {
@@ -305,7 +304,7 @@ func matchesWildcardParts(pattern string, value string, parts []string) bool {
 	return true
 }
 
-func matchesWildcardSuffix(pattern string, value string, parts []string) bool {
+func matchesWildcardSuffix(pattern, value string, parts []string) bool {
 	if strings.HasSuffix(pattern, "*") {
 		return true
 	}

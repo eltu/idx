@@ -20,9 +20,9 @@ type InitProgressRunner struct {
 }
 
 // NewInitProgressRunner builds the init progress TUI adapter.
-// Example: runner := tui.NewInitProgressRunner()
+// Example: runner := tui.NewInitProgressRunner().
 func NewInitProgressRunner() *InitProgressRunner {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // cancel is stored in r.cancel and called in Finish()
 	return &InitProgressRunner{
 		progressCh: make(chan string, 100),
 		totalCh:    make(chan int, 1),
@@ -69,7 +69,7 @@ func (r *InitProgressRunner) Finish() {
 	// Safe close: the model may have already quit via ctrl+c without draining the channel.
 	select {
 	case <-r.ctx.Done():
-		// cancelled — program already quit, just wait for goroutine to exit
+		// canceled — program already quit, just wait for goroutine to exit
 	default:
 		close(r.progressCh)
 	}

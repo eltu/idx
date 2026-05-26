@@ -7,6 +7,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+const (
+	inspectBackspaceKey = "backspace"
+	inspectDeleteKey    = "delete"
+)
+
 // inspectSearchHandlers groups field accessors so the three pane-specific search
 // mode handlers can share identical key-dispatch logic without duplication.
 type inspectSearchHandlers struct {
@@ -18,12 +23,12 @@ type inspectSearchHandlers struct {
 
 func updateInspectSearchMode(model inspectModel, key tea.KeyMsg, h inspectSearchHandlers) (tea.Model, tea.Cmd) {
 	switch key.String() {
-	case "enter":
+	case inspectEnterKey:
 		return h.clearMode(model), nil
-	case "backspace", "delete":
+	case inspectBackspaceKey, inspectDeleteKey:
 		m := h.setQuery(model, trimLastRune(h.getQuery(model)))
 		return h.applyFilter(m), nil
-	case "ctrl+c", "q":
+	case inspectQuitKey, "q":
 		model.quitting = true
 		return model, tea.Quit
 	}
@@ -36,7 +41,11 @@ func updateInspectSearchMode(model inspectModel, key tea.KeyMsg, h inspectSearch
 
 func updateInspectDirectorySearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return updateInspectSearchMode(model, key, inspectSearchHandlers{
-		clearMode:   func(m inspectModel) inspectModel { m.directorySearchMode = false; m.commandMode = inspectCommandModeNone; return m },
+		clearMode: func(m inspectModel) inspectModel {
+			m.directorySearchMode = false
+			m.commandMode = inspectCommandModeNone
+			return m
+		},
 		getQuery:    func(m inspectModel) string { return m.directorySearchQuery },
 		setQuery:    func(m inspectModel, q string) inspectModel { m.directorySearchQuery = q; return m },
 		applyFilter: applyInspectDirectoryFilter,
@@ -45,7 +54,11 @@ func updateInspectDirectorySearchMode(model inspectModel, key tea.KeyMsg) (tea.M
 
 func updateInspectDocumentSearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return updateInspectSearchMode(model, key, inspectSearchHandlers{
-		clearMode:   func(m inspectModel) inspectModel { m.documentSearchMode = false; m.commandMode = inspectCommandModeNone; return m },
+		clearMode: func(m inspectModel) inspectModel {
+			m.documentSearchMode = false
+			m.commandMode = inspectCommandModeNone
+			return m
+		},
 		getQuery:    func(m inspectModel) string { return m.documentSearchQuery },
 		setQuery:    func(m inspectModel, q string) inspectModel { m.documentSearchQuery = q; return m },
 		applyFilter: applyInspectDocumentFilter,
@@ -54,7 +67,11 @@ func updateInspectDocumentSearchMode(model inspectModel, key tea.KeyMsg) (tea.Mo
 
 func updateInspectLogSearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return updateInspectSearchMode(model, key, inspectSearchHandlers{
-		clearMode:   func(m inspectModel) inspectModel { m.logSearchMode = false; m.commandMode = inspectCommandModeNone; return m },
+		clearMode: func(m inspectModel) inspectModel {
+			m.logSearchMode = false
+			m.commandMode = inspectCommandModeNone
+			return m
+		},
 		getQuery:    func(m inspectModel) string { return m.logSearchQuery },
 		setQuery:    func(m inspectModel, q string) inspectModel { m.logSearchQuery = q; return m },
 		applyFilter: applyInspectLogFilter,
@@ -64,7 +81,7 @@ func updateInspectLogSearchMode(model inspectModel, key tea.KeyMsg) (tea.Model, 
 func updateInspectCommandInputMode(model inspectModel, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyText := key.String()
 	switch keyText {
-	case "enter":
+	case inspectEnterKey:
 		command := strings.TrimSpace(strings.TrimPrefix(model.commandQuery, ":"))
 		model.commandMode = inspectCommandModeNone
 		model.commandQuery = ""
@@ -91,10 +108,10 @@ func updateInspectCommandInputMode(model inspectModel, key tea.KeyMsg) (tea.Mode
 	case "tab":
 		model.commandQuery = autocompleteInspectCommand(model.commandQuery)
 		return model, nil
-	case "backspace", "delete":
+	case inspectBackspaceKey, inspectDeleteKey:
 		model.commandQuery = trimLastRune(model.commandQuery)
 		return model, nil
-	case "ctrl+c", "q":
+	case inspectQuitKey, "q":
 		model.quitting = true
 		return model, tea.Quit
 	}

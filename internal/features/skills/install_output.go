@@ -16,21 +16,21 @@ var (
 )
 
 func writeHeader(w io.Writer, editor string) {
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  "+skillsHeaderStyle.Render("🎯 idx Skills Installer"))
-	fmt.Fprintln(w, "  "+skillsEditorStyle.Render("Editor: "+displayName(editor)))
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "  "+skillsHeaderStyle.Render("🎯 idx Skills Installer"))
+	_, _ = fmt.Fprintln(w, "  "+skillsEditorStyle.Render("Editor: "+displayName(editor)))
+	_, _ = fmt.Fprintln(w)
 }
 
 func writeStep(w io.Writer, n, total int, msg string) {
 	step := skillsStepStyle.Render(fmt.Sprintf("  [%d/%d]", n, total))
 	text := skillsTextStyle.Render("  " + msg)
-	fmt.Fprintln(w, step+text)
+	_, _ = fmt.Fprintln(w, step+text)
 }
 
 func writeSuccess(w io.Writer, editor string) {
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  "+skillsSuccessStyle.Render("✓  Skills installed successfully for "+editor+"."))
-	fmt.Fprintln(w, "  "+skillsTextStyle.Render("   Restart your editor to activate the new skills."))
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "  "+skillsSuccessStyle.Render("✓  Skills installed successfully for "+editor+"."))
+	_, _ = fmt.Fprintln(w, "  "+skillsTextStyle.Render("   Restart your editor to activate the new skills."))
+	_, _ = fmt.Fprintln(w)
 }

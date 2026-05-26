@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// TestDaemonStateRepositorySaveLoadRealFilesystem tests saving and loading state from the filesystem
+// TestDaemonStateRepositorySaveLoadRealFilesystem tests saving and loading state from the filesystem.
 func TestDaemonStateRepositorySaveLoadRealFilesystem(t *testing.T) {
 	tmpHome := t.TempDir()
 	stateDir := filepath.Join(tmpHome, ".idx")
@@ -43,7 +43,7 @@ func TestDaemonStateRepositorySaveLoadRealFilesystem(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositorySaveStateCreatesDirectory tests directory creation
+// TestDaemonStateRepositorySaveStateCreatesDirectory tests directory creation.
 func TestDaemonStateRepositorySaveStateCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
@@ -63,7 +63,7 @@ func TestDaemonStateRepositorySaveStateCreatesDirectory(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryStateFileFormat tests the correct file format
+// TestDaemonStateRepositoryStateFileFormat tests the correct file format.
 func TestDaemonStateRepositoryStateFileFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
@@ -98,7 +98,7 @@ func TestDaemonStateRepositoryStateFileFormat(t *testing.T) {
 	_ = state // Usar state para satisfazer lint
 }
 
-// TestDaemonStateRepositoryMultipleProjectsFormat tests multiple projects format
+// TestDaemonStateRepositoryMultipleProjectsFormat tests multiple projects format.
 func TestDaemonStateRepositoryMultipleProjectsFormat(t *testing.T) {
 	jsonWithMultipleProjects := `{
   "projects": [
@@ -139,7 +139,7 @@ func TestDaemonStateRepositoryMultipleProjectsFormat(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryPermissions tests file permissions
+// TestDaemonStateRepositoryPermissions tests file permissions.
 func TestDaemonStateRepositoryPermissions(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateDir := filepath.Join(tmpDir, ".idx")
@@ -163,7 +163,7 @@ func TestDaemonStateRepositoryPermissions(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryEmptyState testa estado vazio
+// TestDaemonStateRepositoryEmptyState tests empty state.
 func TestDaemonStateRepositoryEmptyState(t *testing.T) {
 	emptyState := `{
   "projects": [],
@@ -193,7 +193,7 @@ func TestDaemonStateRepositoryEmptyState(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryInvalidJSONHandling tests invalid JSON file handling
+// TestDaemonStateRepositoryInvalidJSONHandling tests invalid JSON file handling.
 func TestDaemonStateRepositoryInvalidJSONHandling(t *testing.T) {
 	invalidJSON := `{this is not valid json}`
 
@@ -216,7 +216,7 @@ func TestDaemonStateRepositoryInvalidJSONHandling(t *testing.T) {
 	}
 }
 
-// TestDaemonStateRepositoryDirectoryCreation tests .idx directory creation
+// TestDaemonStateRepositoryDirectoryCreation tests .idx directory creation.
 func TestDaemonStateRepositoryDirectoryCreation(t *testing.T) {
 	tmpDir := t.TempDir()
 	idxDir := filepath.Join(tmpDir, ".idx")

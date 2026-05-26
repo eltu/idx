@@ -231,7 +231,7 @@ func TestDaemonServiceEnableReturnsErrorWhenSpawnFails(t *testing.T) {
 }
 
 func TestDaemonServiceDisableReturnsErrorWhenStateIsNil(t *testing.T) {
-	// newDaemonTestEnv(t, nil) initialises state to nil → ReadState returns nil
+	// newDaemonTestEnv(t, nil) initializes state to nil → ReadState returns nil
 	env := newDaemonTestEnv(t, nil)
 
 	err := env.service().Disable(t.TempDir())

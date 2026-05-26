@@ -221,7 +221,7 @@ func (service SearchCommandService) projectRoot() (string, error) {
 	return projectRoot, nil
 }
 
-func (service SearchCommandService) runRankedSearch(query string, projectRoot string, terms []string, options Options) ([]searchResult, error) {
+func (service SearchCommandService) runRankedSearch(query, projectRoot string, terms []string, options Options) ([]searchResult, error) {
 	if service.cacheEnabled && service.cache != nil {
 		return service.cachedRankedResults(query, projectRoot, terms, options)
 	}
@@ -229,7 +229,7 @@ func (service SearchCommandService) runRankedSearch(query string, projectRoot st
 	return service.computeRankedResults(projectRoot, terms, options)
 }
 
-func (service SearchCommandService) cachedRankedResults(query string, projectRoot string, terms []string, options Options) ([]searchResult, error) {
+func (service SearchCommandService) cachedRankedResults(query, projectRoot string, terms []string, options Options) ([]searchResult, error) {
 	cacheKey := cacheKeyFor(query, options)
 	results, exists := service.cache.getFromCache(cacheKey)
 	if exists {

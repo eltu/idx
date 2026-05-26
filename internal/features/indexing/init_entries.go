@@ -1,11 +1,10 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"path/filepath"
 	"sort"
-
 )
 
 func filterEntries(entries []filesystem.DirectoryEntry, projectRoot string, matcher filesystem.IgnoreMatcher) ([]filesystem.DirectoryEntry, error) {

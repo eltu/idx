@@ -8,7 +8,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-const inspectQuitKey = "ctrl+c"
+const (
+	inspectQuitKey     = "ctrl+c"
+	inspectEnterKey    = "enter"
+	inspectPageDownKey = "pgdown"
+)
 
 func (model inspectModel) Init() tea.Cmd {
 	return inspectRealtimeRefreshCmd()
@@ -83,7 +87,7 @@ func updateInspectDirectoriesMode(model inspectModel, key tea.KeyMsg) (tea.Model
 		return model, tea.Quit
 	case "/":
 		return enterInspectDirectorySearch(model), nil
-	case "enter":
+	case inspectEnterKey:
 		return openInspectDirectory(model)
 	}
 	model = adjustInspectDirectorySelection(model, key.String())
@@ -114,7 +118,7 @@ func openInspectDirectory(model inspectModel) (tea.Model, tea.Cmd) {
 	return adjustInspectDocumentsViewport(model), nil
 }
 
-func adjustInspectDirectorySelection(model inspectModel, key string) inspectModel {
+func adjustInspectDirectorySelection(model inspectModel, key string) inspectModel { //nolint:dupl // similar structure by design — each operates on a different field
 	switch key {
 	case "up", "k":
 		if model.directorySelected > 0 {
@@ -129,7 +133,7 @@ func adjustInspectDirectorySelection(model inspectModel, key string) inspectMode
 		if model.directorySelected < 0 {
 			model.directorySelected = 0
 		}
-	case "pgdown":
+	case inspectPageDownKey:
 		model.directorySelected += inspectDirectoriesPageStep(model)
 		if model.directorySelected >= len(model.filteredDirectories) {
 			model.directorySelected = len(model.filteredDirectories) - 1
@@ -174,7 +178,7 @@ func handleInspectDocumentsViewAction(model inspectModel, key string) (inspectMo
 		model.filteredDocuments = append([]inspectDocumentRow(nil), model.documents...)
 		model = adjustInspectDirectoriesViewport(model)
 		return model, true
-	case "enter":
+	case inspectEnterKey:
 		return openInspectSelectedDocumentJSON(model), true
 	default:
 		return model, false
@@ -201,7 +205,7 @@ func openInspectSelectedDocumentJSON(model inspectModel) inspectModel {
 	return adjustInspectJSONViewport(model)
 }
 
-func updateInspectDocumentsSelection(model inspectModel, key string) inspectModel {
+func updateInspectDocumentsSelection(model inspectModel, key string) inspectModel { //nolint:dupl // similar structure by design — each operates on a different field
 	switch key {
 	case "up", "k":
 		if model.documentSelected > 0 {
@@ -216,7 +220,7 @@ func updateInspectDocumentsSelection(model inspectModel, key string) inspectMode
 		if model.documentSelected < 0 {
 			model.documentSelected = 0
 		}
-	case "pgdown":
+	case inspectPageDownKey:
 		model.documentSelected += inspectDocumentsPageStep(model)
 		if model.documentSelected >= len(model.filteredDocuments) {
 			model.documentSelected = len(model.filteredDocuments) - 1
@@ -256,14 +260,14 @@ func handleInspectLogsViewAction(model inspectModel, key string) (inspectModel, 
 		model.commandMode = inspectCommandModeSearch
 		model = applyInspectLogFilter(model)
 		return model, true
-	case "enter":
+	case inspectEnterKey:
 		return model, true
 	default:
 		return model, false
 	}
 }
 
-func updateInspectLogsSelection(model inspectModel, key string) inspectModel {
+func updateInspectLogsSelection(model inspectModel, key string) inspectModel { //nolint:dupl // similar structure by design — each operates on a different field
 	switch key {
 	case "up", "k":
 		if model.logSelected > 0 {
@@ -278,7 +282,7 @@ func updateInspectLogsSelection(model inspectModel, key string) inspectModel {
 		if model.logSelected < 0 {
 			model.logSelected = 0
 		}
-	case "pgdown":
+	case inspectPageDownKey:
 		model.logSelected += inspectLogsPageStep(model)
 		if model.logSelected >= len(model.filteredLogs) {
 			model.logSelected = len(model.filteredLogs) - 1

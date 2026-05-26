@@ -12,10 +12,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	appcli "idx/internal/app/cli"
+	idxtui "idx/internal/app/tui"
 	featdaemon "idx/internal/features/daemon"
 	featindexing "idx/internal/features/indexing"
 	idxstorage "idx/internal/features/indexing/storage"
-	idxtui "idx/internal/app/tui"
 	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
 	featsearch "idx/internal/features/search"
@@ -259,7 +259,7 @@ func run(arguments []string, output io.Writer) error {
 }
 
 // earlyLoadConfigLogLevel reads only the log.level field from .idx.yml so the
-// logger can be initialised before the full DI graph is wired in run().
+// logger can be initialized before the full DI graph is wired in run().
 func earlyLoadConfigLogLevel(projectRoot string) string {
 	configRepo := sharedconfig.NewYAMLRepository()
 	cfg, _, err := configRepo.Load(projectRoot)

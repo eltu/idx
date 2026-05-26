@@ -12,7 +12,6 @@ import (
 
 var (
 	progressTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorSecondary)
-	progressFilledStyle  = lipgloss.NewStyle().Foreground(colorPrimary)
 	progressEmptyStyle   = lipgloss.NewStyle().Foreground(colorSurface)
 	progressPercentStyle = lipgloss.NewStyle().Bold(true).Foreground(colorText)
 	progressCountStyle   = lipgloss.NewStyle().Foreground(colorMuted)
@@ -81,7 +80,7 @@ func waitForProgressDir(ch <-chan string) tea.Cmd {
 func (m initProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		if msg.String() == inspectQuitKey {
 			m.cancelFunc()
 			return m, tea.Quit
 		}

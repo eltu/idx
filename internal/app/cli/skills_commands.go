@@ -46,7 +46,7 @@ func (runner CommandRunner) newSkillsCommand() *cobra.Command {
 		Short: "Manage idx skills for your editor",
 	}
 	skillsCmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
-		fmt.Fprintln(cmd.OutOrStdout(), renderSkillsHelp())
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), renderSkillsHelp())
 	})
 	skillsCmd.AddCommand(runner.newSkillsInstallCommand())
 	return skillsCmd
@@ -70,7 +70,7 @@ func (runner CommandRunner) newSkillsInstallCommand() *cobra.Command {
 	}
 	installCmd.Flags().BoolVar(&verbose, "verbose", false, "Stream git and installer output")
 	installCmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
-		fmt.Fprintln(cmd.OutOrStdout(), renderSkillsInstallHelp())
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), renderSkillsInstallHelp())
 	})
 	return installCmd
 }
@@ -167,5 +167,5 @@ func writeSkillsMissingEditorError(cmd *cobra.Command) {
 		strings.Join(rows, "\n    "),
 	)
 
-	fmt.Fprintln(cmd.OutOrStdout(), msg)
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), msg)
 }

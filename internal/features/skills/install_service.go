@@ -3,8 +3,6 @@ package skills
 import (
 	"fmt"
 	"io"
-
-	
 )
 
 // subprocessWriter returns the writer to use for subprocess output.
@@ -18,14 +16,14 @@ func subprocessWriter(verbose bool, out io.Writer) io.Writer {
 
 // SkillsInstallService installs idx skills for a specific editor by cloning
 // the skills repository and running the install script.
-// Example: svc := NewSkillsInstallService(installer, os.Stdout)
+// Example: svc := NewSkillsInstallService(installer, os.Stdout).
 type SkillsInstallService struct {
 	installer Installer
 	out       io.Writer
 }
 
 // NewSkillsInstallService constructs the skills installation use case.
-// Example: svc := NewSkillsInstallService(installer, os.Stdout)
+// Example: svc := NewSkillsInstallService(installer, os.Stdout).
 func NewSkillsInstallService(installer Installer, out io.Writer) *SkillsInstallService {
 	return &SkillsInstallService{installer: installer, out: out}
 }

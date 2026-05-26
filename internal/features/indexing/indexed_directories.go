@@ -1,12 +1,11 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"path/filepath"
 	"runtime"
 	"sync"
-
 )
 
 const errReadDirFmt = "failed to read directory %q: got error %v, expected a readable directory"
@@ -60,7 +59,7 @@ func collectIndexedDirectories(projectTree filesystem.ProjectTree, directoryPath
 	return nil
 }
 
-func collectEligibleDirectories(projectTree filesystem.ProjectTree, directoryPath string, projectRoot string, matcher filesystem.IgnoreMatcher, directories *[]string) error {
+func collectEligibleDirectories(projectTree filesystem.ProjectTree, directoryPath, projectRoot string, matcher filesystem.IgnoreMatcher, directories *[]string) error {
 	*directories = append(*directories, directoryPath)
 
 	entries, err := projectTree.ReadDir(directoryPath)

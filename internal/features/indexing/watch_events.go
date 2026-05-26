@@ -1,9 +1,9 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"errors"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-
-	
 )
 
 const watchMaxFilesListed = 8
@@ -171,7 +169,7 @@ func shouldSkipSystemDirectory(path string) bool {
 	return base == ".git" || base == ".idx"
 }
 
-func isIgnoredPath(projectRoot string, path string, isDir bool, matcher filesystem.IgnoreMatcher) (bool, error) {
+func isIgnoredPath(projectRoot, path string, isDir bool, matcher filesystem.IgnoreMatcher) (bool, error) {
 	relativePath, err := filepath.Rel(projectRoot, path)
 	if err != nil {
 		return false, err
@@ -202,7 +200,7 @@ func (service InitCommandService) watchNewDirectory(event fsnotify.Event, watche
 	return service.addRecursiveWatches(watcher, targetDirectory, projectRoot, matcher)
 }
 
-func (service InitCommandService) flushWatchedBatch(pendingDirectories map[string]struct{}, pendingFiles map[string]struct{}, projectRoot string, matcher filesystem.IgnoreMatcher, showUpdatedFiles bool) error {
+func (service InitCommandService) flushWatchedBatch(pendingDirectories, pendingFiles map[string]struct{}, projectRoot string, matcher filesystem.IgnoreMatcher, _ bool) error {
 	directories := sortedDirectoryBatch(pendingDirectories)
 	if len(directories) == 0 {
 		return nil

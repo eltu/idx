@@ -1,21 +1,19 @@
 package read
 
 import (
-	"idx/internal/shared/filesystem"
-	"idx/internal/shared/output"
 	"bufio"
 	"fmt"
+	"idx/internal/shared/filesystem"
+	"idx/internal/shared/output"
 	"io"
 	"path/filepath"
 	"strings"
-
-	
 )
 
 // noopReadLog is the default when no log repository is injected.
 type noopReadLog struct{}
 
-func (noopReadLog) RecordRead(_, _ string) error                   { return nil }
+func (noopReadLog) RecordRead(_, _ string) error         { return nil }
 func (noopReadLog) LoadAll(_ string) ([]LogEntry, error) { return nil, nil }
 
 // fileStreamer abstracts opening a file for sequential reading and checking if a path is a directory.
@@ -116,7 +114,7 @@ func (service ReadCommandService) streamLines(resolved, original string, fromLin
 	if err != nil {
 		return fmt.Errorf("failed to read file %q: got error %v, expected a readable file", original, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	scanner := bufio.NewScanner(reader)
 	lineNum := 0

@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	
 )
 
 type statusPanelData struct {
@@ -94,11 +92,13 @@ func daemonStatusLine(daemonRepo ProjectMonitorChecker, projectRoot string) stri
 	return statusSuccessStyle.Render("✅ watching") + "  " + statusMutedStyle.Render(fmt.Sprintf("(PID %d, since %s)", status.PID, since))
 }
 
+const humanAgeJustNow = "just now"
+
 func humanAge(t time.Time) string {
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return humanAgeJustNow
 	case d < time.Hour:
 		mins := int(d.Minutes())
 		return fmt.Sprintf("%d minute%s ago", mins, pluralSuffix(mins, "", "s"))

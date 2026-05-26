@@ -206,10 +206,10 @@ func TestInitProgressModelUpdateDoneSetsTotalAsCurrent(t *testing.T) {
 }
 
 func TestInitProgressModelUpdateCtrlCCallsCancel(t *testing.T) {
-	cancelled := false
-	m := newInitProgressModel(nil, nil, func() { cancelled = true })
+	canceled := false
+	m := newInitProgressModel(nil, nil, func() { canceled = true })
 	m.Update(tea.KeyPressMsg{Text: "ctrl+c"})
-	if !cancelled {
+	if !canceled {
 		t.Fatal("expected cancelFunc to be called on ctrl+c")
 	}
 }

@@ -98,7 +98,7 @@ func isInspectTransactionLogPath(path string) bool {
 }
 
 func readInspectTransactionLogFile(filePath string) ([]inspectLogRow, error) {
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(filePath) //nolint:gosec // path is derived from the project root, not user input
 	if err != nil {
 		return nil, err
 	}

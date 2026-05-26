@@ -10,7 +10,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
 )
 
 const (
@@ -32,8 +31,8 @@ type readLogEntry struct {
 // ReadLogRepository persists per-file access history to .idx/read_log.idx.
 //
 // Concurrency model:
-//   - sync.Mutex serialises goroutines within the same process.
-//   - syscall.Flock (advisory, exclusive) serialises disk writes across processes.
+//   - sync.Mutex serializes goroutines within the same process.
+//   - syscall.Flock (advisory, exclusive) serializes disk writes across processes.
 //
 // Caching:
 //   - writeState is the in-memory working copy for the write path (RecordRead).
@@ -181,12 +180,12 @@ func (r *ReadLogRepository) withFileLock(lockPath string, fn func() error) error
 	if err != nil {
 		return fmt.Errorf("failed to create lock file %q: got error %v, expected a writable path", lockPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil { //nolint:gosec // fd value fits int on all target platforms
 		return fmt.Errorf("failed to acquire file lock on %q: got error %v", lockPath, err)
 	}
-	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }() //nolint:gosec // fd value fits int on all target platforms
 
 	return fn()
 }
@@ -216,7 +215,7 @@ func loadReadLogEntries(logPath string) ([]readLogEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open read log %q: got error %v, expected a readable file", logPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var entries []readLogEntry
 	scanner := bufio.NewScanner(f)

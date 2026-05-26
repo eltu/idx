@@ -2,7 +2,7 @@ package tui
 
 import "charm.land/lipgloss/v2"
 
-// Slate palette — Indigo + Emerald + Amber
+// Slate palette — Indigo + Emerald + Amber.
 var (
 	colorPrimary    = lipgloss.Color("#6366F1") // Indigo 500 — titles, spinner, filled progress
 	colorSecondary  = lipgloss.Color("#818CF8") // Indigo 400 — labels, status line, JSON keys

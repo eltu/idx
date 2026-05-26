@@ -2,8 +2,6 @@ package search
 
 import (
 	"encoding/json"
-
-	
 )
 
 type jsonSearchResponse struct {

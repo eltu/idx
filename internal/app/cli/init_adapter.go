@@ -30,7 +30,7 @@ func (a *InitCommandAdapter) RunFromPath(projectPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
-	defer os.Chdir(cwd)
+	defer func() { _ = os.Chdir(cwd) }()
 
 	if err := os.Chdir(projectPath); err != nil {
 		return fmt.Errorf("failed to change to project directory %q: %w", projectPath, err)

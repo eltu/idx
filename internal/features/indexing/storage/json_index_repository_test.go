@@ -66,12 +66,12 @@ func TestJSONIndexRepositoryLoadIndexReturnsErrorForInvalidJSON(t *testing.T) {
 
 type failingWriteTree struct{}
 
-func (failingWriteTree) CurrentDir() (string, error)                          { return "", nil }
-func (failingWriteTree) FindGitRoot(string) (string, error)                   { return "", nil }
-func (failingWriteTree) ReadDir(string) ([]filesystem.DirectoryEntry, error)  { return nil, nil }
-func (failingWriteTree) Exists(string) (bool, error)                          { return false, nil }
-func (failingWriteTree) RemoveAll(string) error                               { return nil }
-func (failingWriteTree) WriteFile(string, []byte) error                       { return errors.New("write failed") }
+func (failingWriteTree) CurrentDir() (string, error)                         { return "", nil }
+func (failingWriteTree) FindGitRoot(string) (string, error)                  { return "", nil }
+func (failingWriteTree) ReadDir(string) ([]filesystem.DirectoryEntry, error) { return nil, nil }
+func (failingWriteTree) Exists(string) (bool, error)                         { return false, nil }
+func (failingWriteTree) RemoveAll(string) error                              { return nil }
+func (failingWriteTree) WriteFile(string, []byte) error                      { return errors.New("write failed") }
 
 func TestJSONIndexRepositorySaveIndexReturnsErrorWhenWriteFails(t *testing.T) {
 	repo := NewJSONIndexRepository(failingWriteTree{})

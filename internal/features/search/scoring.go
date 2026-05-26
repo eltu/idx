@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"idx/internal/features/indexing"
-	
 )
 
 func sortResults(results []searchResult) {
@@ -142,7 +141,7 @@ func matchedTermCount(index *indexing.InvertedIndex, filePath string, terms []st
 	return count
 }
 
-func documentContainsTerm(index *indexing.InvertedIndex, filePath string, term string) bool {
+func documentContainsTerm(index *indexing.InvertedIndex, filePath, term string) bool {
 	termStats := index.Terms[term]
 	if termStats == nil {
 		return false
@@ -176,7 +175,7 @@ func proximityBonusForDocument(index *indexing.InvertedIndex, filePath string, t
 	return tuning.proximityWeight * (totalPairScore / float64(pairCount))
 }
 
-func minimumDistanceForTermPair(index *indexing.InvertedIndex, filePath string, leftTerm string, rightTerm string) (int, bool) {
+func minimumDistanceForTermPair(index *indexing.InvertedIndex, filePath, leftTerm, rightTerm string) (int, bool) {
 	if index.Terms[leftTerm] == nil || index.Terms[rightTerm] == nil {
 		return 0, false
 	}
@@ -290,7 +289,7 @@ func addTermScores(scores map[string]float64, index *indexing.InvertedIndex, ter
 //     stem "main" in "main.go", or token "main" in "main_test.go")
 //   - 0.5 for a substring match within a token (e.g. "search" ⊂ "searches")
 //
-// Example: fileNameMatchBonus([]string{"main"}, "main_test.go") → 1.0
+// Example: fileNameMatchBonus([]string{"main"}, "main_test.go") → 1.0.
 func fileNameMatchBonus(terms []string, fileName string) float64 {
 	stem := fileNameStem(fileName)
 	tokens := fileNameTokens(fileName)

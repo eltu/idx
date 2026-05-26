@@ -8,7 +8,7 @@ import (
 )
 
 // View implements tea.Model.
-// Example: view := model.View()
+// Example: view := model.View().
 func (model inspectModel) View() tea.View {
 	if model.quitting {
 		return tea.NewView("\n" + inspectQuitMessageStyle.Render("Leaving inspect mode...") + "\n")
@@ -288,7 +288,7 @@ func inspectLogTableRow(row inspectLogRow) string {
 	return fmt.Sprintf("%-24s | %-52s | %-24s", row.indexedAt, row.path, row.hash)
 }
 
-func inspectHorizontalWindow(text string, width int, offset int) string {
+func inspectHorizontalWindow(text string, width, offset int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -406,7 +406,7 @@ func inspectDocumentsPageStep(model inspectModel) int {
 
 func inspectLogsPageStep(model inspectModel) int { return maxInt(inspectLogsListHeight(model)-1, 1) }
 
-func adjustInspectDirectoriesViewport(model inspectModel) inspectModel {
+func adjustInspectDirectoriesViewport(model inspectModel) inspectModel { //nolint:dupl // similar structure by design — each operates on a different field
 	if len(model.filteredDirectories) == 0 {
 		model.directoryStart, model.directorySelected = 0, 0
 		return model
@@ -423,7 +423,7 @@ func adjustInspectDirectoriesViewport(model inspectModel) inspectModel {
 	return model
 }
 
-func adjustInspectDocumentsViewport(model inspectModel) inspectModel {
+func adjustInspectDocumentsViewport(model inspectModel) inspectModel { //nolint:dupl // similar structure by design — each operates on a different field
 	if len(model.filteredDocuments) == 0 {
 		model.documentStart, model.documentSelected = 0, 0
 		return model

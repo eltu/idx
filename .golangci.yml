@@ -7,31 +7,62 @@ linters:
     - govet          # go vet checks
     - staticcheck    # static analysis (supersedes gosimple, stylecheck, etc.)
     - unused         # unused code
-    - gocyclo        # cyclomatic complexity limits
+    - gocyclo        # cyclomatic complexity (SonarQube: cyclomatic_complexity)
+    - gocognit       # cognitive complexity > 15 (SonarQube: cognitive_complexity)
+    - goconst        # duplicate string literals (SonarQube: S1192)
+    - gocritic       # style checks incl. grouped params (SonarQube: S1172)
+    - revive         # naming conventions + empty blocks (SonarQube: S1609, S108)
     - gosec          # security issues (OWASP-aligned)
     - misspell       # common spelling mistakes
     - godot          # comment punctuation
     - dupl           # duplicated code blocks
     - noctx          # http.Request without context
     - bodyclose      # http response body not closed
-
-linters-settings:
-  dupl:
-    threshold: 100
-  gocyclo:
-    min-complexity: 15
-  godot:
-    scope: declarations
-  misspell:
-    locale: US
+  settings:
+    dupl:
+      threshold: 100
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 15
+    goconst:
+      min-len: 5
+      min-occurrences: 2
+    gocritic:
+      enabled-checks:
+        - paramTypeCombine
+    revive:
+      rules:
+        - name: var-naming
+        - name: empty-block
+        - name: unused-parameter
+    godot:
+      scope: declarations
+    misspell:
+      locale: US
+  exclusions:
+    rules:
+      # Test files: relax rules that don't catch bugs
+      - path: "_test\\.go"
+        linters:
+          - dupl
+          - gosec
+          - gocyclo
+          - gocognit
+          - goconst
+          - gocritic
+          - revive
+          - errcheck
+          - noctx
+          - unused
+      # Doc-comment style is enforced by CLAUDE.md, not by linter
+      - linters: [revive]
+        text: "should have comment or be unexported"
+      - linters: [revive]
+        text: "package-comments"
+      - linters: [revive]
+        text: "stutters"
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Test files: relax some rules
-    - path: "_test\\.go"
-      linters:
-        - dupl
-        - gosec
-        - gocyclo

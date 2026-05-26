@@ -1,11 +1,10 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-
+	"idx/internal/shared/filesystem"
 )
 
 func (service InitCommandService) hasDirectoryIndex(directoryPath string) (bool, error) {

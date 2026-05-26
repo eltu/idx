@@ -48,7 +48,7 @@ type PathRunner interface {
 }
 
 // Progress reports directory indexing progress during idx init.
-// Example: progress.StartCounting(); progress.SetTotal(15); progress.IncrementDir("/path/to/dir"); progress.Finish()
+// Example: progress.StartCounting(); progress.SetTotal(15); progress.IncrementDir("/path/to/dir"); progress.Finish().
 type Progress interface {
 	StartCounting()
 	SetTotal(total int)
@@ -58,7 +58,7 @@ type Progress interface {
 }
 
 // InspectUIRunner renders the inspect user interface for a loaded index.
-// Example: err := runner.Run(index)
+// Example: err := runner.Run(index).
 type InspectUIRunner interface {
 	Run(index *InvertedIndex) error
 }

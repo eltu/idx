@@ -1,0 +1,44 @@
+#!/bin/sh
+# scripts/setup: Bootstrap the development environment.
+# Run once after cloning: sh scripts/setup
+#
+# What this does:
+#   1. Verifies Go is installed
+#   2. Installs golangci-lint if missing
+#   3. Installs the git pre-push hook
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Setting up idx development environment..."
+
+# 1. Go
+if ! command -v go >/dev/null 2>&1; then
+  echo "Error: Go is not installed. See https://go.dev/dl/" >&2
+  exit 1
+fi
+echo "  go $(go version | awk '{print $3}') found"
+
+# 2. golangci-lint
+GOLANGCI="$(go env GOPATH)/bin/golangci-lint"
+if [ ! -x "$GOLANGCI" ]; then
+  echo "  Installing golangci-lint..."
+  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  echo "  golangci-lint installed at $GOLANGCI"
+else
+  echo "  golangci-lint found at $GOLANGCI"
+fi
+
+# 3. git pre-push hook
+HOOK_FILE="$(git rev-parse --git-dir)/hooks/pre-push"
+cat > "$HOOK_FILE" <<EOF
+#!/bin/sh
+# Auto-installed by scripts/setup — do not edit manually.
+cd "$REPO_ROOT" && make pre-push
+EOF
+chmod +x "$HOOK_FILE"
+echo "  Installed: .git/hooks/pre-push"
+
+echo ""
+echo "All set. Run 'make check' to verify your environment."

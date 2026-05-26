@@ -19,7 +19,7 @@ type OSSkillsInstaller struct {
 }
 
 // NewOSSkillsInstaller creates an installer that uses the system git binary and shell.
-// Example: installer := filesystem.NewOSSkillsInstaller()
+// Example: installer := filesystem.NewOSSkillsInstaller().
 func NewOSSkillsInstaller() *OSSkillsInstaller {
 	return NewOSSkillsInstallerWithDeps(exec.LookPath, os.MkdirTemp, exec.Command, os.RemoveAll)
 }
@@ -55,7 +55,7 @@ func (i *OSSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
 	cmd.Stdout = out
 	cmd.Stderr = out
 	if err := cmd.Run(); err != nil {
-		i.removeAll(tempDir) //nolint:errcheck
+		i.removeAll(tempDir) //nolint:errcheck,gosec // cleanup on error path; original error is returned
 		return "", fmt.Errorf("git clone failed: %w", err)
 	}
 

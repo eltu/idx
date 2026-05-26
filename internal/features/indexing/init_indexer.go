@@ -1,16 +1,15 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"context"
 	"errors"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"path/filepath"
 	"runtime"
 	"time"
 
 	"golang.org/x/sync/errgroup"
-
 )
 
 func (service InitCommandService) runIndex() error {
@@ -108,7 +107,7 @@ func (service InitCommandService) indexAllParallel(ctx context.Context, dirs []s
 	return g.Wait()
 }
 
-func (service InitCommandService) syncDirectoryIndex(directoryPath string, projectRoot string, matcher filesystem.IgnoreMatcher) error {
+func (service InitCommandService) syncDirectoryIndex(directoryPath, projectRoot string, matcher filesystem.IgnoreMatcher) error {
 	if err := service.validateDependencies(); err != nil {
 		return err
 	}
@@ -138,7 +137,7 @@ func (service InitCommandService) syncDirectoryIndex(directoryPath string, proje
 	return service.saveChecksumSnapshot(directoryPath, currentSnapshot)
 }
 
-func (service InitCommandService) indexableFileEntries(directoryPath string, projectRoot string, matcher filesystem.IgnoreMatcher) ([]filesystem.DirectoryEntry, error) {
+func (service InitCommandService) indexableFileEntries(directoryPath, projectRoot string, matcher filesystem.IgnoreMatcher) ([]filesystem.DirectoryEntry, error) {
 	entries, err := service.projectTree.ReadDir(directoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory %q: got error %v, expected a readable directory", directoryPath, err)

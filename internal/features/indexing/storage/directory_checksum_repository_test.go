@@ -177,7 +177,6 @@ func TestDirectoryChecksumRepositoryLoadSnapshotSupportsLegacyPayload(t *testing
 	}
 }
 
-
 func TestDirectoryChecksumRepositoryLoadAndSaveSnapshotInvalidPathErrors(t *testing.T) {
 	repo := NewDirectoryChecksumRepository()
 

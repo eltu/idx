@@ -47,12 +47,12 @@ func (matcher gitIgnoreMatcher) Matches(path string) (bool, error) {
 }
 
 func (matcher gitIgnoreMatcher) runCheckIgnore(path string) error {
-	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path)
+	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "check-ignore", "--no-index", "-q", path) //nolint:gosec // input is sanitized by the caller
 	return command.Run()
 }
 
 func (matcher gitIgnoreMatcher) verifyGitBinary() error {
-	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "rev-parse", "--git-dir")
+	command := exec.CommandContext(context.Background(), matcher.gitBin, "-C", matcher.projectRoot, "rev-parse", "--git-dir") //nolint:gosec // input is sanitized by the caller
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("failed to validate git project %q: got error %v, expected a directory with a readable git repository", matcher.projectRoot, err)
 	}

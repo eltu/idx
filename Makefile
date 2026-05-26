@@ -7,7 +7,7 @@ VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS    := -X main.version=$(VERSION) -X main.buildDate=$(BUILD_DATE)
 
-.PHONY: all build fmt lint test complexity clean check bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci
+.PHONY: all build fmt lint test complexity clean check pre-push hooks bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci
 
 ## Default: format, lint, test, and build
 all: fmt lint test build
@@ -79,8 +79,15 @@ test-concurrency-heavy:
 	IDX_CONCURRENCY_TIMEOUT_SECONDS=$${IDX_CONCURRENCY_TIMEOUT_SECONDS:-60} \
 	go test ./internal/core/services/search -run '^TestSyncAndSearchRunConcurrently' -count=1
 
-## Format + lint + test (no build)
+## Format + lint + test (no build) — also used as the pre-push gate
 check: fmt lint test
+
+## Git pre-push hook entry point — delegates to check
+pre-push: check
+
+## Bootstrap dev environment: installs golangci-lint + git hooks (run once after cloning)
+hooks:
+	@sh scripts/setup
 
 ## Remove build artifacts
 clean:

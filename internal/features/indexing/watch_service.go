@@ -1,16 +1,14 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"context"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-
-	
 )
 
 const defaultWatchDebounceInterval = 750 * time.Millisecond
@@ -102,7 +100,7 @@ func (service InitCommandService) ensureRootIndex(projectRoot string, matcher fi
 	return service.output.WriteLine(created)
 }
 
-func (service InitCommandService) writeWatchHeader(projectRoot string, debounce time.Duration) error {
+func (service InitCommandService) writeWatchHeader(projectRoot string, _ time.Duration) error {
 	projectName := filepath.Base(projectRoot)
 	header := fmt.Sprintf("\n%s  %s  %s\n",
 		statusWarningStyle.Render("👀  Watching"),
@@ -131,7 +129,7 @@ func (service InitCommandService) syncAllDirectoriesBeforeWatch(projectRoot stri
 	return service.syncEligibleDirectories(eligible, projectRoot, matcher)
 }
 
-func (service InitCommandService) addRecursiveWatches(watcher *fsnotify.Watcher, directoryPath string, projectRoot string, matcher filesystem.IgnoreMatcher) error {
+func (service InitCommandService) addRecursiveWatches(watcher *fsnotify.Watcher, directoryPath, projectRoot string, matcher filesystem.IgnoreMatcher) error {
 	if shouldSkipSystemDirectory(directoryPath) {
 		return nil
 	}
@@ -178,4 +176,3 @@ func addWatchPath(watcher *fsnotify.Watcher, directoryPath string) error {
 
 	return fmt.Errorf("failed to watch directory %q: got error %v, expected readable path", directoryPath, err)
 }
-

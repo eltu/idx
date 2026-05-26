@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newDaemonCommand cria o comando raiz 'idx daemon'.
+// newDaemonCommand creates the root 'idx daemon' command.
 func (runner CommandRunner) newDaemonCommand() *cobra.Command {
 	daemonCommand := &cobra.Command{
 		Use:   "daemon",
@@ -20,7 +20,7 @@ func (runner CommandRunner) newDaemonCommand() *cobra.Command {
 	return daemonCommand
 }
 
-// newDaemonEnableCommand cria o comando 'idx daemon enable <path>'.
+// newDaemonEnableCommand creates the 'idx daemon enable <path>' command.
 func (runner CommandRunner) newDaemonEnableCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <path>",
@@ -39,7 +39,7 @@ func (runner CommandRunner) newDaemonEnableCommand() *cobra.Command {
 	}
 }
 
-// newDaemonDisableCommand cria o comando 'idx daemon disable <path>'.
+// newDaemonDisableCommand creates the 'idx daemon disable <path>' command.
 func (runner CommandRunner) newDaemonDisableCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable <path>",
@@ -58,7 +58,7 @@ func (runner CommandRunner) newDaemonDisableCommand() *cobra.Command {
 	}
 }
 
-// newDaemonStatusCommand cria o comando 'idx daemon status'.
+// newDaemonStatusCommand creates the 'idx daemon status' command.
 func (runner CommandRunner) newDaemonStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",

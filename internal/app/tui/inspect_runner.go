@@ -7,7 +7,7 @@ import (
 type inspectRunner struct{}
 
 // NewInspectRunner builds the inspect UI adapter implementation.
-// Example: runner := NewInspectRunner()
+// Example: runner := NewInspectRunner().
 func NewInspectRunner() indexing.InspectUIRunner {
 	return inspectRunner{}
 }

@@ -28,13 +28,13 @@ var (
 )
 
 // newVersionCommand prints the binary version and build date.
-// Example: idx version
+// Example: idx version.
 func (runner CommandRunner) newVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Show version and build information",
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), renderVersionOutput(runner.buildInfo.Version, runner.buildInfo.BuildDate))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), renderVersionOutput(runner.buildInfo.Version, runner.buildInfo.BuildDate))
 		},
 	}
 }

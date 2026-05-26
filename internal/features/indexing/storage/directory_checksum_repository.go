@@ -1,16 +1,14 @@
 package storage
 
 import (
-	"idx/internal/features/indexing"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"idx/internal/features/indexing"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	
 )
 
 type checksumPayload struct {

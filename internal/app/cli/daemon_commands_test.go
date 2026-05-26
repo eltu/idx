@@ -6,10 +6,10 @@ import (
 )
 
 type stubDaemonService struct {
-	enableErr  error
-	disableErr error
-	statusErr  error
-	lastEnable string
+	enableErr   error
+	disableErr  error
+	statusErr   error
+	lastEnable  string
 	lastDisable string
 }
 

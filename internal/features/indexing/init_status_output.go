@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -73,7 +74,7 @@ func (service InitCommandService) writeStaleResult(profile bool, projectRoot str
 		return err
 	}
 
-	return fmt.Errorf(errMsgStaleIndex)
+	return errors.New(errMsgStaleIndex)
 }
 
 func (service InitCommandService) writeStatusReport(projectRoot string, reports []statusDirectoryReport, summary statusSummary) error {
@@ -254,7 +255,7 @@ func (service InitCommandService) writeStaleIndexError(projectRoot string, stale
 		return err
 	}
 
-	return fmt.Errorf(errMsgStaleIndex)
+	return errors.New(errMsgStaleIndex)
 }
 
 // reportedError is returned after a formatted diagnostic has been written to output.

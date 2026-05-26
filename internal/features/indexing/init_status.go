@@ -1,15 +1,14 @@
 package indexing
 
 import (
-	"idx/internal/shared/filesystem"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
-
 )
 
 type statusFileReport struct {
@@ -50,10 +49,10 @@ func (service InitCommandService) StatusWithProfile(profile bool) error {
 }
 
 type statusGatherResult struct {
-	projectRoot     string
-	directories     []string
-	reports         []statusDirectoryReport
-	summary         statusSummary
+	projectRoot      string
+	directories      []string
+	reports          []statusDirectoryReport
+	summary          statusSummary
 	staleDirectories []string
 }
 
@@ -234,7 +233,6 @@ func (service InitCommandService) collectDirectoryReport(directoryPath, projectR
 	return service.verifyDirectoryIndexCurrent(directoryPath, fileEntries)
 }
 
-
 func (service InitCommandService) statusMatcher() (string, filesystem.IgnoreMatcher, error) {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
@@ -317,4 +315,3 @@ func missingIndexDirectories(indexed, eligible []string) []string {
 
 	return missing
 }
-

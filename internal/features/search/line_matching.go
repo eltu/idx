@@ -52,7 +52,7 @@ func matchedLinesWithoutContext(lines []string, matchedIndexes map[int]struct{})
 	return matches
 }
 
-func includedContextIndexes(matchedIndexes map[int]struct{}, contextSize int, lineCount int) map[int]struct{} {
+func includedContextIndexes(matchedIndexes map[int]struct{}, contextSize, lineCount int) map[int]struct{} {
 	includedIndexes := make(map[int]struct{})
 	for index := range matchedIndexes {
 		start := index - contextSize

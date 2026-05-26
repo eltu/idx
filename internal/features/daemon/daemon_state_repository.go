@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
 )
 
 // DaemonStateRepository persists the daemon state to ~/.idx/daemon.state.
@@ -22,7 +21,7 @@ func NewDaemonStateRepository() *DaemonStateRepository {
 func (r *DaemonStateRepository) ReadState() (*State, error) {
 	statePath := r.stateFilePath()
 
-	data, err := os.ReadFile(statePath)
+	data, err := os.ReadFile(statePath) //nolint:gosec // path is derived from the project root, not user input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil // First run – file does not exist yet

@@ -1,13 +1,12 @@
 package storage
 
 import (
-	"idx/internal/shared/filesystem"
 	"encoding/json"
 	"fmt"
+	"idx/internal/shared/filesystem"
 	"os"
 
 	"idx/internal/features/indexing"
-	
 )
 
 // JSONIndexRepository handles serialization/deserialization of BM25 indices.

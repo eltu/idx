@@ -1,13 +1,11 @@
 package lifecycle
 
 import (
-	"idx/internal/shared/filesystem"
-	"idx/internal/shared/output"
 	"errors"
 	"fmt"
+	"idx/internal/shared/filesystem"
+	"idx/internal/shared/output"
 	"path/filepath"
-
-	
 )
 
 type DestroyCommandService struct {

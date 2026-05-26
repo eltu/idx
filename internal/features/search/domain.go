@@ -12,7 +12,7 @@ const (
 	OperatorOR = "OR"
 )
 
-// Options controls optional output behaviour of the search command.
+// Options controls optional output behavior of the search command.
 type Options struct {
 	Format                 string
 	Context                int

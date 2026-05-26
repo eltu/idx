@@ -513,8 +513,10 @@ func (errCurrentDirTree) RemoveAll(_ string) error                              
 
 type errGitRootTree struct{ root string }
 
-func (t *errGitRootTree) CurrentDir() (string, error)          { return t.root, nil }
-func (t *errGitRootTree) FindGitRoot(_ string) (string, error) { return "", errors.New("not a git repo") }
+func (t *errGitRootTree) CurrentDir() (string, error) { return t.root, nil }
+func (t *errGitRootTree) FindGitRoot(_ string) (string, error) {
+	return "", errors.New("not a git repo")
+}
 func (t *errGitRootTree) ReadDir(_ string) ([]filesystem.DirectoryEntry, error) { return nil, nil }
 func (t *errGitRootTree) Exists(_ string) (bool, error)                         { return false, nil }
 func (t *errGitRootTree) WriteFile(_ string, _ []byte) error                    { return nil }
@@ -603,8 +605,8 @@ func TestEnsureRootIndexReturnsErrorWhenExistsFails(t *testing.T) {
 // errExistsTree returns an error from Exists.
 type errExistsTree struct{ root string }
 
-func (t *errExistsTree) CurrentDir() (string, error)          { return t.root, nil }
-func (t *errExistsTree) FindGitRoot(_ string) (string, error) { return t.root, nil }
+func (t *errExistsTree) CurrentDir() (string, error)                           { return t.root, nil }
+func (t *errExistsTree) FindGitRoot(_ string) (string, error)                  { return t.root, nil }
 func (t *errExistsTree) ReadDir(_ string) ([]filesystem.DirectoryEntry, error) { return nil, nil }
 func (t *errExistsTree) Exists(_ string) (bool, error) {
 	return false, errors.New("stat failed")

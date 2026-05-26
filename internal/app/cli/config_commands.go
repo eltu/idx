@@ -95,7 +95,7 @@ func (runner CommandRunner) writeConfigDetails() error {
 
 func printConfigNoFileMessage() {
 	header := configMutedStyle.Render("No .idx.yml found — using built-in defaults.")
-	tip := configMutedStyle.Render("Tip: create .idx.yml at the project root to customise defaults.")
+	tip := configMutedStyle.Render("Tip: create .idx.yml at the project root to customize defaults.")
 	fmt.Printf("\n  %s\n  %s\n\n", header, tip)
 }
 

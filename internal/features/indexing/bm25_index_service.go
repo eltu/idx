@@ -3,8 +3,6 @@ package indexing
 import (
 	"path/filepath"
 	"strings"
-
-	
 )
 
 // BM25IndexService implements the BM25Indexer port.

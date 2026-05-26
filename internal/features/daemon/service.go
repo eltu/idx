@@ -1,18 +1,15 @@
 package daemon
 
 import (
+	"errors"
+	"fmt"
 	"idx/internal/features/indexing"
 	"idx/internal/shared/filesystem"
 	"idx/internal/shared/output"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
 	"time"
-
-	
-	
 )
 
 // DaemonService orchestrates the activation and management of watch processes for multiple projects.

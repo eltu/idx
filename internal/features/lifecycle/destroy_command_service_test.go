@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"idx/internal/shared/filesystem"
 	lifecycle "idx/internal/features/lifecycle"
+	"idx/internal/shared/filesystem"
 )
 
 func TestDestroyCommandServiceRunRemovesIdxDirectoriesRecursively(t *testing.T) {
