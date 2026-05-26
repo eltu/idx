@@ -4,24 +4,49 @@ Fast code and text search CLI for Git repositories, powered by BM25 and per-dire
 
 ⚠️ This project is under active development and may contain bugs or breaking changes.
 
+## Install
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap eltu/idx
+brew install idx
+```
+
+Upgrade:
+
+```bash
+brew upgrade idx
+```
+
+### Build from source
+
+Requires Go `1.26+`.
+
+```bash
+git clone https://github.com/eltu/idx.git
+cd idx
+make build
+cp bin/idx /usr/local/bin/
+```
+
+Or run without installing:
+
+```bash
+go run cmd/idx/main.go <command>
+```
+
 ## Requirements
 
-- Go `1.26+`
 - Git repository (project root is resolved from `.git`)
+- Go `1.26+` only required when building from source
 
 ## Quick start
 
 ```bash
-make build
-./bin/idx init
-./bin/idx search "auth token"
-./bin/idx search "func abc x y int 10" --operator AND --relaxation '>2'
-```
-
-Or run directly:
-
-```bash
-go run cmd/idx/main.go <command>
+idx init
+idx search "auth token"
+idx search "func abc x y int 10" --operator AND --relaxation '>2'
 ```
 
 ## Core commands

@@ -38,15 +38,17 @@ idx watch [flags]
 
 ## Output
 
-- Optional startup pre-index messages:
-	- `ℹ️ Root index not found. Creating initial index before watch.`
-	- `✅ Initial index created. Starting realtime monitoring.`
-- Watch start: `👀 Watch mode started. Press Ctrl+C to stop.`
-- Batch sync: `🔄 Synchronized <N> changed directorie(s).`
-- With `--show-updated-files`:
-	- `   updated files:` plus file list, or
-	- `   files: none`
-- Stop (Ctrl+C / SIGTERM): `🛑 Watch mode stopped.`
+- Optional startup messages (when no root index exists):
+	- `ℹ  No index found. Creating initial index...`
+	- `✓  Initial index created.`
+- Watch header: `👀  Watching  <project-name>  ·  Ctrl+C to stop`
+- Per-batch sync line: `✦  <timestamp>  <N> dir(s)  <file-summary>` (e.g. `3 file(s)` or `structural change`)
+- With `--show-updated-files`, each changed file is printed after the batch line:
+	- `   updated files:`
+	- `   ├─ <path>` / `   └─ <path>` (last entry uses `└─`)
+	- `   └─ ... and <N> more` when more than 5 files changed
+	- `   files: none` when no file-level changes detected
+- Stop (Ctrl+C): `🛑  Watch stopped.`
 
 ## Examples
 

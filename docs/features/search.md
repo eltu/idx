@@ -31,9 +31,10 @@ idx search [query terms] [flags]
 | `--size` | int | `0`¹ (unlimited) | If set, must be `> 0` |
 | `--operator` | string | `AND`¹ | Boolean operator for multi-term queries: `AND` or `OR` |
 | `--relaxation` | string | `""`¹ | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
+| `--popularity-weight` | float | `0.3`¹ | Boost weight for files frequently read via `idx read`. `0` disables the boost |
 | `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
-¹ Default is sourced from `.idx.yml` (`search.format`, `search.context`, `search.size`, `search.operator`, `search.relaxation`) when the file exists. CLI flags always take precedence over `.idx.yml`.
+¹ Default is sourced from `.idx.yml` (`search.format`, `search.context`, `search.size`, `search.operator`, `search.relaxation`, `bm25.popularity_weight`) when the file exists. CLI flags always take precedence over `.idx.yml`.
 
 Compatibility alias:
 
@@ -43,7 +44,7 @@ Compatibility alias:
 
 - Resolves project root and searches all indexed directories.
 - Tokenizes and deduplicates query terms.
-- Files accessed via `idx read` accumulate a read-count in `.idx/read_log.idx`; this count is used as a future ranking boost signal (currently collected, boost application is in progress).
+- Files accessed via `idx read` accumulate a read-count in `.idx/read_log.idx`; this count is used as a ranking boost signal — frequently-read files score higher. The boost uses 14-day exponential decay and is configurable via `bm25.popularity_weight` in `.idx.yml` or `--popularity-weight` (set to `0` to disable).
 - Supports metadata-only search when query is empty and at least one metadata filter is set (`--path` and/or `--ext`).
 - Applies BM25 + normalization for ranking.
 - `--operator AND` (default): a document must contain **all** query terms to be ranked.

@@ -41,6 +41,6 @@ All commands inherit the root global flags:
 2. Keep indexes fresh with `idx sync`, `idx watch`, or `idx daemon`.
 3. Verify index freshness with `idx status`.
 4. Use `idx search` during development.
-5. Use `idx read <path>` to stream file content — repeated reads boost that file in future search rankings.
+5. Use `idx read <path>` to stream file content — repeated reads boost that file in search rankings via the read-popularity signal.
 6. Run `idx skills install <editor>` once to install AI coding skills into your editor.
 7. Use `idx version` (or `idx --version`) when you need build/version info.

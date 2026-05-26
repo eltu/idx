@@ -31,7 +31,7 @@ idx config show
 - Read-only command; no filesystem writes.
 - Config is resolved from `.idx.yml` at the Git project root.
 - Precedence chain: built-in defaults → `.idx.yml` → CLI flags.
-- All 13 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
+- All 14 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
 
 ## Output — `idx config show`
 
@@ -48,10 +48,11 @@ When `.idx.yml` exists:
   search.cache_ttl      1m0s     · default
   search.max_workers    4        · default
   watch.debounce        750ms    · default
-  index.exclude         []       · default
+  index.ignore          []       · default
   bm25.k1               1.5      · default
   bm25.b                0.75     · default
   bm25.proximity_weight 3        · default
+  bm25.popularity_weight 0.3     · default
   log.level             error    · default
 ```
 
@@ -62,7 +63,7 @@ When no `.idx.yml` exists:
 
 ```
   No .idx.yml found — using built-in defaults.
-  Tip: create .idx.yml at the project root to customise defaults.
+  Tip: create .idx.yml at the project root to customize defaults.
 ```
 
 ## Errors
@@ -81,10 +82,11 @@ When no `.idx.yml` exists:
 | `search.cache_ttl` | duration | `1m` | BM25 result cache TTL (e.g. `30s`, `5m`) |
 | `search.max_workers` | int | `4` | Parallel index-load workers |
 | `watch.debounce` | duration | `750ms` | Debounce window for file events |
-| `index.exclude` | list | `[]` | Glob patterns to exclude from indexing |
+| `index.ignore` | list | `[]` | Glob patterns to exclude from indexing |
 | `bm25.k1` | float | `1.5` | BM25 term-frequency saturation |
 | `bm25.b` | float | `0.75` | BM25 document-length normalization |
 | `bm25.proximity_weight` | float | `3.0` | BM25 proximity bonus weight |
+| `bm25.popularity_weight` | float | `0.3` | Read-popularity boost weight; `0` disables the boost |
 | `log.level` | string | `error` | `debug`, `info`, `warn`, `error` |
 
 ## `.idx.yml` Format
@@ -104,7 +106,7 @@ watch:
   debounce: 750ms
 
 index:
-  exclude:
+  ignore:
     - vendor/
     - "*.pb.go"
 
@@ -112,6 +114,7 @@ bm25:
   k1: 1.5
   b: 0.75
   proximity_weight: 3.0
+  popularity_weight: 0.3  # 0 = disabled
 
 log:
   level: error        # debug | info | warn | error
@@ -119,7 +122,7 @@ log:
 
 Notes:
 - Duration values must be strings (e.g. `250ms`, `2m`, `30s`). Invalid durations fail at startup.
-- `index.exclude` values are glob patterns matched against relative paths from the project root.
+- `index.ignore` values are glob patterns matched against relative paths from the project root.
 - `log.level` is also overridable via the `IDX_LOG_LEVEL` environment variable; env takes precedence over `.idx.yml`.
 - Only project-level config is supported. There is no global `~/.idx/config.yml`.
 

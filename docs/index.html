@@ -102,15 +102,15 @@ layout: landing
 <section class="section" id="quickstart">
   <div class="section-label">Quick start</div>
   <h2 class="section-title">Up and running in minutes</h2>
-  <p class="section-sub">Requires Go 1.26+ and a Git repository.</p>
+  <p class="section-sub">Requires a Git repository. No build tools needed.</p>
 
   <div class="quickstart-wrap">
     <div class="quickstart-steps">
       <div class="qs-step">
         <div class="qs-num">1</div>
         <div class="qs-step-body">
-          <h4>Build &amp; install</h4>
-          <p>Clone the repo and build the binary. Add it to your <code>$PATH</code>.</p>
+          <h4>Install via Homebrew</h4>
+          <p>One command. Works on macOS and Linux. No Go required.</p>
         </div>
       </div>
       <div class="qs-step">
@@ -145,8 +145,8 @@ layout: landing
           <span class="terminal-title">zsh</span>
         </div>
         <div class="terminal-body">
-          <span class="t-line"><span class="t-muted"># 1. build</span></span>
-          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">make build &amp;&amp; cp bin/idx /usr/local/bin/</span></span>
+          <span class="t-line"><span class="t-muted"># 1. install</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">brew tap eltu/idx &amp;&amp; brew install idx</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-muted"># 2. index your project</span></span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">idx init</span></span>
