@@ -243,7 +243,7 @@ func run(arguments []string, output io.Writer) error {
 			CacheTTL:         cfg.Search.CacheTTL,
 		}).
 		WithReadLog(readLogRepo)
-	skillsInstaller := featskills.NewOSSkillsInstaller()
+	skillsInstaller := featskills.NewEmbedSkillsInstaller()
 	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
 	fileStreamer := featread.NewOSFileStreamer()
 	readService := featread.NewReadCommandService(projectTree, fileStreamer, writer).

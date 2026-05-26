@@ -1,10 +1,7 @@
 package skills
 
-import "io"
-
-// Installer provides operations needed to install skills.
+// Installer copies bundled skill files into the editor's skills directory.
+// Example: installer.Install("claude").
 type Installer interface {
-	CloneRepo(out io.Writer) (string, error)
-	RunInstallScript(dir, editor string, out io.Writer) error
-	Cleanup(tempDir string) error
+	Install(editor string) error
 }

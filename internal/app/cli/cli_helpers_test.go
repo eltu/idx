@@ -613,7 +613,7 @@ func TestIsIgnorableDestroyDaemonDisableErrorOtherErrorNotIgnorable(t *testing.T
 
 type stubSkillsCommand struct{}
 
-func (s stubSkillsCommand) Install(editor string, verbose bool) error { return nil }
+func (s stubSkillsCommand) Install(editor string) error { return nil }
 
 type stubReadCommand struct{}
 

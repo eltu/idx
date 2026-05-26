@@ -36,7 +36,7 @@ const (
 
 // Installer defines the Install method consumed by the skills command.
 type Installer interface {
-	Install(editor string, verbose bool) error
+	Install(editor string) error
 }
 
 // newSkillsCommand creates the parent 'idx skills' command.
@@ -52,9 +52,8 @@ func (runner CommandRunner) newSkillsCommand() *cobra.Command {
 	return skillsCmd
 }
 
-// newSkillsInstallCommand creates 'idx skills install <editor> [--verbose]'.
+// newSkillsInstallCommand creates 'idx skills install <editor>'.
 func (runner CommandRunner) newSkillsInstallCommand() *cobra.Command {
-	var verbose bool
 	var installCmd *cobra.Command
 	installCmd = &cobra.Command{
 		Use:   "install " + skillsEditorArg,
@@ -65,10 +64,9 @@ func (runner CommandRunner) newSkillsInstallCommand() *cobra.Command {
 				writeSkillsMissingEditorError(installCmd)
 				return fmt.Errorf("")
 			}
-			return runner.skillsCommand.Install(args[0], verbose)
+			return runner.skillsCommand.Install(args[0])
 		},
 	}
-	installCmd.Flags().BoolVar(&verbose, "verbose", false, "Stream git and installer output")
 	installCmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), renderSkillsInstallHelp())
 	})
@@ -98,10 +96,10 @@ func renderSkillsHelp() string {
 func renderSkillsInstallHelp() string {
 	return renderSkillsHelpPage(skillsHelpParams{
 		title:    "🎯 idx skills install",
-		subtitle: "Install idx skills from github.com/eltu/idx-skills.",
+		subtitle: "Install idx skills into your editor.",
 		usage:    skillsInstallCmd,
 		usageArg: skillsEditorArg,
-		footer:   "Requires git to be installed and available in $PATH.",
+		footer:   "Skills are bundled with the binary — no network or git required.",
 	})
 }
 

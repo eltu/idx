@@ -5,7 +5,6 @@
 package mocks
 
 import (
-	io "io"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -35,45 +34,16 @@ func (m *MockSkillsInstaller) EXPECT() *MockSkillsInstallerMockRecorder {
 	return m.recorder
 }
 
-// Cleanup mocks base method.
-func (m *MockSkillsInstaller) Cleanup(tempDir string) error {
+// Install mocks base method.
+func (m *MockSkillsInstaller) Install(editor string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", tempDir)
+	ret := m.ctrl.Call(m, "Install", editor)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Cleanup indicates an expected call of Cleanup.
-func (mr *MockSkillsInstallerMockRecorder) Cleanup(tempDir any) *gomock.Call {
+// Install indicates an expected call of Install.
+func (mr *MockSkillsInstallerMockRecorder) Install(editor any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockSkillsInstaller)(nil).Cleanup), tempDir)
-}
-
-// CloneRepo mocks base method.
-func (m *MockSkillsInstaller) CloneRepo(out io.Writer) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CloneRepo", out)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CloneRepo indicates an expected call of CloneRepo.
-func (mr *MockSkillsInstallerMockRecorder) CloneRepo(out any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloneRepo", reflect.TypeOf((*MockSkillsInstaller)(nil).CloneRepo), out)
-}
-
-// RunInstallScript mocks base method.
-func (m *MockSkillsInstaller) RunInstallScript(dir, editor string, out io.Writer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RunInstallScript", dir, editor, out)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RunInstallScript indicates an expected call of RunInstallScript.
-func (mr *MockSkillsInstallerMockRecorder) RunInstallScript(dir, editor, out any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunInstallScript", reflect.TypeOf((*MockSkillsInstaller)(nil).RunInstallScript), dir, editor, out)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Install", reflect.TypeOf((*MockSkillsInstaller)(nil).Install), editor)
 }

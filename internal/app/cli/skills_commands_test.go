@@ -42,10 +42,10 @@ func TestRenderSkillsInstallHelpContainsEditors(t *testing.T) {
 	}
 }
 
-func TestRenderSkillsInstallHelpMentionsGit(t *testing.T) {
+func TestRenderSkillsInstallHelpMentionsBundled(t *testing.T) {
 	got := renderSkillsInstallHelp()
-	if !strings.Contains(got, "git") {
-		t.Fatalf("expected 'git' in install help, got %q", got)
+	if !strings.Contains(got, "bundled") {
+		t.Fatalf("expected 'bundled' in install help footer, got %q", got)
 	}
 }
 
@@ -116,11 +116,11 @@ func TestSkillsInstallPropagatesServiceError(t *testing.T) {
 	}
 }
 
-func TestSkillsInstallHasVerboseFlag(t *testing.T) {
+func TestSkillsInstallHasNoVerboseFlag(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
 	cmd := runner.newSkillsInstallCommand()
-	if cmd.Flags().Lookup("verbose") == nil {
-		t.Fatal("expected --verbose flag to be registered")
+	if cmd.Flags().Lookup("verbose") != nil {
+		t.Fatal("expected --verbose flag to be absent")
 	}
 }
 
@@ -141,16 +141,14 @@ func TestNewSkillsCommandHasInstallSubcommand(t *testing.T) {
 }
 
 type captureSkillsCommand struct {
-	lastEditor  string
-	lastVerbose bool
+	lastEditor string
 }
 
-func (c *captureSkillsCommand) Install(editor string, verbose bool) error {
+func (c *captureSkillsCommand) Install(editor string) error {
 	c.lastEditor = editor
-	c.lastVerbose = verbose
 	return nil
 }
 
 type errSkillsCommand struct{ err error }
 
-func (e *errSkillsCommand) Install(_ string, _ bool) error { return e.err }
+func (e *errSkillsCommand) Install(_ string) error { return e.err }
