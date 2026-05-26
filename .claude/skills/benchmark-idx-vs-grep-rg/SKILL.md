@@ -169,7 +169,7 @@ Branches exist only for statistical traceability during the session.
 ## idx Setup and Usage Reference
 
 The benchmark sessions that use idx must follow the exact commands below.
-The AGENTS.md of this project forbids using grep or rg inside the project itself,
+The CLAUDE.md of this project forbids using grep or rg inside the project itself,
 but the benchmark target project (student registration CLI) is a separate codebase
 where the session tool restriction applies — follow only the tool rule for that session.
 
