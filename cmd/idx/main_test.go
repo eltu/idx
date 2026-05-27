@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	appcli "idx/internal/app/cli"
 )
 
 func TestRunReturnsErrorForUnsupportedCommand(t *testing.T) {
@@ -118,4 +120,153 @@ func TestLoggerOutputPathCreatesDirUnderHome(t *testing.T) {
 	if filepath.Ext(path) != ".log" {
 		t.Fatalf("expected .log extension, got %q", path)
 	}
+}
+
+func TestIsServerCommandReturnsTrueForServerArg(t *testing.T) {
+	if !isServerCommand([]string{"idx", "server"}) {
+		t.Error("expected true for 'idx server'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForNonServerSubcommand(t *testing.T) {
+	if isServerCommand([]string{"idx", "search", "query"}) {
+		t.Error("expected false for 'idx search'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForFlagsOnly(t *testing.T) {
+	if isServerCommand([]string{"idx", "--quiet"}) {
+		t.Error("expected false when only flags are present")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForEmptyArgs(t *testing.T) {
+	if isServerCommand([]string{"idx"}) {
+		t.Error("expected false for empty args")
+	}
+}
+
+func TestIsServerCommandIgnoresFlagsBeforeServer(t *testing.T) {
+	if !isServerCommand([]string{"idx", "--quiet", "server"}) {
+		t.Error("expected true when server follows flags")
+	}
+}
+
+func TestMultiQuietSetQuietPropagates(t *testing.T) {
+	var buf bytes.Buffer
+	wa := appcli.NewLineWriter(&buf)
+	wb := appcli.NewLineWriter(&buf)
+
+	mq := multiQuiet{wa, wb}
+	mq.SetQuiet(true)
+
+	// After SetQuiet(true), writing to wa should be suppressed (no output to buf)
+	if err := wa.WriteLine("suppressed"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected no output after SetQuiet(true), got %q", buf.String())
+	}
+}
+
+func TestEarlyLoadConfigLogLevelReturnsDefaultWhenFileAbsent(t *testing.T) {
+	level := earlyLoadConfigLogLevel(t.TempDir())
+	// No config file → defaults are returned; default log level is "error"
+	if level == "" {
+		t.Error("expected non-empty default log level, got empty string")
+	}
+}
+
+func TestEarlyLoadConfigLogLevelReturnsLevelFromFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".idx.yml")
+	if err := os.WriteFile(configPath, []byte("log:\n  level: debug\n"), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	level := earlyLoadConfigLogLevel(dir)
+	if level != "debug" {
+		t.Errorf("expected %q, got %q", "debug", level)
+	}
+}
+
+func TestGitRootFromFallsBackToStartDirWhenNoGitDir(t *testing.T) {
+	dir := t.TempDir()
+	got := gitRootFrom(dir)
+	if got != dir {
+		t.Errorf("expected fallback to start dir %q, got %q", dir, got)
+	}
+}
+
+func TestIsPathSafeCharAcceptsUppercase(t *testing.T) {
+	for ch := byte('A'); ch <= 'Z'; ch++ {
+		if !isPathSafeChar(ch) {
+			t.Errorf("expected uppercase %q to be safe", ch)
+		}
+	}
+}
+
+func TestIsPathSafeCharAcceptsDigits(t *testing.T) {
+	for ch := byte('0'); ch <= '9'; ch++ {
+		if !isPathSafeChar(ch) {
+			t.Errorf("expected digit %q to be safe", ch)
+		}
+	}
+}
+
+func TestIsPathSafeCharRejectsSpace(t *testing.T) {
+	if isPathSafeChar(' ') {
+		t.Error("expected space to be unsafe")
+	}
+}
+
+func TestSanitizePathSegmentFallbackForDotName(t *testing.T) {
+	result := sanitizePathSegment(".")
+	if result != "unknown-project" {
+		t.Fatalf("expected 'unknown-project' for '.', got %q", result)
+	}
+}
+
+func TestEarlyLoadConfigLogLevelReturnsEmptyForMalformedYAML(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".idx.yml")
+	if err := os.WriteFile(configPath, []byte("not: valid: yaml: {{{"), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	level := earlyLoadConfigLogLevel(dir)
+	if level != "" {
+		t.Errorf("expected empty level for malformed YAML, got %q", level)
+	}
+}
+
+func TestMainContinuesWhenLoggerFails(t *testing.T) {
+	tmpHome := t.TempDir()
+	if err := os.Chmod(tmpHome, 0o555); err != nil {
+		t.Skip("cannot set directory read-only, skipping")
+	}
+	defer func() { _ = os.Chmod(tmpHome, 0o750) }()
+
+	originalArgs := os.Args
+	originalExit := exitProcess
+	os.Args = []string{"idx", "unknown-command"}
+	t.Setenv("HOME", tmpHome)
+	t.Cleanup(func() {
+		os.Args = originalArgs
+		exitProcess = originalExit
+	})
+
+	var exitCode int
+	exitProcess = func(code int) {
+		exitCode = code
+		panic(errors.New("exit called"))
+	}
+
+	defer func() {
+		recover() //nolint:errcheck
+		if exitCode != 1 {
+			t.Errorf("expected exit code 1, got %d", exitCode)
+		}
+	}()
+
+	main()
 }

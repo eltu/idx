@@ -174,3 +174,98 @@ func (s *stubIndexCommand) Inspect(_ string) error { return nil }
 func (s *stubIndexCommand) Watch(_ bool, _ time.Duration) error {
 	return errors.New("watch not expected in test")
 }
+
+// stubDestroyCommand implements Runner for newDestroyCommand RunE tests.
+type stubDestroyCommand struct{}
+
+func (s *stubDestroyCommand) Run() error { return nil }
+
+// ---- newInitCommand RunE ----
+
+func TestNewInitCommandRunECallsRun(t *testing.T) {
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInitCommand()
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---- newStatusCommand RunE ----
+
+func TestNewStatusCommandRunECallsStatus(t *testing.T) {
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newStatusCommand()
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---- newInspectCommand RunE ----
+
+func TestNewInspectCommandRunECallsInspect(t *testing.T) {
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInspectCommand()
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---- newDestroyCommand RunE ----
+
+func TestNewDestroyCommandRunECallsDestroy(t *testing.T) {
+	svc := &stubDaemonService{}
+	runner := NewCommandRunner([]string{"idx"}, nil, &stubDestroyCommand{}, nil, svc)
+	cmd := runner.newDestroyCommand()
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---- newStatusCommand RunE branches ----
+
+// stubIndexCommandWithStatusContext additionally implements StatusWithContext.
+type stubIndexCommandWithStatusContext struct{ stubIndexCommand }
+
+func (s *stubIndexCommandWithStatusContext) StatusWithContext(_ string, _ []string) error {
+	return nil
+}
+
+func TestNewStatusCommandRunECallsStatusWithContext(t *testing.T) {
+	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithStatusContext{}, nil, nil, nil)
+	cmd := runner.newStatusCommand()
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// stubIndexCommandWithProfile additionally implements StatusWithProfile.
+type stubIndexCommandWithProfile struct{ stubIndexCommand }
+
+func (s *stubIndexCommandWithProfile) StatusWithProfile(_ bool) error { return nil }
+
+func TestNewStatusCommandRunEWithProfileFlagCallsStatusWithProfile(t *testing.T) {
+	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithProfile{}, nil, nil, nil)
+	cmd := runner.newStatusCommand()
+	_ = cmd.ParseFlags([]string{"--profile"})
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---- newInspectCommand Args validation ----
+
+func TestNewInspectCommandArgsValidatesEmptyArgs(t *testing.T) {
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInspectCommand()
+	if err := cmd.Args(cmd, []string{}); err != nil {
+		t.Fatalf("unexpected error for empty args: %v", err)
+	}
+}
+
+func TestNewInspectCommandRunEWithMultipleArgsReturnsError(t *testing.T) {
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInspectCommand()
+	if err := cmd.RunE(cmd, []string{"path1", "path2"}); err == nil {
+		t.Fatal("expected error for multiple inspect arguments")
+	}
+}
