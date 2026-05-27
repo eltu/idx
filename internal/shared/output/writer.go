@@ -13,6 +13,9 @@ type LineWriter struct {
 }
 
 func NewLineWriter(target io.Writer) *LineWriter {
+	if target == nil {
+		target = io.Discard
+	}
 	return &LineWriter{target: target}
 }
 
