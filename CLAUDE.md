@@ -73,9 +73,14 @@
 │   ├── shared/              # Cross-feature concerns
 │   │   ├── config/          # .idx.yml parsing
 │   │   ├── filesystem/      # ProjectTree, FileReader, IgnoreMatcher
+│   │   ├── ipc/             # Unix socket address + JSON-RPC method constants
+│   │   ├── jsonrpc/         # Content-Length framing codec
 │   │   └── output/          # Writer interface
 │   └── app/
-│       └── cli/             # Cobra commands — no business logic
+│       ├── cli/             # Cobra commands — no business logic
+│       │   └── remote/      # RPC adapters: delegate CLI calls to idx server
+│       ├── server/          # Unix socket server — accept loop + RPC handlers
+│       └── tui/             # Terminal UI runners (inspect, progress)
 └── go.mod
 ```
 
@@ -106,6 +111,7 @@
 - ADR 0016: `idx read` command streams files via `bufio.Scanner`; access log at `.idx/read_log.idx` tracks read counts with 30-day TTL, inode-based rename detection, deletion pruning, and a 5-min write cache.
 - ADR 0017: Read popularity boost in search ranking — additive log1p-normalised bonus with 14-day exponential decay; weight configurable via `bm25.popularity_weight` in `.idx.yml` and `--popularity-weight` CLI flag.
 - ADR 0018: Codebase modularized by feature (`internal/features/<feature>/`); shared cross-cutting concerns in `internal/shared/`; CLI delivery in `internal/app/cli/`; features do not import Cobra.
+- ADR 0019: IPC via JSON-RPC 2.0 over Unix socket (`~/.idx/<project>.sock`); persistent `idx server` holds index in memory; all CLI commands are clients; no in-process fallback — missing server is a clear error.
 
 ## Formatting
 

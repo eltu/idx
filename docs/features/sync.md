@@ -18,6 +18,10 @@ idx sync
 
 - Global: `--quiet`, `-q`.
 
+## Prerequisites
+
+Requires `idx server` to be running. If the server socket is not reachable, the command fails with `✗ idx server not running`. See [server.md](server.md) and [errors.md](errors.md).
+
 ## Behavior and Side Effects
 
 - Must be executed from the Git project root.

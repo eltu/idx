@@ -24,6 +24,10 @@ idx read <path> [flags]
 | `--to` | int | `0` | Last line to print (1-based). `0` means end of file. |
 | `--quiet`, `-q` | bool | `false` | Suppress informational output. |
 
+## Prerequisites
+
+Requires `idx server` to be running. If the server socket is not reachable, the command fails with `✗ idx server not running`. See [server.md](server.md) and [errors.md](errors.md).
+
 ## Behavior and Side Effects
 
 - Resolves the project root via `.git` directory traversal.

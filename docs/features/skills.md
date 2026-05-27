@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Install idx skills from the public repository [github.com/eltu/idx-skills](https://github.com/eltu/idx-skills) into the current editor.
+Install idx skills bundled in the binary into the current editor's skills directory. No network connection, git binary, or external dependencies are required.
 
 ## Usage
 
 ```bash
-idx skills install <editor> [flags]
+idx skills install <editor>
 ```
 
 ## Arguments
@@ -18,52 +18,52 @@ idx skills install <editor> [flags]
 
 | Flag | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `--verbose` | bool | `false` | Stream git clone and installer output to stdout |
-| `--quiet`, `-q` | bool | `false` | Suppress informational step output |
+| `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
 ## Behavior and Side Effects
 
-- Clones `https://github.com/eltu/idx-skills` into a temporary directory.
-- Executes `./install-skills.sh <editor>` inside the cloned repository.
-- Removes the temporary directory after the script finishes (even on failure).
-- Requires `git` to be installed and available in `$PATH`.
-- Without `--verbose`, git clone and installer output are suppressed; only step markers and the final result are shown.
-- With `--verbose`, all subprocess output (git progress, installer messages) is streamed in real-time.
+- Validates the `editor` argument against the supported list.
+- Copies the bundled `idx-search` skill files from the binary into `~/.<editor>/skills/idx-search/`.
+- For `claude` only: reads `~/.claude/settings.json`, adds `"Bash(idx *)"` to `permissions.allow` if not already present, and writes the file back. Creates `~/.claude/settings.json` with a minimal structure if the file does not exist.
+- All skill files are written with permission `0600`; skill directories with `0750`.
+- If the skill directory already exists, files are overwritten in place (idempotent).
+
+### Installation paths by editor
+
+| Editor | Skills directory |
+| --- | --- |
+| `claude` | `~/.claude/skills/idx-search/` |
+| `cursor` | `~/.cursor/skills/idx-search/` |
+| `copilot` | `~/.copilot/skills/idx-search/` |
 
 ## Output
-
-Step markers are always shown:
 
 ```
   🎯 idx Skills Installer
   Editor: Claude Code
 
-  [1/3]  Cloning github.com/eltu/idx-skills...
-  [2/3]  Installing skills for claude...
-  [3/3]  Cleaning up...
+  [1/2]  Installing skills for Claude Code...
 
   ✓  Skills installed successfully for claude.
      Restart your editor to activate the new skills.
 ```
 
-With `--verbose`, subprocess output appears inline after each step marker.
-
 ## Errors
 
-- Missing editor argument: displays usage with supported editor list — no exit 0 (styled inline error, not returned to cobra).
+- Missing editor argument: displays a styled usage panel with the supported editor list. The command exits with an error but Cobra does not print extra usage text.
 - Unsupported editor value: `unsupported editor "...": expected one of [copilot claude cursor]`
-- Clone failure: `failed to clone idx-skills: git clone failed: exit status ...`
-- Script failure: `install script failed for "...": install-skills.sh exited with error: exit status ...`
-- Temporary directory creation failure: `failed to create temp directory: ...`
+- Home directory unavailable: `failed to install skills for "...": failed to resolve home directory: ...`
+- File or directory write failure: `failed to install skills for "...": ...`
+- For `claude`, settings parse failure: `failed to install skills for "claude": failed to parse "...": ...`
 
 ## Examples
 
 ```bash
-# Install skills for Claude Code (silent mode)
+# Install skills for Claude Code
 idx skills install claude
 
-# Install skills for GitHub Copilot with full output
-idx skills install copilot --verbose
+# Install skills for GitHub Copilot
+idx skills install copilot
 
 # Install skills for Cursor
 idx skills install cursor

@@ -40,6 +40,10 @@ Compatibility alias:
 
 - Hidden flag `--macthes-only` maps to `--matches-only`.
 
+## Prerequisites
+
+Requires `idx server` to be running. If the server socket is not reachable, the command fails with `✗ idx server not running`. See [server.md](server.md) and [errors.md](errors.md).
+
 ## Behavior and Side Effects
 
 - Resolves project root and searches all indexed directories.

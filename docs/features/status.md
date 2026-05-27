@@ -22,6 +22,10 @@ idx status --profile
 | `--profile` | bool | `false` | Show a detailed per-directory report and summary table before the overview panel |
 | `--quiet`, `-q` | bool | `false` | Suppress informational output |
 
+## Prerequisites
+
+Requires `idx server` to be running. If the server socket is not reachable, the command fails with `✗ idx server not running`. See [server.md](server.md) and [errors.md](errors.md).
+
 ## Behavior and Side Effects
 
 - Resolves current directory and project Git root.

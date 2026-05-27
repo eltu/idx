@@ -43,6 +43,7 @@ type CommandRunner struct {
 	readCommand     Reader
 	daemonService   daemonableCommand
 	skillsCommand   Installer
+	indexServer     ServerRunner
 	buildInfo       BuildInfo
 	quietToggle     interface{ SetQuiet(bool) }
 	config          config.IdxConfig
@@ -93,6 +94,13 @@ func (runner CommandRunner) WithReadCommand(r Reader) CommandRunner {
 	return runner
 }
 
+// WithIndexServer wires the JSON-RPC index server so 'idx server' works.
+// Example: runner = runner.WithIndexServer(indexServer).
+func (runner CommandRunner) WithIndexServer(s ServerRunner) CommandRunner {
+	runner.indexServer = s
+	return runner
+}
+
 // WithQuietToggle wires a quietable writer so the --quiet persistent flag can
 // suppress informational output at runtime without changing the output stream.
 // Example: runner = runner.WithQuietToggle(writer).
@@ -138,7 +146,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "daemon", "version", "skills", "config", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "daemon", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

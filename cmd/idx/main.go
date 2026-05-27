@@ -12,6 +12,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	appcli "idx/internal/app/cli"
+	"idx/internal/app/cli/remote"
+	appserver "idx/internal/app/server"
 	idxtui "idx/internal/app/tui"
 	featdaemon "idx/internal/features/daemon"
 	featindexing "idx/internal/features/indexing"
@@ -22,6 +24,7 @@ import (
 	featskills "idx/internal/features/skills"
 	sharedconfig "idx/internal/shared/config"
 	sharedfs "idx/internal/shared/filesystem"
+	idxipc "idx/internal/shared/ipc"
 )
 
 var exitProcess = os.Exit
@@ -189,20 +192,33 @@ func isPathSafeChar(char byte) bool {
 	return char == '-' || char == '_' || char == '.'
 }
 
+func isServerCommand(arguments []string) bool {
+	for _, arg := range arguments[1:] {
+		if arg == "server" {
+			return true
+		}
+		if arg != "" && arg[0] != '-' {
+			return false
+		}
+	}
+	return false
+}
+
 func run(arguments []string, output io.Writer) error {
+	if isServerCommand(arguments) {
+		return runServer(arguments, output)
+	}
+	return runClient(arguments, output)
+}
+
+func sharedDeps(output io.Writer) (sharedDepsResult, error) {
 	writer := appcli.NewLineWriter(output)
 	projectTree := sharedfs.NewOSProjectTree()
 	matcherFactory := sharedfs.IgnoreMatcherBuilder(sharedfs.NewGitIgnoreMatcherFactory())
 	fileReader := sharedfs.NewOSFileReader()
-	indexer := featindexing.NewBM25IndexService()
 	indexRepo := idxstorage.NewBinaryIndexRepository()
 	checksumRepo := idxstorage.NewDirectoryChecksumRepository()
-	daemonStateRepo := featdaemon.NewDaemonStateRepository()
-	processSpawner := featdaemon.NewOSProcessSpawner()
-	inspectRunner := idxtui.NewInspectRunner()
-	progressRunner := idxtui.NewInitProgressRunner()
 
-	// Load project config from .idx.yml (git root) to wire service defaults.
 	configRepo := sharedconfig.NewYAMLRepository()
 	cwd, _ := os.Getwd()
 	projectRoot := gitRootFrom(cwd)
@@ -214,46 +230,148 @@ func run(arguments []string, output io.Writer) error {
 		sharedfs.NewGlobIgnoreMatcherFactory(cfg.Index.Ignore),
 	)
 
-	// Break DI cycle: DaemonService → InitCommand → DaemonService (ProjectMonitorChecker).
-	// Construct daemon first with nil initCommand, wire initCommand after it's built.
-	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, projectTree, writer, nil, processSpawner)
+	return sharedDepsResult{
+		writer:         writer,
+		projectTree:    projectTree,
+		matcherFactory: matcherFactory,
+		fileReader:     fileReader,
+		indexRepo:      indexRepo,
+		checksumRepo:   checksumRepo,
+		projectRoot:    projectRoot,
+		cfg:            cfg,
+		overrides:      overrides,
+		configFilePath: configFilePath,
+	}, nil
+}
+
+type sharedDepsResult struct {
+	writer         *appcli.LineWriter
+	projectTree    sharedfs.ProjectTree
+	matcherFactory sharedfs.IgnoreMatcherBuilder
+	fileReader     sharedfs.FileReader
+	indexRepo      *idxstorage.BinaryIndexRepository
+	checksumRepo   *idxstorage.DirectoryChecksumRepository
+	projectRoot    string
+	cfg            sharedconfig.IdxConfig
+	overrides      []string
+	configFilePath string
+}
+
+func runServer(arguments []string, output io.Writer) error {
+	d, err := sharedDeps(output)
+	if err != nil {
+		return err
+	}
+
+	indexer := featindexing.NewBM25IndexService()
+	daemonStateRepo := featdaemon.NewDaemonStateRepository()
+	processSpawner := featdaemon.NewOSProcessSpawner()
+	inspectRunner := idxtui.NewInspectRunner()
+	progressRunner := idxtui.NewInitProgressRunner()
+
+	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, d.projectTree, d.writer, nil, processSpawner)
 	initCommand := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
-		ProjectTree:    projectTree,
-		MatcherFactory: matcherFactory,
-		Output:         writer,
-		FileReader:     fileReader,
+		ProjectTree:    d.projectTree,
+		MatcherFactory: d.matcherFactory,
+		Output:         d.writer,
+		FileReader:     d.fileReader,
 		Indexer:        indexer,
-		IndexRepo:      indexRepo,
-		ChecksumRepo:   checksumRepo,
+		IndexRepo:      d.indexRepo,
+		ChecksumRepo:   d.checksumRepo,
 		DaemonRepo:     daemonServiceImpl,
 	}, inspectRunner, progressRunner)
-	initAdapter := appcli.NewInitCommandAdapter(initCommand, projectTree)
+	initAdapter := appcli.NewInitCommandAdapter(initCommand, d.projectTree)
 	daemonServiceImpl.SetInitCommand(initAdapter)
 
 	daemonService := appcli.NewDaemonServiceAdapter(daemonServiceImpl)
-	destroyCommand := featlifecycle.NewDestroyCommandService(projectTree, writer)
+	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
 	readLogRepo := featread.NewReadLogRepository()
-	searchCommand := featsearch.NewSearchCommandService(projectTree, writer, fileReader, indexRepo).
-		WithTuning(featsearch.SearchServiceOptions{
-			BM25K1:           cfg.BM25.K1,
-			BM25B:            cfg.BM25.B,
-			ProximityWeight:  cfg.BM25.ProximityWeight,
-			PopularityWeight: cfg.BM25.PopularityWeight,
-			MaxWorkers:       cfg.Search.MaxWorkers,
-			CacheTTL:         cfg.Search.CacheTTL,
-		}).
+	tuning := featsearch.SearchServiceOptions{
+		BM25K1:           d.cfg.BM25.K1,
+		BM25B:            d.cfg.BM25.B,
+		ProximityWeight:  d.cfg.BM25.ProximityWeight,
+		PopularityWeight: d.cfg.BM25.PopularityWeight,
+		MaxWorkers:       d.cfg.Search.MaxWorkers,
+		CacheTTL:         d.cfg.Search.CacheTTL,
+	}
+	searchCommand := featsearch.NewSearchCommandService(d.projectTree, d.writer, d.fileReader, d.indexRepo).
+		WithTuning(tuning).
 		WithReadLog(readLogRepo)
 	skillsInstaller := featskills.NewEmbedSkillsInstaller()
 	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
 	fileStreamer := featread.NewOSFileStreamer()
-	readService := featread.NewReadCommandService(projectTree, fileStreamer, writer).
+	readService := featread.NewReadCommandService(d.projectTree, fileStreamer, d.writer).
 		WithReadLog(readLogRepo)
+
+	socketPath := idxipc.SocketPath(d.projectRoot)
+	indexServer := appserver.NewServer(appserver.ServerDeps{
+		ProjectTree:    d.projectTree,
+		MatcherFactory: d.matcherFactory,
+		FileReader:     d.fileReader,
+		Indexer:        indexer,
+		IndexRepo:      d.indexRepo,
+		ChecksumRepo:   d.checksumRepo,
+		DaemonRepo:     daemonServiceImpl,
+		ReadLogRepo:    readLogRepo,
+		SearchTuning:   tuning,
+		SocketPath:     socketPath,
+	})
+
 	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
-		WithQuietToggle(multiQuiet{writer, progressRunner}).
+		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
-		WithConfig(cfg, configFilePath, overrides)
+		WithIndexServer(indexServer).
+		WithConfig(d.cfg, d.configFilePath, d.overrides)
+
+	return runner.Run()
+}
+
+func runClient(arguments []string, output io.Writer) error {
+	d, err := sharedDeps(output)
+	if err != nil {
+		return err
+	}
+
+	daemonStateRepo := featdaemon.NewDaemonStateRepository()
+	processSpawner := featdaemon.NewOSProcessSpawner()
+	progressRunner := idxtui.NewInitProgressRunner()
+	inspectRunner := idxtui.NewInspectRunner()
+	indexer := featindexing.NewBM25IndexService()
+
+	// daemonServiceImpl is still needed for daemon commands and DI cycle resolution.
+	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, d.projectTree, d.writer, nil, processSpawner)
+	initCommandDirect := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
+		ProjectTree:    d.projectTree,
+		MatcherFactory: d.matcherFactory,
+		Output:         d.writer,
+		FileReader:     d.fileReader,
+		Indexer:        indexer,
+		IndexRepo:      d.indexRepo,
+		ChecksumRepo:   d.checksumRepo,
+		DaemonRepo:     daemonServiceImpl,
+	}, inspectRunner, progressRunner)
+	initAdapter := appcli.NewInitCommandAdapter(initCommandDirect, d.projectTree)
+	daemonServiceImpl.SetInitCommand(initAdapter)
+
+	daemonService := appcli.NewDaemonServiceAdapter(daemonServiceImpl)
+	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
+	skillsInstaller := featskills.NewEmbedSkillsInstaller()
+	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
+
+	socketPath := idxipc.SocketPath(d.projectRoot)
+	client := remote.NewSocketClient(socketPath)
+	searchCommand := remote.NewRemoteSearcher(client, d.writer)
+	readService := remote.NewRemoteReader(client, d.writer)
+	indexCmd := remote.NewRemoteIndexCommand(client, d.writer)
+
+	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand, daemonService).
+		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
+		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
+		WithSkillsCommand(skillsService).
+		WithReadCommand(readService).
+		WithConfig(d.cfg, d.configFilePath, d.overrides)
 
 	return runner.Run()
 }

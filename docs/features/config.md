@@ -31,7 +31,8 @@ idx config show
 - Read-only command; no filesystem writes.
 - Config is resolved from `.idx.yml` at the Git project root.
 - Precedence chain: built-in defaults → `.idx.yml` → CLI flags.
-- All 14 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
+- 13 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
+- `bm25.popularity_weight` is accepted in `.idx.yml` and applied to search ranking, but is not shown in `idx config show`; use `idx search --popularity-weight <value>` to override it at the CLI level.
 
 ## Output — `idx config show`
 
@@ -52,7 +53,6 @@ When `.idx.yml` exists:
   bm25.k1               1.5      · default
   bm25.b                0.75     · default
   bm25.proximity_weight 3        · default
-  bm25.popularity_weight 0.3     · default
   log.level             error    · default
 ```
 
