@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	search "idx/internal/features/search"
 	appserver "idx/internal/app/server"
+	search "idx/internal/features/search"
 )
 
 // --- validateSearchConfig ---
