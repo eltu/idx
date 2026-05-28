@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"time"
 
 	idxipc "idx/internal/shared/ipc"
@@ -42,6 +43,11 @@ func (c *RemoteIndexCommand) Inspect(_ string) error {
 
 // Watch is not supported over RPC — the server handles watching internally.
 func (c *RemoteIndexCommand) Watch(_ bool, _ time.Duration) error {
+	return c.output.WriteLine("idx watch is not available in server mode — the server watches the project automatically")
+}
+
+// WatchWithContext is not supported over RPC — the server handles watching internally.
+func (c *RemoteIndexCommand) WatchWithContext(_ context.Context, _ time.Duration) error {
 	return c.output.WriteLine("idx watch is not available in server mode — the server watches the project automatically")
 }
 

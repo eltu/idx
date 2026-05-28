@@ -92,7 +92,7 @@ func TestConfigTableColumnWidthsEmptyRows(t *testing.T) {
 // ---- canExecuteWithCobra ----
 
 func TestCanExecuteWithCobraKnownCommands(t *testing.T) {
-	known := []string{"sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "daemon", "version", "skills", "config", "help", "--help", "-h", "--version", "-v"}
+	known := []string{"sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v"}
 	for _, cmd := range known {
 		if !canExecuteWithCobra(cmd) {
 			t.Errorf("expected %q to be executable with cobra", cmd)
@@ -196,7 +196,7 @@ func TestLineWriterWriteInlineQuietSuppresses(t *testing.T) {
 // ---- NewCommandRunner + With* builders ----
 
 func TestNewCommandRunnerHasDefaultConfig(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	def := config.DefaultIdxConfig()
 	if runner.config.Search.Format != def.Search.Format {
 		t.Fatalf("expected default search format %q, got %q", def.Search.Format, runner.config.Search.Format)
@@ -204,7 +204,7 @@ func TestNewCommandRunnerHasDefaultConfig(t *testing.T) {
 }
 
 func TestWithBuildInfoAttachesVersionAndDate(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithBuildInfo(BuildInfo{Version: "v1.2.3", BuildDate: "2026-01-01T00:00:00Z"})
 	if runner.buildInfo.Version != "v1.2.3" {
 		t.Fatalf("expected version v1.2.3, got %q", runner.buildInfo.Version)
@@ -214,7 +214,7 @@ func TestWithBuildInfoAttachesVersionAndDate(t *testing.T) {
 func TestWithConfigAttachesConfigAndOverrides(t *testing.T) {
 	cfg := config.DefaultIdxConfig()
 	cfg.Search.Format = search.OutputJSON
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(cfg, "/project/.idx.yml", []string{"search.format"})
 	if runner.configFilePath != "/project/.idx.yml" {
 		t.Fatalf("expected config path, got %q", runner.configFilePath)
@@ -227,7 +227,7 @@ func TestWithConfigAttachesConfigAndOverrides(t *testing.T) {
 func TestWithQuietToggleWiresTarget(t *testing.T) {
 	buf := &bytes.Buffer{}
 	writer := NewLineWriter(buf)
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithQuietToggle(writer)
 	if runner.quietToggle == nil {
 		t.Fatal("expected quietToggle to be set")
@@ -379,7 +379,7 @@ func TestDefaultConfigValuesHasExpectedKeys(t *testing.T) {
 // ---- buildConfigRows ----
 
 func TestBuildConfigRowsReturnsAllKeys(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	rows := buildConfigRows(runner)
 	if len(rows) == 0 {
 		t.Fatal("expected non-empty config rows")
@@ -500,7 +500,7 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestShowConfigBannerSilentWithNoFile(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	// configFilePath is empty → showConfigBanner should print nothing
 	output := captureStdout(t, func() { runner.showConfigBanner() })
 	if output != "" {
@@ -509,7 +509,7 @@ func TestShowConfigBannerSilentWithNoFile(t *testing.T) {
 }
 
 func TestShowConfigBannerWithFilePrintsPath(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", nil)
 	output := captureStdout(t, func() { runner.showConfigBanner() })
 	if !strings.Contains(output, ".idx.yml") {
@@ -518,7 +518,7 @@ func TestShowConfigBannerWithFilePrintsPath(t *testing.T) {
 }
 
 func TestShowConfigBannerWithOverridesMentionsCount(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", []string{"search.format"})
 	output := captureStdout(t, func() { runner.showConfigBanner() })
 	if !strings.Contains(output, "1") {
@@ -527,7 +527,7 @@ func TestShowConfigBannerWithOverridesMentionsCount(t *testing.T) {
 }
 
 func TestWriteConfigDetailsNoFilePathPrintsNoFileMessage(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	output := captureStdout(t, func() {
 		if err := runner.writeConfigDetails(); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -539,7 +539,7 @@ func TestWriteConfigDetailsNoFilePathPrintsNoFileMessage(t *testing.T) {
 }
 
 func TestWriteConfigDetailsWithFilePathPrintsTable(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", []string{"search.format"})
 	output := captureStdout(t, func() {
 		if err := runner.writeConfigDetails(); err != nil {
@@ -579,32 +579,32 @@ func TestPrintConfigTableWithoutOverrideShowsDefault(t *testing.T) {
 	}
 }
 
-// ---- isIgnorableDestroyDaemonDisableError ----
+// ---- isIgnorableServerStopError ----
 
-func TestIsIgnorableDestroyDaemonDisableErrorDaemonNotInitialized(t *testing.T) {
-	err := errors.New("daemon not initialized")
-	if !isIgnorableDestroyDaemonDisableError(err) {
-		t.Fatal("expected daemon not initialized to be ignorable")
+func TestIsIgnorableServerStopErrorNotRunning(t *testing.T) {
+	err := errors.New("server not running")
+	if !isIgnorableServerStopError(err) {
+		t.Fatal("expected not-running to be ignorable")
 	}
 }
 
-func TestIsIgnorableDestroyDaemonDisableErrorNotBeingMonitored(t *testing.T) {
-	err := errors.New("project not being monitored")
-	if !isIgnorableDestroyDaemonDisableError(err) {
-		t.Fatal("expected not being monitored to be ignorable")
+func TestIsIgnorableServerStopErrorStateNotFound(t *testing.T) {
+	err := errors.New("state not found")
+	if !isIgnorableServerStopError(err) {
+		t.Fatal("expected state-not-found to be ignorable")
 	}
 }
 
-func TestIsIgnorableDestroyDaemonDisableErrorNoProjectsActive(t *testing.T) {
-	err := errors.New("no projects active")
-	if !isIgnorableDestroyDaemonDisableError(err) {
-		t.Fatal("expected no projects active to be ignorable")
+func TestIsIgnorableServerStopErrorNotFound(t *testing.T) {
+	err := errors.New("path not found")
+	if !isIgnorableServerStopError(err) {
+		t.Fatal("expected not-found to be ignorable")
 	}
 }
 
-func TestIsIgnorableDestroyDaemonDisableErrorOtherErrorNotIgnorable(t *testing.T) {
+func TestIsIgnorableServerStopErrorOtherErrorNotIgnorable(t *testing.T) {
 	err := errors.New("permission denied")
-	if isIgnorableDestroyDaemonDisableError(err) {
+	if isIgnorableServerStopError(err) {
 		t.Fatal("expected permission denied to not be ignorable")
 	}
 }
@@ -620,7 +620,7 @@ type stubReadCommand struct{}
 func (s stubReadCommand) RunWithOptions(filePath string, fromLine, toLine int) error { return nil }
 
 func TestWithSkillsCommandSetsField(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithSkillsCommand(stubSkillsCommand{})
 	if runner.skillsCommand == nil {
 		t.Fatal("expected skillsCommand to be set")
@@ -628,19 +628,10 @@ func TestWithSkillsCommandSetsField(t *testing.T) {
 }
 
 func TestWithReadCommandSetsField(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithReadCommand(stubReadCommand{})
 	if runner.readCommand == nil {
 		t.Fatal("expected readCommand to be set")
-	}
-}
-
-// ---- DaemonServiceAdapter ----
-
-func TestNewDaemonServiceAdapterIsNotNil(t *testing.T) {
-	adapter := NewDaemonServiceAdapter(nil)
-	if adapter == nil {
-		t.Fatal("expected non-nil adapter")
 	}
 }
 

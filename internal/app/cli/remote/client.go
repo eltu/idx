@@ -14,8 +14,8 @@ import (
 
 const (
 	errNoServerMsg      = "idx server not running"
-	errNoServerStartMsg = "start with: idx server"
-	errNoServerAltMsg   = "or:          idx daemon enable ."
+	errNoServerStartMsg = "start with: idx server start"
+	errNoServerAltMsg   = "or run in foreground: idx server run"
 )
 
 var (

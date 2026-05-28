@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/zap"
@@ -19,6 +20,7 @@ type indexableCommand interface {
 	Status() error
 	Inspect(indexPath string) error
 	Watch(showUpdatedFiles bool, debounce time.Duration) error
+	WatchWithContext(ctx context.Context, debounce time.Duration) error
 }
 
 type Searcher interface {
@@ -42,6 +44,7 @@ type CommandRunner struct {
 	searchCommand   Searcher
 	readCommand     Reader
 	daemonService   daemonableCommand
+	serverManager   serverManagerCommand
 	skillsCommand   Installer
 	indexServer     ServerRunner
 	buildInfo       BuildInfo
@@ -61,14 +64,13 @@ type daemonableCommand interface {
 // NewCommandRunner wires CLI arguments to command execution.
 // Initializes config with DefaultIdxConfig so flag defaults are valid even
 // when WithConfig is not called (e.g. in unit tests).
-// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand, daemonService).
-func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand Runner, searchCommand Searcher, daemonService daemonableCommand) CommandRunner {
+// Example: runner := NewCommandRunner(os.Args, initCommand, destroyCommand, searchCommand).
+func NewCommandRunner(arguments []string, indexCommand indexableCommand, destroyCommand Runner, searchCommand Searcher) CommandRunner {
 	return CommandRunner{
 		arguments:      arguments,
 		indexCommand:   indexCommand,
 		destroyCommand: destroyCommand,
 		searchCommand:  searchCommand,
-		daemonService:  daemonService,
 		config:         config.DefaultIdxConfig(),
 	}
 }
@@ -94,10 +96,17 @@ func (runner CommandRunner) WithReadCommand(r Reader) CommandRunner {
 	return runner
 }
 
-// WithIndexServer wires the JSON-RPC index server so 'idx server' works.
+// WithIndexServer wires the JSON-RPC index server so 'idx server run' works.
 // Example: runner = runner.WithIndexServer(indexServer).
 func (runner CommandRunner) WithIndexServer(s ServerRunner) CommandRunner {
 	runner.indexServer = s
+	return runner
+}
+
+// WithServerManager wires the server daemon manager so 'idx server start/stop/status' works.
+// Example: runner = runner.WithServerManager(serverDaemonAdapter).
+func (runner CommandRunner) WithServerManager(s serverManagerCommand) CommandRunner {
+	runner.serverManager = s
 	return runner
 }
 
@@ -146,7 +155,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "daemon", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v":
 		return true
 	default:
 		return false

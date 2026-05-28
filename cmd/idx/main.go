@@ -193,15 +193,13 @@ func isPathSafeChar(char byte) bool {
 }
 
 func isServerCommand(arguments []string) bool {
+	nonFlagArgs := make([]string, 0, len(arguments))
 	for _, arg := range arguments[1:] {
-		if arg == "server" {
-			return true
-		}
 		if arg != "" && arg[0] != '-' {
-			return false
+			nonFlagArgs = append(nonFlagArgs, arg)
 		}
 	}
-	return false
+	return len(nonFlagArgs) >= 2 && nonFlagArgs[0] == "server" && nonFlagArgs[1] == "run"
 }
 
 func run(arguments []string, output io.Writer) error {
@@ -264,12 +262,13 @@ func runServer(arguments []string, output io.Writer) error {
 	}
 
 	indexer := featindexing.NewBM25IndexService()
-	daemonStateRepo := featdaemon.NewDaemonStateRepository()
-	processSpawner := featdaemon.NewOSProcessSpawner()
 	inspectRunner := idxtui.NewInspectRunner()
 	progressRunner := idxtui.NewInitProgressRunner()
 
-	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, d.projectTree, d.writer, nil, processSpawner)
+	// ServerDaemonService with nil spawner: the server process never spawns itself.
+	serverDaemon := featdaemon.NewServerDaemonService(
+		featdaemon.NewServerStateRepository(), nil, d.writer,
+	)
 	initCommand := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
 		ProjectTree:    d.projectTree,
 		MatcherFactory: d.matcherFactory,
@@ -278,12 +277,9 @@ func runServer(arguments []string, output io.Writer) error {
 		Indexer:        indexer,
 		IndexRepo:      d.indexRepo,
 		ChecksumRepo:   d.checksumRepo,
-		DaemonRepo:     daemonServiceImpl,
+		DaemonRepo:     serverDaemon,
 	}, inspectRunner, progressRunner)
-	initAdapter := appcli.NewInitCommandAdapter(initCommand, d.projectTree)
-	daemonServiceImpl.SetInitCommand(initAdapter)
 
-	daemonService := appcli.NewDaemonServiceAdapter(daemonServiceImpl)
 	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
 	readLogRepo := featread.NewReadLogRepository()
 	tuning := featsearch.SearchServiceOptions{
@@ -311,13 +307,13 @@ func runServer(arguments []string, output io.Writer) error {
 		Indexer:        indexer,
 		IndexRepo:      d.indexRepo,
 		ChecksumRepo:   d.checksumRepo,
-		DaemonRepo:     daemonServiceImpl,
+		DaemonRepo:     serverDaemon,
 		ReadLogRepo:    readLogRepo,
 		SearchTuning:   tuning,
 		SocketPath:     socketPath,
 	})
 
-	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand, daemonService).
+	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
 		WithSkillsCommand(skillsService).
@@ -334,28 +330,14 @@ func runClient(arguments []string, output io.Writer) error {
 		return err
 	}
 
-	daemonStateRepo := featdaemon.NewDaemonStateRepository()
-	processSpawner := featdaemon.NewOSProcessSpawner()
 	progressRunner := idxtui.NewInitProgressRunner()
-	inspectRunner := idxtui.NewInspectRunner()
-	indexer := featindexing.NewBM25IndexService()
 
-	// daemonServiceImpl is still needed for daemon commands and DI cycle resolution.
-	daemonServiceImpl := featdaemon.NewDaemonService(daemonStateRepo, d.projectTree, d.writer, nil, processSpawner)
-	initCommandDirect := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
-		ProjectTree:    d.projectTree,
-		MatcherFactory: d.matcherFactory,
-		Output:         d.writer,
-		FileReader:     d.fileReader,
-		Indexer:        indexer,
-		IndexRepo:      d.indexRepo,
-		ChecksumRepo:   d.checksumRepo,
-		DaemonRepo:     daemonServiceImpl,
-	}, inspectRunner, progressRunner)
-	initAdapter := appcli.NewInitCommandAdapter(initCommandDirect, d.projectTree)
-	daemonServiceImpl.SetInitCommand(initAdapter)
+	serverDaemon := featdaemon.NewServerDaemonService(
+		featdaemon.NewServerStateRepository(),
+		featdaemon.NewOSServerSpawner(),
+		d.writer,
+	)
 
-	daemonService := appcli.NewDaemonServiceAdapter(daemonServiceImpl)
 	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
 	skillsInstaller := featskills.NewEmbedSkillsInstaller()
 	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
@@ -365,12 +347,14 @@ func runClient(arguments []string, output io.Writer) error {
 	searchCommand := remote.NewRemoteSearcher(client, d.writer)
 	readService := remote.NewRemoteReader(client, d.writer)
 	indexCmd := remote.NewRemoteIndexCommand(client, d.writer)
+	serverDaemonAdapter := appcli.NewServerDaemonAdapter(serverDaemon)
 
-	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand, daemonService).
+	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
+		WithServerManager(serverDaemonAdapter).
 		WithConfig(d.cfg, d.configFilePath, d.overrides)
 
 	return runner.Run()

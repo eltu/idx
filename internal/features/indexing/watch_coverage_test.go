@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -250,7 +251,7 @@ func TestConsumeWatchEventsExitsWhenWatcherClosed(t *testing.T) {
 	svc := newWatchService(root)
 	done := make(chan error, 1)
 	go func() {
-		done <- svc.consumeWatchEvents(watcher, root, neverMatcher{}, false, 50*time.Millisecond)
+		done <- svc.consumeWatchEvents(context.Background(), watcher, root, neverMatcher{}, false, 50*time.Millisecond)
 	}()
 
 	watcher.Close()
@@ -281,7 +282,7 @@ func TestConsumeWatchEventsFlushesAfterDebounce(t *testing.T) {
 	svc.output = out
 	done := make(chan error, 1)
 	go func() {
-		done <- svc.consumeWatchEvents(watcher, root, neverMatcher{}, false, 30*time.Millisecond)
+		done <- svc.consumeWatchEvents(context.Background(), watcher, root, neverMatcher{}, false, 30*time.Millisecond)
 	}()
 
 	// Write a file to trigger an event.

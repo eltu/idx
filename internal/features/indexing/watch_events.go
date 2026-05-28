@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"idx/internal/shared/filesystem"
@@ -17,7 +18,7 @@ import (
 
 const watchMaxFilesListed = 8
 
-func (service InitCommandService) consumeWatchEvents(watcher *fsnotify.Watcher, projectRoot string, matcher filesystem.IgnoreMatcher, showUpdatedFiles bool, debounce time.Duration) error {
+func (service InitCommandService) consumeWatchEvents(ctx context.Context, watcher *fsnotify.Watcher, projectRoot string, matcher filesystem.IgnoreMatcher, showUpdatedFiles bool, debounce time.Duration) error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
@@ -29,6 +30,8 @@ func (service InitCommandService) consumeWatchEvents(watcher *fsnotify.Watcher, 
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil
 		case <-signals:
 			msg := fmt.Sprintf("\n%s\n", statusStaleStyle.Render("🛑  Watch stopped."))
 			return service.output.WriteLine(msg)

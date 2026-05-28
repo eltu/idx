@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const daemonChildEnvVar = "IDX_DAEMON_CHILD"
+const daemonChildEnvVar = "IDX_SERVER_DAEMON"
 
 type InitCommandService struct {
 	projectTree           filesystem.ProjectTree
@@ -111,7 +111,7 @@ func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Dur
 		return err
 	}
 	if monitored {
-		return fmt.Errorf("cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first")
+		return fmt.Errorf("cannot run watch: server is already monitoring this project. Stop it with 'idx server stop' first")
 	}
 
 	return service.watchLoop(showUpdatedFiles, debounce)

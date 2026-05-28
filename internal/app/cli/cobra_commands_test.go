@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ func TestWatchCommandNegativeDebounceReturnsError(t *testing.T) {
 }
 
 func TestWatchCommandHasShowUpdatedFilesFlag(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newWatchCommand()
 	if cmd.Flags().Lookup("show-updated-files") == nil {
 		t.Fatal("expected --show-updated-files flag")
@@ -67,7 +68,7 @@ func TestWatchCommandHasShowUpdatedFilesFlag(t *testing.T) {
 }
 
 func TestWatchCommandHasDebounceFlag(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newWatchCommand()
 	if cmd.Flags().Lookup("debounce") == nil {
 		t.Fatal("expected --debounce flag")
@@ -77,7 +78,7 @@ func TestWatchCommandHasDebounceFlag(t *testing.T) {
 // ---- newRootCommand ----
 
 func TestNewRootCommandBuildsWithoutPanic(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newRootCommand()
 	if cmd == nil {
 		t.Fatal("expected non-nil root command")
@@ -85,66 +86,73 @@ func TestNewRootCommandBuildsWithoutPanic(t *testing.T) {
 }
 
 func TestNewRootCommandHasQuietFlag(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newRootCommand()
 	if cmd.PersistentFlags().Lookup("quiet") == nil {
 		t.Fatal("expected --quiet persistent flag")
 	}
 }
 
-// ---- disableDaemonForDestroy ----
+// ---- stopServerForDestroy ----
 
-func TestDisableDaemonForDestroySuccessReturnsNil(t *testing.T) {
-	svc := &stubDaemonService{}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, svc)
-	if err := runner.disableDaemonForDestroy(); err != nil {
+type stubServerManager struct {
+	stopErr error
+}
+
+func (s *stubServerManager) Start(_ string) error { return nil }
+func (s *stubServerManager) Stop(_ string) error  { return s.stopErr }
+func (s *stubServerManager) Status(_ string) error { return nil }
+
+func TestStopServerForDestroySuccessReturnsNil(t *testing.T) {
+	mgr := &stubServerManager{}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithServerManager(mgr)
+	if err := runner.stopServerForDestroy(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestDisableDaemonForDestroyIgnoresDaemonNotInitialized(t *testing.T) {
-	svc := &stubDaemonService{disableErr: errors.New("daemon not initialized")}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, svc)
-	if err := runner.disableDaemonForDestroy(); err != nil {
-		t.Fatalf("expected daemon-not-initialized error to be ignored, got %v", err)
+func TestStopServerForDestroyIgnoresNotRunning(t *testing.T) {
+	mgr := &stubServerManager{stopErr: errors.New("server not running")}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithServerManager(mgr)
+	if err := runner.stopServerForDestroy(); err != nil {
+		t.Fatalf("expected not-running error to be ignored, got %v", err)
 	}
 }
 
-func TestDisableDaemonForDestroyIgnoresNotBeingMonitored(t *testing.T) {
-	svc := &stubDaemonService{disableErr: errors.New("project not being monitored")}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, svc)
-	if err := runner.disableDaemonForDestroy(); err != nil {
-		t.Fatalf("expected not-monitored error to be ignored, got %v", err)
+func TestStopServerForDestroyIgnoresStateNotFound(t *testing.T) {
+	mgr := &stubServerManager{stopErr: errors.New("state not found")}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithServerManager(mgr)
+	if err := runner.stopServerForDestroy(); err != nil {
+		t.Fatalf("expected state-not-found error to be ignored, got %v", err)
 	}
 }
 
-func TestDisableDaemonForDestroyIgnoresNoProjectsActive(t *testing.T) {
-	svc := &stubDaemonService{disableErr: errors.New("no projects active")}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, svc)
-	if err := runner.disableDaemonForDestroy(); err != nil {
-		t.Fatalf("expected no-projects-active error to be ignored, got %v", err)
-	}
-}
-
-func TestDisableDaemonForDestroyPropagatesRealError(t *testing.T) {
-	svc := &stubDaemonService{disableErr: errors.New("permission denied")}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, svc)
-	if err := runner.disableDaemonForDestroy(); err == nil {
+func TestStopServerForDestroyPropagatesRealError(t *testing.T) {
+	mgr := &stubServerManager{stopErr: errors.New("permission denied")}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithServerManager(mgr)
+	if err := runner.stopServerForDestroy(); err == nil {
 		t.Fatal("expected permission denied error to propagate")
+	}
+}
+
+func TestStopServerForDestroyNoopWhenNilManager(t *testing.T) {
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
+	if err := runner.stopServerForDestroy(); err != nil {
+		t.Fatalf("unexpected error with nil server manager: %v", err)
 	}
 }
 
 // ---- newSyncCommand / newInitCommand ----
 
 func TestNewSyncCommandBuildsWithoutPanic(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	if runner.newSyncCommand() == nil {
 		t.Fatal("expected non-nil sync command")
 	}
 }
 
 func TestNewInitCommandBuildsWithoutPanic(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	if runner.newInitCommand() == nil {
 		t.Fatal("expected non-nil init command")
 	}
@@ -153,7 +161,7 @@ func TestNewInitCommandBuildsWithoutPanic(t *testing.T) {
 // ---- newStatusCommand ----
 
 func TestNewStatusCommandHasProfileFlag(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newStatusCommand()
 	if cmd.Flags().Lookup("profile") == nil {
 		t.Fatal("expected --profile flag on status command")
@@ -162,7 +170,7 @@ func TestNewStatusCommandHasProfileFlag(t *testing.T) {
 
 // newRunnerWithStubIndex returns a runner whose indexCommand is non-nil but never called.
 func newRunnerWithStubIndex() CommandRunner {
-	return NewCommandRunner([]string{"idx"}, &stubIndexCommand{}, nil, nil, nil)
+	return NewCommandRunner([]string{"idx"}, &stubIndexCommand{}, nil, nil)
 }
 
 type stubIndexCommand struct{}
@@ -172,6 +180,9 @@ func (s *stubIndexCommand) Sync() error            { return nil }
 func (s *stubIndexCommand) Status() error          { return nil }
 func (s *stubIndexCommand) Inspect(_ string) error { return nil }
 func (s *stubIndexCommand) Watch(_ bool, _ time.Duration) error {
+	return errors.New("watch not expected in test")
+}
+func (s *stubIndexCommand) WatchWithContext(_ context.Context, _ time.Duration) error {
 	return errors.New("watch not expected in test")
 }
 
@@ -213,8 +224,7 @@ func TestNewInspectCommandRunECallsInspect(t *testing.T) {
 // ---- newDestroyCommand RunE ----
 
 func TestNewDestroyCommandRunECallsDestroy(t *testing.T) {
-	svc := &stubDaemonService{}
-	runner := NewCommandRunner([]string{"idx"}, nil, &stubDestroyCommand{}, nil, svc)
+	runner := NewCommandRunner([]string{"idx"}, nil, &stubDestroyCommand{}, nil)
 	cmd := runner.newDestroyCommand()
 	if err := cmd.RunE(cmd, []string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -231,7 +241,7 @@ func (s *stubIndexCommandWithStatusContext) StatusWithContext(_ string, _ []stri
 }
 
 func TestNewStatusCommandRunECallsStatusWithContext(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithStatusContext{}, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithStatusContext{}, nil, nil)
 	cmd := runner.newStatusCommand()
 	if err := cmd.RunE(cmd, []string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -244,7 +254,7 @@ type stubIndexCommandWithProfile struct{ stubIndexCommand }
 func (s *stubIndexCommandWithProfile) StatusWithProfile(_ bool) error { return nil }
 
 func TestNewStatusCommandRunEWithProfileFlagCallsStatusWithProfile(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithProfile{}, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, &stubIndexCommandWithProfile{}, nil, nil)
 	cmd := runner.newStatusCommand()
 	_ = cmd.ParseFlags([]string{"--profile"})
 	if err := cmd.RunE(cmd, []string{}); err != nil {

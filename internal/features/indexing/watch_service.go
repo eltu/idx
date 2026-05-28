@@ -11,9 +11,23 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// WatchWithContext runs the file-watching loop until ctx is canceled.
+// Used by the daemon server to embed watch alongside the JSON-RPC listener.
+// Example: svc.WatchWithContext(ctx, time.Millisecond).
+func (service InitCommandService) WatchWithContext(ctx context.Context, debounce time.Duration) error {
+	if debounce <= 0 {
+		debounce = defaultWatchDebounceInterval
+	}
+	return service.watchLoopWithContext(ctx, false, debounce)
+}
+
 const defaultWatchDebounceInterval = 750 * time.Millisecond
 
 func (service InitCommandService) watchLoop(showUpdatedFiles bool, debounce time.Duration) error {
+	return service.watchLoopWithContext(context.Background(), showUpdatedFiles, debounce)
+}
+
+func (service InitCommandService) watchLoopWithContext(ctx context.Context, showUpdatedFiles bool, debounce time.Duration) error {
 	if debounce <= 0 {
 		debounce = defaultWatchDebounceInterval
 	}
@@ -29,7 +43,7 @@ func (service InitCommandService) watchLoop(showUpdatedFiles bool, debounce time
 	if err := service.writeWatchHeader(projectRoot, debounce); err != nil {
 		return err
 	}
-	return service.consumeWatchEvents(watcher, projectRoot, matcher, showUpdatedFiles, debounce)
+	return service.consumeWatchEvents(ctx, watcher, projectRoot, matcher, showUpdatedFiles, debounce)
 }
 
 func (service InitCommandService) resolveWatchContext() (string, filesystem.IgnoreMatcher, error) {

@@ -53,7 +53,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 	)
 
 	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
-	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newWatchCommand(), runner.newDaemonCommand(), runner.newStatusCommand())
+	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newWatchCommand(), runner.newStatusCommand())
 	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand(), runner.newReadCommand())
 	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
 	addCommandToGroup(root, groupTools, runner.newSkillsCommand(), runner.newServerCommand())
@@ -164,7 +164,7 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 		Use:   "destroy",
 		Short: "Destroy index metadata",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := runner.disableDaemonForDestroy(); err != nil {
+			if err := runner.stopServerForDestroy(); err != nil {
 				return err
 			}
 
@@ -173,32 +173,20 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 	}
 }
 
-func (runner CommandRunner) disableDaemonForDestroy() error {
-	err := runner.daemonService.Disable(".")
-	if err == nil {
+func (runner CommandRunner) stopServerForDestroy() error {
+	if runner.serverManager == nil {
 		return nil
 	}
-
-	if isIgnorableDestroyDaemonDisableError(err) {
+	err := runner.serverManager.Stop(".")
+	if err == nil || isIgnorableServerStopError(err) {
 		return nil
 	}
-
 	return err
 }
 
-func isIgnorableDestroyDaemonDisableError(err error) bool {
-	message := err.Error()
-	if strings.Contains(message, "daemon not initialized") {
-		return true
-	}
-
-	if strings.Contains(message, "not being monitored") {
-		return true
-	}
-
-	if strings.Contains(message, "no projects active") {
-		return true
-	}
-
-	return false
+func isIgnorableServerStopError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "not running") ||
+		strings.Contains(msg, "state not found") ||
+		strings.Contains(msg, "not found")
 }

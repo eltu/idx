@@ -85,7 +85,7 @@ type stubServerRunner struct{}
 func (s *stubServerRunner) Serve(_ context.Context) error { return nil }
 
 func TestWithIndexServerSetsField(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithIndexServer(&stubServerRunner{})
 	if runner.indexServer == nil {
 		t.Fatal("expected indexServer to be set")
@@ -93,7 +93,7 @@ func TestWithIndexServerSetsField(t *testing.T) {
 }
 
 func TestWithIndexServerAcceptsNilServerRunner(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithIndexServer(appserver.NewServer(appserver.ServerDeps{}))
 	if runner.indexServer == nil {
 		t.Fatal("expected indexServer to be set with real server")
@@ -110,7 +110,7 @@ func (s *stubSearcher) RunWithOptions(_ string, _ search.Options) error {
 }
 
 func TestCommandRunnerRunUnknownCommandReturnsError(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx", "unknown-xyz"}, &stubIndexCommand{}, nil, &stubSearcher{}, nil)
+	runner := NewCommandRunner([]string{"idx", "unknown-xyz"}, &stubIndexCommand{}, nil, &stubSearcher{})
 	err := runner.Run()
 	if err == nil {
 		t.Fatal("expected error for unknown command, got nil")
@@ -118,7 +118,7 @@ func TestCommandRunnerRunUnknownCommandReturnsError(t *testing.T) {
 }
 
 func TestCommandRunnerRunKnownCommandSucceeds(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx", "sync"}, &stubIndexCommand{}, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx", "sync"}, &stubIndexCommand{}, nil, nil)
 	if err := runner.Run(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestCommandRunnerRunKnownCommandSucceeds(t *testing.T) {
 
 func TestRunSearchCommandWithValidQuery(t *testing.T) {
 	searcher := &stubSearcher{}
-	runner := NewCommandRunner([]string{"idx", "search", "hello"}, nil, nil, searcher, nil)
+	runner := NewCommandRunner([]string{"idx", "search", "hello"}, nil, nil, searcher)
 	cfg := &searchCommandConfig{
 		format:   search.OutputText,
 		operator: search.OperatorAND,
@@ -143,7 +143,7 @@ func TestRunSearchCommandWithValidQuery(t *testing.T) {
 }
 
 func TestRunSearchCommandEmptyQueryWritesError(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx", "search"}, nil, nil, &stubSearcher{}, nil)
+	runner := NewCommandRunner([]string{"idx", "search"}, nil, nil, &stubSearcher{})
 	cfg := &searchCommandConfig{
 		format:   search.OutputText,
 		operator: search.OperatorAND,
@@ -159,7 +159,7 @@ func TestRunSearchCommandEmptyQueryWritesError(t *testing.T) {
 }
 
 func TestRunSearchCommandValidationErrorReturnsError(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, &stubSearcher{}, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, &stubSearcher{})
 	cfg := &searchCommandConfig{
 		format:       search.OutputText,
 		operator:     search.OperatorAND,
@@ -174,7 +174,7 @@ func TestRunSearchCommandValidationErrorReturnsError(t *testing.T) {
 // --- newVersionCommand ---
 
 func TestNewVersionCommandRunPrintsVersion(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newVersionCommand()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -187,7 +187,7 @@ func TestNewVersionCommandRunPrintsVersion(t *testing.T) {
 // --- newConfigShowCommand ---
 
 func TestNewConfigShowCommandRunEWithNoConfigFile(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newConfigShowCommand()
 	if err := cmd.RunE(cmd, []string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)

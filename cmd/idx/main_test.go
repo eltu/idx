@@ -122,9 +122,33 @@ func TestLoggerOutputPathCreatesDirUnderHome(t *testing.T) {
 	}
 }
 
-func TestIsServerCommandReturnsTrueForServerArg(t *testing.T) {
-	if !isServerCommand([]string{"idx", "server"}) {
-		t.Error("expected true for 'idx server'")
+func TestIsServerCommandReturnsTrueForServerRun(t *testing.T) {
+	if !isServerCommand([]string{"idx", "server", "run"}) {
+		t.Error("expected true for 'idx server run'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForServerStart(t *testing.T) {
+	if isServerCommand([]string{"idx", "server", "start"}) {
+		t.Error("expected false for 'idx server start'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForServerStop(t *testing.T) {
+	if isServerCommand([]string{"idx", "server", "stop"}) {
+		t.Error("expected false for 'idx server stop'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForServerStatus(t *testing.T) {
+	if isServerCommand([]string{"idx", "server", "status"}) {
+		t.Error("expected false for 'idx server status'")
+	}
+}
+
+func TestIsServerCommandReturnsFalseForServerOnly(t *testing.T) {
+	if isServerCommand([]string{"idx", "server"}) {
+		t.Error("expected false for 'idx server' alone")
 	}
 }
 
@@ -146,9 +170,9 @@ func TestIsServerCommandReturnsFalseForEmptyArgs(t *testing.T) {
 	}
 }
 
-func TestIsServerCommandIgnoresFlagsBeforeServer(t *testing.T) {
-	if !isServerCommand([]string{"idx", "--quiet", "server"}) {
-		t.Error("expected true when server follows flags")
+func TestIsServerCommandIgnoresFlagsBeforeServerRun(t *testing.T) {
+	if !isServerCommand([]string{"idx", "--quiet", "server", "run"}) {
+		t.Error("expected true when 'server run' follows flags")
 	}
 }
 

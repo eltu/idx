@@ -52,7 +52,7 @@ func TestRenderSkillsInstallHelpMentionsBundled(t *testing.T) {
 // ---- writeSkillsMissingEditorError ----
 
 func TestWriteSkillsMissingEditorErrorWritesToCmdOutput(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newSkillsInstallCommand()
 	buf := &bytes.Buffer{}
 	cmd.SetOut(buf)
@@ -66,7 +66,7 @@ func TestWriteSkillsMissingEditorErrorWritesToCmdOutput(t *testing.T) {
 }
 
 func TestWriteSkillsMissingEditorErrorListsAllEditors(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newSkillsInstallCommand()
 	buf := &bytes.Buffer{}
 	cmd.SetOut(buf)
@@ -81,7 +81,7 @@ func TestWriteSkillsMissingEditorErrorListsAllEditors(t *testing.T) {
 // ---- newSkillsInstallCommand ----
 
 func TestSkillsInstallNoArgsPrintsErrorAndReturns(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithSkillsCommand(stubSkillsCommand{})
 	cmd := runner.newSkillsInstallCommand()
 	buf := &bytes.Buffer{}
@@ -95,7 +95,7 @@ func TestSkillsInstallNoArgsPrintsErrorAndReturns(t *testing.T) {
 
 func TestSkillsInstallDelegatesToService(t *testing.T) {
 	stub := &captureSkillsCommand{}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithSkillsCommand(stub)
 	cmd := runner.newSkillsInstallCommand()
 	if err := cmd.RunE(cmd, []string{"claude"}); err != nil {
@@ -108,7 +108,7 @@ func TestSkillsInstallDelegatesToService(t *testing.T) {
 
 func TestSkillsInstallPropagatesServiceError(t *testing.T) {
 	stub := &errSkillsCommand{err: errors.New("install failed")}
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil).
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithSkillsCommand(stub)
 	cmd := runner.newSkillsInstallCommand()
 	if err := cmd.RunE(cmd, []string{"copilot"}); err == nil {
@@ -117,7 +117,7 @@ func TestSkillsInstallPropagatesServiceError(t *testing.T) {
 }
 
 func TestSkillsInstallHasNoVerboseFlag(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newSkillsInstallCommand()
 	if cmd.Flags().Lookup("verbose") != nil {
 		t.Fatal("expected --verbose flag to be absent")
@@ -127,7 +127,7 @@ func TestSkillsInstallHasNoVerboseFlag(t *testing.T) {
 // ---- newSkillsCommand ----
 
 func TestNewSkillsCommandHasInstallSubcommand(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil, nil)
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newSkillsCommand()
 	found := false
 	for _, sub := range cmd.Commands() {
