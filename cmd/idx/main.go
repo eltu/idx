@@ -219,7 +219,13 @@ func sharedDeps(output io.Writer) (sharedDepsResult, error) {
 
 	configRepo := sharedconfig.NewYAMLRepository()
 	cwd, _ := os.Getwd()
-	projectRoot := gitRootFrom(cwd)
+	// IDX_PROJECT_PATH is set by OSServerSpawner to guarantee path consistency between
+	// the client process (which computed the project root) and the server process (whose
+	// os.Getwd() may differ due to macOS firmlink resolution under /System/Volumes/Data).
+	projectRoot := os.Getenv("IDX_PROJECT_PATH")
+	if projectRoot == "" {
+		projectRoot = gitRootFrom(cwd)
+	}
 	cfg, overrides, _ := configRepo.Load(projectRoot)
 	configFilePath := configRepo.FilePath(projectRoot)
 

@@ -2,13 +2,26 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"charm.land/lipgloss/v2"
+	"go.uber.org/zap"
 
 	"github.com/spf13/cobra"
+
+	"idx/internal/features/daemon"
+)
+
+var (
+	serverErrTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#EF4444"))
+	serverErrActionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
+	serverErrHintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
 )
 
 // ServerRunner starts the JSON-RPC index server on a Unix socket.
@@ -41,8 +54,18 @@ func (runner CommandRunner) newServerStartCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
 		Short: "Start the idx server daemon in the background",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runner.serverManager.Start(".")
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, err := findProjectRoot(".")
+			if err != nil {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
+				return fmt.Errorf("")
+			}
+			if err := runner.serverManager.Start(root); errors.Is(err, daemon.ErrNotInitialized) {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInitializedMessage())
+				return fmt.Errorf("")
+			} else {
+				return err
+			}
 		},
 	}
 }
@@ -51,8 +74,13 @@ func (runner CommandRunner) newServerStopCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the idx server daemon",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runner.serverManager.Stop(".")
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, err := findProjectRoot(".")
+			if err != nil {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
+				return fmt.Errorf("")
+			}
+			return runner.serverManager.Stop(root)
 		},
 	}
 }
@@ -61,14 +89,21 @@ func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show the idx server daemon status",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runner.serverManager.Status(".")
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, err := findProjectRoot(".")
+			if err != nil {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
+				return fmt.Errorf("")
+			}
+			return runner.serverManager.Status(root)
 		},
 	}
 }
 
 // newServerRunCommand is the hidden internal command spawned by OSServerSpawner.
 // It runs the JSON-RPC listener and file-watch loop concurrently under one context.
+// The server is the primary component: its exit drives shutdown. Watch errors are
+// logged but do not stop the server — search and read continue working regardless.
 func (runner CommandRunner) newServerRunCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:    "run",
@@ -78,13 +113,51 @@ func (runner CommandRunner) newServerRunCommand() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			errg, ctx := errgroup.WithContext(ctx)
-			errg.Go(func() error { return runner.indexServer.Serve(ctx) })
-			errg.Go(func() error {
-				return runner.indexCommand.WatchWithContext(ctx, time.Millisecond)
-			})
+			go func() {
+				if err := runner.indexCommand.WatchWithContext(ctx, defaultServerWatchDebounce); err != nil && ctx.Err() == nil {
+					zap.L().Error("watch loop exited with error", zap.Error(err))
+				}
+			}()
 
-			return errg.Wait()
+			return runner.indexServer.Serve(ctx)
 		},
 	}
+}
+
+const defaultServerWatchDebounce = 750 * time.Millisecond
+
+// findProjectRoot walks up the directory tree from startDir looking for a .idx
+// directory, which marks the root of an idx-managed project.
+// Example: findProjectRoot("/home/user/myproject/internal/core") → "/home/user/myproject".
+func findProjectRoot(startDir string) (string, error) {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve directory: %w", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".idx")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("not inside an idx project: no .idx directory found from %q", startDir)
+		}
+		dir = parent
+	}
+}
+
+func serverNotInProjectMessage() string {
+	return fmt.Sprintf("\n%s\n  %s\n  %s\n",
+		serverErrTitleStyle.Render("✗ Not inside an idx project"),
+		serverErrActionStyle.Render("cd <project-root>"),
+		serverErrHintStyle.Render("then: idx server start"),
+	)
+}
+
+func serverNotInitializedMessage() string {
+	return fmt.Sprintf("\n%s\n  %s\n  %s\n",
+		serverErrTitleStyle.Render("✗ Project not initialized"),
+		serverErrActionStyle.Render("idx init"),
+		serverErrHintStyle.Render("then: idx server start"),
+	)
 }

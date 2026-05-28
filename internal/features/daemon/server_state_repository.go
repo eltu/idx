@@ -5,20 +5,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-const serverStateFileSuffix = ".server.state"
+const serverStateFileName = "server.state"
 
 type serverStateRepository struct{}
 
-// NewServerStateRepository creates a StateRepository backed by ~/.idx/<project>.server.state.
+// NewServerStateRepository creates a StateRepository backed by <project>/.idx/server.state.
 // Example: NewServerStateRepository().ReadState("/home/user/myproject").
 func NewServerStateRepository() StateRepository {
 	return &serverStateRepository{}
 }
 
-// ReadState reads ~/.idx/<project>.server.state; returns nil if it does not exist.
+// ReadState reads <project>/.idx/server.state; returns nil if it does not exist.
 func (r *serverStateRepository) ReadState(projectPath string) (*ServerState, error) {
 	statePath := r.stateFilePath(projectPath)
 
@@ -38,7 +37,7 @@ func (r *serverStateRepository) ReadState(projectPath string) (*ServerState, err
 	return &state, nil
 }
 
-// SaveState writes the server state to ~/.idx/<project>.server.state.
+// SaveState writes the server state to <project>/.idx/server.state.
 func (r *serverStateRepository) SaveState(projectPath string, state *ServerState) error {
 	statePath := r.stateFilePath(projectPath)
 
@@ -59,7 +58,7 @@ func (r *serverStateRepository) SaveState(projectPath string, state *ServerState
 	return nil
 }
 
-// RemoveState deletes ~/.idx/<project>.server.state.
+// RemoveState deletes <project>/.idx/server.state.
 func (r *serverStateRepository) RemoveState(projectPath string) error {
 	statePath := r.stateFilePath(projectPath)
 
@@ -70,42 +69,7 @@ func (r *serverStateRepository) RemoveState(projectPath string) error {
 	return nil
 }
 
-// stateFilePath derives ~/.idx/<sanitized-project-name>.server.state from projectPath.
+// stateFilePath derives <project>/.idx/server.state from projectPath.
 func (r *serverStateRepository) stateFilePath(projectPath string) string {
-	home, _ := os.UserHomeDir()
-	name := sanitizeStateSegment(filepath.Base(projectPath))
-	return filepath.Join(home, ".idx", name+serverStateFileSuffix)
-}
-
-const unknownStateProject = "unknown-project"
-
-func sanitizeStateSegment(name string) string {
-	if name == "" || name == "." || name == string(filepath.Separator) {
-		return unknownStateProject
-	}
-
-	b := strings.Builder{}
-	b.Grow(len(name))
-	for i := range len(name) {
-		ch := name[i]
-		if isStateSafeChar(ch) {
-			b.WriteByte(ch)
-			continue
-		}
-		b.WriteByte('_')
-	}
-
-	clean := strings.Trim(b.String(), "._-")
-	if clean == "" {
-		return unknownStateProject
-	}
-
-	return clean
-}
-
-func isStateSafeChar(ch byte) bool {
-	return (ch >= 'a' && ch <= 'z') ||
-		(ch >= 'A' && ch <= 'Z') ||
-		(ch >= '0' && ch <= '9') ||
-		ch == '-' || ch == '_' || ch == '.'
+	return filepath.Join(projectPath, ".idx", serverStateFileName)
 }

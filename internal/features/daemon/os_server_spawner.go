@@ -8,7 +8,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const serverDaemonEnvVar = "IDX_SERVER_DAEMON"
+const (
+	serverDaemonEnvVar   = "IDX_SERVER_DAEMON"
+	serverProjectPathVar = "IDX_PROJECT_PATH"
+)
 
 // OSServerSpawner implements ServerSpawner using OS commands.
 type OSServerSpawner struct {
@@ -45,7 +48,10 @@ func (s *OSServerSpawner) SpawnServerProcess(projectPath string) (int, error) {
 
 	cmd := s.commandBuilder(selfPath, "server", "run")
 	cmd.Dir = projectPath
-	cmd.Env = append(cmd.Environ(), serverDaemonEnvVar+"=1")
+	cmd.Env = append(cmd.Environ(),
+		serverDaemonEnvVar+"=1",
+		serverProjectPathVar+"="+projectPath,
+	)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 

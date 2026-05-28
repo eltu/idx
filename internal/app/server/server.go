@@ -4,15 +4,20 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
 )
+
+const socketDialTimeout = 300 * time.Millisecond
 
 type indexServer struct {
 	deps       ServerDeps
@@ -37,6 +42,10 @@ func (s *indexServer) registerHandlers() {
 
 // Serve binds the Unix socket and serves JSON-RPC requests until ctx is canceled.
 func (s *indexServer) Serve(ctx context.Context) error {
+	if err := s.prepareSocket(); err != nil {
+		return err
+	}
+
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "unix", s.deps.SocketPath)
 	if err != nil {
@@ -44,6 +53,7 @@ func (s *indexServer) Serve(ctx context.Context) error {
 	}
 	defer func() {
 		_ = listener.Close()
+		_ = os.Remove(s.deps.SocketPath)
 		zap.L().Info("idx server stopped", zap.String("socket", s.deps.SocketPath))
 	}()
 
@@ -72,6 +82,20 @@ func (s *indexServer) Serve(ctx context.Context) error {
 	}
 
 	wg.Wait()
+	return nil
+}
+
+// prepareSocket removes a stale socket file if present and no process is listening,
+// or returns an error if another server is already bound to the path.
+func (s *indexServer) prepareSocket() error {
+	d := &net.Dialer{Timeout: socketDialTimeout}
+	conn, err := d.DialContext(context.Background(), "unix", s.deps.SocketPath)
+	if err == nil {
+		_ = conn.Close()
+		return fmt.Errorf("socket %q is already in use: another server is running on this project", s.deps.SocketPath)
+	}
+	// Remove stale socket file so net.Listen can bind cleanly.
+	_ = os.Remove(s.deps.SocketPath)
 	return nil
 }
 
