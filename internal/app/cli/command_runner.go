@@ -43,7 +43,6 @@ type CommandRunner struct {
 	destroyCommand  Runner
 	searchCommand   Searcher
 	readCommand     Reader
-	daemonService   daemonableCommand
 	serverManager   serverManagerCommand
 	skillsCommand   Installer
 	indexServer     ServerRunner
@@ -52,13 +51,6 @@ type CommandRunner struct {
 	config          config.IdxConfig
 	configFilePath  string
 	configOverrides []string
-}
-
-// daemonableCommand defines methods for daemon control.
-type daemonableCommand interface {
-	Enable(projectPath string) error
-	Disable(projectPath string) error
-	Status() error
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
