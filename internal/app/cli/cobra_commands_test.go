@@ -99,8 +99,8 @@ type stubServerManager struct {
 	stopErr error
 }
 
-func (s *stubServerManager) Start(_ string) error { return nil }
-func (s *stubServerManager) Stop(_ string) error  { return s.stopErr }
+func (s *stubServerManager) Start(_ string) error  { return nil }
+func (s *stubServerManager) Stop(_ string) error   { return s.stopErr }
 func (s *stubServerManager) Status(_ string) error { return nil }
 
 func TestStopServerForDestroySuccessReturnsNil(t *testing.T) {
