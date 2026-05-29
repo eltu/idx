@@ -1,57 +1,72 @@
 package indexing
 
 import (
-	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- disabledInitProgress ---
 
-func TestDisabledInitProgressStartCounting(t *testing.T) {
+func TestDisabledInitProgress_StartCounting_DoesNotPanic(t *testing.T) {
+	t.Parallel()
 	p := disabledInitProgress{}
 	p.StartCounting() // must not panic
 }
 
-func TestDisabledInitProgressSetTotal(t *testing.T) {
+func TestDisabledInitProgress_SetTotal_DoesNotPanic(t *testing.T) {
+	t.Parallel()
 	p := disabledInitProgress{}
 	p.SetTotal(42) // must not panic
 }
 
-func TestDisabledInitProgressIncrementDir(t *testing.T) {
+func TestDisabledInitProgress_IncrementDir_DoesNotPanic(t *testing.T) {
+	t.Parallel()
 	p := disabledInitProgress{}
 	p.IncrementDir("/some/dir") // must not panic
 }
 
-func TestDisabledInitProgressFinish(t *testing.T) {
+func TestDisabledInitProgress_Finish_DoesNotPanic(t *testing.T) {
+	t.Parallel()
 	p := disabledInitProgress{}
 	p.Finish() // must not panic
 }
 
-func TestDisabledInitProgressContextReturnsNonNil(t *testing.T) {
-	p := disabledInitProgress{}
-	if p.Context() == nil {
-		t.Fatal("expected non-nil context from disabledInitProgress")
-	}
+func TestDisabledInitProgress_Context_ReturnsNonNil(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	ctx := disabledInitProgress{}.Context()
+
+	// Assert
+	require.NotNil(t, ctx)
 }
 
 // --- disabledInspectUIRunner ---
 
-func TestDisabledInspectUIRunnerReturnsError(t *testing.T) {
-	r := disabledInspectUIRunner{}
-	if err := r.Run(nil); err == nil {
-		t.Fatal("expected error from disabledInspectUIRunner.Run")
-	}
+func TestDisabledInspectUIRunner_Run_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	err := disabledInspectUIRunner{}.Run(nil)
+
+	// Assert
+	require.Error(t, err)
 }
 
 // --- reportedError ---
 
-func TestReportedErrorIsEmpty(t *testing.T) {
-	err := reportedError{}
-	if err.Error() != "" {
-		t.Errorf("expected empty error string, got %q", err.Error())
-	}
+func TestReportedError_Error_IsEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	msg := reportedError{}.Error()
+
+	// Assert
+	assert.Empty(t, msg)
 }
 
 // --- writeNotGitRepoError / writeNoIndexError / writeStaleIndexError / writeDirectoryReports ---
@@ -67,93 +82,125 @@ func newServiceWithOutput(out *captureOutputWriter) InitCommandService {
 	return InitCommandService{output: out}
 }
 
-func TestWriteNotGitRepoErrorWritesMessageAndReturnsReportedError(t *testing.T) {
+func TestWriteNotGitRepoError_WritesMessage_ReturnsReportedError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
+
+	// Act
 	err := svc.writeNotGitRepoError("/some/dir")
-	if err == nil {
-		t.Fatal("expected reportedError, got nil")
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteNoIndexErrorWritesMessageAndReturnsReportedError(t *testing.T) {
+func TestWriteNoIndexError_WritesMessage_ReturnsReportedError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
+
+	// Act
 	err := svc.writeNoIndexError("/some/project")
-	if err == nil {
-		t.Fatal("expected reportedError, got nil")
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteStaleIndexErrorWritesMessageAndReturnsError(t *testing.T) {
+func TestWriteStaleIndexError_WritesMessage_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
+
+	// Act
 	err := svc.writeStaleIndexError("/root", []string{"/root/internal", "/root/pkg"})
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteStaleIndexErrorSingleDirectory(t *testing.T) {
+func TestWriteStaleIndexError_SingleDirectory_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
+
+	// Act
 	err := svc.writeStaleIndexError("/root", []string{"/root/internal"})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestWriteDirectoryReportsEmptySlice(t *testing.T) {
+func TestWriteDirectoryReports_EmptySlice_ReturnsNoError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
-	if err := svc.writeDirectoryReports("/root", nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+
+	// Act
+	err := svc.writeDirectoryReports("/root", nil)
+
+	// Assert
+	require.NoError(t, err)
 }
 
-func TestWriteDirectoryReportCurrentFolderLabelIsProjectRoot(t *testing.T) {
+func TestWriteDirectoryReport_CurrentFolder_LabelIsProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
 	report := statusDirectoryReport{Path: "/root"}
-	if err := svc.writeDirectoryReport("/root", report); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output")
-	}
-	if !strings.Contains(out.lines[0], "/root") {
-		t.Errorf("expected project root in output, got: %q", out.lines[0])
-	}
+
+	// Act
+	err := svc.writeDirectoryReport("/root", report)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "/root")
 }
 
-func TestWriteDirectoryReportStaleDirectoryState(t *testing.T) {
+func TestWriteDirectoryReport_StaleDirectory_WritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
 	report := statusDirectoryReport{Path: "/root/pkg", ShouldReindex: true}
-	if err := svc.writeDirectoryReport("/root", report); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output")
-	}
+
+	// Act
+	err := svc.writeDirectoryReport("/root", report)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteDirectoryReportStructuralChange(t *testing.T) {
+func TestWriteDirectoryReport_StructuralChange_WritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
 	report := statusDirectoryReport{Path: "/root/cmd", StructuralChange: true}
-	if err := svc.writeDirectoryReport("/root", report); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+
+	// Act
+	err := svc.writeDirectoryReport("/root", report)
+
+	// Assert
+	require.NoError(t, err)
 }
 
 // --- runStatusSpinnerLoop / startStatusSpinner ---
@@ -179,7 +226,10 @@ func (w *captureSpinnerWriter) WriteInline(text string) error {
 	return nil
 }
 
-func TestRunStatusSpinnerLoopStopsImmediatelyWhenDoneClosed(t *testing.T) {
+func TestRunStatusSpinnerLoop_DoneClosed_StopsImmediately(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	w := &captureSpinnerWriter{}
 	done := make(chan struct{})
 	var wg sync.WaitGroup
@@ -188,86 +238,111 @@ func TestRunStatusSpinnerLoopStopsImmediatelyWhenDoneClosed(t *testing.T) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
+	// Act
 	go runStatusSpinnerLoop(w, done, ticker, &wg)
 	close(done)
+
+	// Assert: no deadlock
 	wg.Wait()
 }
 
-func TestRunStatusSpinnerLoopClearsLineAfterTick(t *testing.T) {
+func TestRunStatusSpinnerLoop_AfterTick_ClearsLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	w := &captureSpinnerWriter{}
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ticker := time.NewTicker(5 * time.Millisecond)
 
+	// Act: Wait for at least 2 ticks so both prefix branches are covered.
 	go runStatusSpinnerLoop(w, done, ticker, &wg)
-	// Wait for at least 2 ticks so both prefix branches are covered.
 	time.Sleep(25 * time.Millisecond)
 	close(done)
 	wg.Wait()
 
+	// Assert
 	w.mu.Lock()
 	count := len(w.writes)
 	w.mu.Unlock()
-	if count == 0 {
-		t.Error("expected writes from spinner ticks, got none")
-	}
+	assert.Greater(t, count, 0)
 }
 
-func TestStartStatusSpinnerWithInlineWriterStartsAndStops(t *testing.T) {
+func TestStartStatusSpinner_WithInlineWriter_StartsAndStops(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	w := &captureSpinnerWriter{}
 	svc := InitCommandService{output: w}
+
+	// Act / Assert: must not panic or deadlock
 	stop := svc.startStatusSpinner()
 	stop()
 }
 
 // --- StatusWithContext ---
 
-func TestStatusWithContextSetsConfigFieldsAndRunsStatus(t *testing.T) {
+func TestStatusWithContext_SetsConfigFields_RunsStatus(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
-	// Fails due to nil projectTree but StatusWithContext's own assignments are covered.
+
+	// Act: Fails due to nil projectTree but StatusWithContext's own assignments are covered.
 	_ = svc.StatusWithContext("/path/.idx.yml", []string{"bm25.b: 0.5"})
 }
 
 // --- writeStaleResult / writeStatusReport / writeDirectoryReports ---
 
-func TestWriteStaleResultWithProfileTrue(t *testing.T) {
+func TestWriteStaleResult_ProfileTrue_ReturnsErrorAndWritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
+
+	// Act
 	err := svc.writeStaleResult(true, "/root", []string{"/root"}, statusSummary{}, []string{"/root/pkg"})
-	if err == nil {
-		t.Fatal("expected error from writeStaleIndexError")
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output from writeStaleIndexError")
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteStatusReportWritesDirectoriesAndSummary(t *testing.T) {
+func TestWriteStatusReport_WritesDirectoriesAndSummary(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
 	reports := []statusDirectoryReport{{Path: "/root/pkg"}}
 	summary := statusSummary{CheckedDirectories: 1}
-	if err := svc.writeStatusReport("/root", reports, summary); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) < 2 {
-		t.Fatalf("expected at least 2 output lines, got %d", len(out.lines))
-	}
+
+	// Act
+	err := svc.writeStatusReport("/root", reports, summary)
+
+	// Assert
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(out.lines), 2)
 }
 
-func TestWriteDirectoryReportsWithMultipleReports(t *testing.T) {
+func TestWriteDirectoryReports_MultipleReports_WritesEachReport(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &captureOutputWriter{}
 	svc := newServiceWithOutput(out)
 	reports := []statusDirectoryReport{
 		{Path: "/root/pkg"},
 		{Path: "/root/cmd", ShouldReindex: true},
 	}
-	if err := svc.writeDirectoryReports("/root", reports); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) != 2 {
-		t.Fatalf("expected 2 directory reports, got %d", len(out.lines))
-	}
+
+	// Act
+	err := svc.writeDirectoryReports("/root", reports)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, out.lines, 2)
 }

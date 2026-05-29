@@ -1,15 +1,19 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"idx/internal/features/indexing"
 )
 
-func TestAdjustInspectDirectoriesViewportKeepsSelectionVisible(t *testing.T) {
+func TestAdjustInspectDirectoriesViewport_KeepsSelectionVisible(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		directories:         make([]inspectDirectoryRow, 20),
 		filteredDirectories: make([]inspectDirectoryRow, 20),
@@ -18,15 +22,19 @@ func TestAdjustInspectDirectoriesViewportKeepsSelectionVisible(t *testing.T) {
 		height:              15,
 	}
 
+	// Act
 	model = adjustInspectDirectoriesViewport(model)
-
 	start, end := inspectDirectoriesVisibleRange(model)
-	if model.directorySelected < start || model.directorySelected >= end {
-		t.Fatalf("expected selected index %d to be visible in [%d, %d)", model.directorySelected, start, end)
-	}
+
+	// Assert
+	assert.GreaterOrEqual(t, model.directorySelected, start)
+	assert.Less(t, model.directorySelected, end)
 }
 
-func TestInspectDirectoriesVisibleRangeUsesViewportWindow(t *testing.T) {
+func TestInspectDirectoriesVisibleRange_UsesViewportWindow(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		directories:         make([]inspectDirectoryRow, 10),
 		filteredDirectories: make([]inspectDirectoryRow, 10),
@@ -35,118 +43,109 @@ func TestInspectDirectoriesVisibleRangeUsesViewportWindow(t *testing.T) {
 		height:              13,
 	}
 
+	// Act
 	start, end := inspectDirectoriesVisibleRange(model)
-	if start != 4 || end != 6 {
-		t.Fatalf("expected visible range [4, 6), got [%d, %d)", start, end)
-	}
+
+	// Assert
+	assert.Equal(t, 4, start)
+	assert.Equal(t, 6, end)
 }
 
-func TestInspectTruncateLineRespectsWidth(t *testing.T) {
-	line := inspectTruncateLine("123456789", 6)
-	if line != "123..." {
-		t.Fatalf("expected truncated line 123..., got %q", line)
-	}
+func TestInspectTruncateLine_RespectsWidth(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "123...", inspectTruncateLine("123456789", 6))
 }
 
-func TestInspectTruncateLineNoTruncationWhenFits(t *testing.T) {
-	line := inspectTruncateLine("short", 10)
-	if line != "short" {
-		t.Fatalf("expected unmodified line, got %q", line)
-	}
+func TestInspectTruncateLine_NoTruncationWhenFits(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "short", inspectTruncateLine("short", 10))
 }
 
-func TestInspectEnterOpensDirectoryThenJSONAndEscReturnsToDocuments(t *testing.T) {
+func TestInspectEnter_OpensDirectoryThenJSONAndEscReturnsToDocuments(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("/repo/internal::doc1", "internal/doc1.go", 8)
 	index.AddTerm("alpha", "/repo/internal::doc1", 2, []int{1, 4})
-
 	model := newInspectModel(index)
-	if model.mode != inspectViewModeDirectories {
-		t.Fatalf("expected directories mode initially, got %v", model.mode)
-	}
+	assert.Equal(t, inspectViewModeDirectories, model.mode)
 
+	// Act — open directory
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	documentsModel := updated.(inspectModel)
-	if documentsModel.mode != inspectViewModeDocuments {
-		t.Fatalf("expected documents mode after opening directory, got %v", documentsModel.mode)
-	}
+	assert.Equal(t, inspectViewModeDocuments, documentsModel.mode)
 
+	// Act — open document (JSON)
 	updated, _ = documentsModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	jsonModel := updated.(inspectModel)
+	assert.Equal(t, inspectViewModeJSON, jsonModel.mode)
+	assert.NotEmpty(t, jsonModel.jsonLines)
 
-	if jsonModel.mode != inspectViewModeJSON {
-		t.Fatalf("expected JSON mode after enter, got %v", jsonModel.mode)
-	}
-
-	if len(jsonModel.jsonLines) == 0 {
-		t.Fatal("expected JSON lines to be populated")
-	}
-
+	// Act — Escape returns to documents
 	updated, _ = jsonModel.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	documentsModel = updated.(inspectModel)
-	if documentsModel.mode != inspectViewModeDocuments {
-		t.Fatalf("expected documents mode after esc from JSON, got %v", documentsModel.mode)
-	}
+	assert.Equal(t, inspectViewModeDocuments, documentsModel.mode)
 }
 
-func TestInspectDocumentJSONIncludesDocumentFieldsAndTerms(t *testing.T) {
+func TestInspectDocumentJSON_IncludesDocumentFieldsAndTerms(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("doc1", "internal/doc1.go", 8)
 	index.AddTerm("beta", "doc1", 1, []int{3})
 	index.AddTerm("alpha", "doc1", 2, []int{1, 4})
 
+	// Act
 	jsonText, err := inspectDocumentJSON(index, inspectDocumentRow{key: "doc1"})
-	if err != nil {
-		t.Fatalf("expected JSON without error, got %v", err)
-	}
 
-	expectedSnippets := []string{
-		`"name": "doc1"`,
-		`"path": "internal/doc1.go"`,
-		`"uniqueTerms": 2`,
-		`"term": "alpha"`,
-		`"term": "beta"`,
-	}
-
-	for _, snippet := range expectedSnippets {
-		if !strings.Contains(jsonText, snippet) {
-			t.Fatalf("expected JSON to contain %q, got %s", snippet, jsonText)
-		}
+	// Assert
+	require.NoError(t, err)
+	for _, snippet := range []string{`"name": "doc1"`, `"path": "internal/doc1.go"`, `"uniqueTerms": 2`, `"term": "alpha"`, `"term": "beta"`} {
+		assert.Contains(t, jsonText, snippet)
 	}
 }
 
-func TestInspectJSONStringIsKey(t *testing.T) {
+func TestInspectJSONStringIsKey_DetectsKeyPosition(t *testing.T) {
+	t.Parallel()
+
 	line := `  "name": "value"`
 	_, end := inspectReadJSONString(line, 2)
-	if !inspectJSONStringIsKey(line, end) {
-		t.Fatal("expected first JSON string to be detected as key")
-	}
+	assert.True(t, inspectJSONStringIsKey(line, end))
 }
 
-func TestInspectReadJSONKeyword(t *testing.T) {
+func TestInspectReadJSONKeyword_ParsesTrueKeyword(t *testing.T) {
+	t.Parallel()
+
 	token, _, ok := inspectReadJSONKeyword("  true,", 2)
-	if !ok || token != "true" {
-		t.Fatalf("expected keyword true, got ok=%v token=%q", ok, token)
-	}
-
-	_, _, ok = inspectReadJSONKeyword("truename", 0)
-	if ok {
-		t.Fatal("expected no keyword match for word prefix")
-	}
+	assert.True(t, ok)
+	assert.Equal(t, "true", token)
 }
 
-func TestInspectReadJSONNumber(t *testing.T) {
-	if !inspectStartsJSONNumber("-12.5e+3", 0) {
-		t.Fatal("expected numeric start detection")
-	}
+func TestInspectReadJSONKeyword_NoMatchForWordPrefix(t *testing.T) {
+	t.Parallel()
+
+	_, _, ok := inspectReadJSONKeyword("truename", 0)
+	assert.False(t, ok)
+}
+
+func TestInspectReadJSONNumber_DetectsNumericStart(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, inspectStartsJSONNumber("-12.5e+3", 0))
 
 	token, end := inspectReadJSONNumber("-12.5e+3,", 0)
-	if token != "-12.5e+3" || end != 8 {
-		t.Fatalf("expected number -12.5e+3 ending at 8, got token=%q end=%d", token, end)
-	}
+	assert.Equal(t, "-12.5e+3", token)
+	assert.Equal(t, 8, end)
 }
 
-func TestInspectListPgDownMovesByPage(t *testing.T) {
+func TestInspectList_PgDown_MovesByPage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		directories:         make([]inspectDirectoryRow, 20),
 		filteredDirectories: make([]inspectDirectoryRow, 20),
@@ -156,15 +155,18 @@ func TestInspectListPgDownMovesByPage(t *testing.T) {
 		mode:                inspectViewModeDirectories,
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	directoriesModel := updated.(inspectModel)
+	result := updated.(inspectModel)
 
-	if directoriesModel.directorySelected != 4 {
-		t.Fatalf("expected selected index 4 after pgdown, got %d", directoriesModel.directorySelected)
-	}
+	// Assert
+	assert.Equal(t, 4, result.directorySelected)
 }
 
-func TestInspectListPgUpMovesByPage(t *testing.T) {
+func TestInspectList_PgUp_MovesByPage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		documents:         make([]inspectDocumentRow, 20),
 		filteredDocuments: make([]inspectDocumentRow, 20),
@@ -174,15 +176,18 @@ func TestInspectListPgUpMovesByPage(t *testing.T) {
 		mode:              inspectViewModeDocuments,
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-	documentsModel := updated.(inspectModel)
+	result := updated.(inspectModel)
 
-	if documentsModel.documentSelected != 6 {
-		t.Fatalf("expected selected index 6 after pgup, got %d", documentsModel.documentSelected)
-	}
+	// Assert
+	assert.Equal(t, 6, result.documentSelected)
 }
 
-func TestInspectDirectorySlashSearchFiltersRows(t *testing.T) {
+func TestInspectDirectory_SlashSearch_FiltersRows(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		directories: []inspectDirectoryRow{
 			{path: "/repo/internal", documentCount: 2},
@@ -195,23 +200,24 @@ func TestInspectDirectorySlashSearchFiltersRows(t *testing.T) {
 		mode: inspectViewModeDirectories,
 	}
 
+	// Act — enter search mode
 	updated, _ := model.Update(tea.KeyPressMsg{Text: "/"})
 	updatedModel := updated.(inspectModel)
-	if !updatedModel.directorySearchMode {
-		t.Fatal("expected directory search mode to be enabled after slash")
-	}
+	assert.True(t, updatedModel.directorySearchMode)
 
+	// Act — type filter
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "doc"})
 	updatedModel = updated.(inspectModel)
-	if len(updatedModel.filteredDirectories) != 1 {
-		t.Fatalf("expected one filtered directory, got %d", len(updatedModel.filteredDirectories))
-	}
-	if updatedModel.filteredDirectories[0].path != "/repo/docs" {
-		t.Fatalf("expected /repo/docs after filtering, got %q", updatedModel.filteredDirectories[0].path)
-	}
+
+	// Assert
+	require.Len(t, updatedModel.filteredDirectories, 1)
+	assert.Equal(t, "/repo/docs", updatedModel.filteredDirectories[0].path)
 }
 
-func TestInspectDocumentSlashSearchEscIgnoredAndEnterFinishes(t *testing.T) {
+func TestInspectDocument_SlashSearchEscIgnoredEnterFinishes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		documents: []inspectDocumentRow{
 			{name: "main", path: "cmd/idx/main.go"},
@@ -224,66 +230,70 @@ func TestInspectDocumentSlashSearchEscIgnoredAndEnterFinishes(t *testing.T) {
 		mode: inspectViewModeDocuments,
 	}
 
+	// Act — enter search and type
 	updated, _ := model.Update(tea.KeyPressMsg{Text: "/"})
 	updatedModel := updated.(inspectModel)
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "search"})
 	updatedModel = updated.(inspectModel)
-	if len(updatedModel.filteredDocuments) != 1 {
-		t.Fatalf("expected one filtered document, got %d", len(updatedModel.filteredDocuments))
-	}
+	require.Len(t, updatedModel.filteredDocuments, 1)
 
+	// Act — Esc should keep filter active
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	updatedModel = updated.(inspectModel)
-	if !updatedModel.documentSearchMode {
-		t.Fatal("expected document search mode to remain enabled after esc")
-	}
-	if len(updatedModel.filteredDocuments) != 1 {
-		t.Fatalf("expected filter to remain after esc, got %d results", len(updatedModel.filteredDocuments))
-	}
+	assert.True(t, updatedModel.documentSearchMode)
+	require.Len(t, updatedModel.filteredDocuments, 1)
 
+	// Act — Enter exits search mode
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
-	if updatedModel.documentSearchMode {
-		t.Fatal("expected document search mode disabled after enter")
-	}
+	assert.False(t, updatedModel.documentSearchMode)
 }
 
-func TestInspectDocumentsEscReturnsToDirectories(t *testing.T) {
+func TestInspectDocuments_Esc_ReturnsToDirectories(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
-		mode: inspectViewModeDocuments,
-		documents: []inspectDocumentRow{
-			{name: "main", path: "cmd/idx/main.go"},
-		},
-		filteredDocuments: []inspectDocumentRow{
-			{name: "main", path: "cmd/idx/main.go"},
-		},
+		mode:              inspectViewModeDocuments,
+		documents:         []inspectDocumentRow{{name: "main", path: "cmd/idx/main.go"}},
+		filteredDocuments: []inspectDocumentRow{{name: "main", path: "cmd/idx/main.go"}},
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	updatedModel := updated.(inspectModel)
-	if updatedModel.mode != inspectViewModeDirectories {
-		t.Fatalf("expected directories mode after esc from documents, got %v", updatedModel.mode)
-	}
+	result := updated.(inspectModel)
+
+	// Assert
+	assert.Equal(t, inspectViewModeDirectories, result.mode)
 }
 
-func TestInspectLogsEscDoesNotLeaveMode(t *testing.T) {
+func TestInspectLogs_Esc_DoesNotLeaveMode(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	log := inspectLogRow{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}
 	model := inspectModel{
 		mode:         inspectViewModeLogs,
-		logs:         []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}},
-		filteredLogs: []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}},
+		logs:         []inspectLogRow{log},
+		filteredLogs: []inspectLogRow{log},
 		logSelected:  0,
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	updatedModel := updated.(inspectModel)
-	if updatedModel.mode != inspectViewModeLogs {
-		t.Fatalf("expected logs mode to remain after esc, got %v", updatedModel.mode)
-	}
+	result := updated.(inspectModel)
+
+	// Assert
+	assert.Equal(t, inspectViewModeLogs, result.mode)
 }
 
-func TestInspectCommandModeTabAutocompleteSingleMatch(t *testing.T) {
+func TestInspectCommandMode_TabAutocomplete_SingleMatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{mode: inspectViewModeDirectories}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "tl"})
@@ -291,61 +301,72 @@ func TestInspectCommandModeTabAutocompleteSingleMatch(t *testing.T) {
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	updatedModel = updated.(inspectModel)
 
-	if updatedModel.commandQuery != "tlog" {
-		t.Fatalf("expected command query to autocomplete to tlog, got %q", updatedModel.commandQuery)
-	}
+	// Assert
+	assert.Equal(t, "tlog", updatedModel.commandQuery)
 }
 
-func TestInspectJSONModeAllowsCommandInput(t *testing.T) {
-	model := inspectModel{
-		mode:      inspectViewModeJSON,
-		jsonLines: []string{"{}"},
-	}
+func TestInspectJSONMode_AllowsCommandInput(t *testing.T) {
+	t.Parallel()
 
+	// Arrange
+	model := inspectModel{mode: inspectViewModeJSON, jsonLines: []string{"{}"}}
+
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
-	updatedModel := updated.(inspectModel)
-	if updatedModel.commandMode != inspectCommandModeCommand {
-		t.Fatal("expected command mode to be enabled from JSON mode")
-	}
+	result := updated.(inspectModel)
+
+	// Assert
+	assert.Equal(t, inspectCommandModeCommand, result.commandMode)
 }
 
-func TestInspectCommandModeSwitchesToLogsNavigator(t *testing.T) {
+func TestInspectCommandMode_SwitchesToLogsNavigator(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := newInspectModel(indexing.NewInvertedIndex())
 
+	// Act — enter command mode
 	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
-	if updatedModel.commandMode != inspectCommandModeCommand {
-		t.Fatal("expected command mode enabled after colon")
-	}
+	assert.Equal(t, inspectCommandModeCommand, updatedModel.commandMode)
 
+	// Act — type "tlog" and enter
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "tlog"})
 	updatedModel = updated.(inspectModel)
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
-	if updatedModel.mode != inspectViewModeLogs {
-		t.Fatalf("expected logs mode after :tlog, got %v", updatedModel.mode)
-	}
+	// Assert
+	assert.Equal(t, inspectViewModeLogs, updatedModel.mode)
 }
 
-func TestInspectLogsEnterDoesNothing(t *testing.T) {
+func TestInspectLogs_Enter_DoesNothing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	log := inspectLogRow{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}
 	model := inspectModel{
 		mode:         inspectViewModeLogs,
-		logs:         []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}},
-		filteredLogs: []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123", summary: "ok"}},
+		logs:         []inspectLogRow{log},
+		filteredLogs: []inspectLogRow{log},
 		logSelected:  0,
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	updatedModel := updated.(inspectModel)
-	if updatedModel.mode != inspectViewModeLogs {
-		t.Fatalf("expected logs mode to remain after enter, got %v", updatedModel.mode)
-	}
+	result := updated.(inspectModel)
+
+	// Assert
+	assert.Equal(t, inspectViewModeLogs, result.mode)
 }
 
-func TestInspectCommandModeSwitchesToIndexNavigator(t *testing.T) {
+func TestInspectCommandMode_SwitchesToIndexNavigator(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{mode: inspectViewModeLogs}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "index"})
@@ -353,14 +374,17 @@ func TestInspectCommandModeSwitchesToIndexNavigator(t *testing.T) {
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
-	if updatedModel.mode != inspectViewModeDirectories {
-		t.Fatalf("expected directories mode after :index, got %v", updatedModel.mode)
-	}
+	// Assert
+	assert.Equal(t, inspectViewModeDirectories, updatedModel.mode)
 }
 
-func TestInspectCommandModeUnknownCommandSetsError(t *testing.T) {
+func TestInspectCommandMode_UnknownCommand_SetsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := newInspectModel(indexing.NewInvertedIndex())
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Text: ":"})
 	updatedModel := updated.(inspectModel)
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Text: "invalid"})
@@ -368,115 +392,111 @@ func TestInspectCommandModeUnknownCommandSetsError(t *testing.T) {
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	updatedModel = updated.(inspectModel)
 
-	if updatedModel.commandError == "" {
-		t.Fatal("expected command error for unknown command")
-	}
+	// Assert
+	assert.NotEmpty(t, updatedModel.commandError)
 }
 
-func TestInspectLogTableUsesFixedSeparators(t *testing.T) {
+func TestInspectLogTable_UsesFixedSeparators(t *testing.T) {
+	t.Parallel()
+
+	// Assert header
 	header := inspectLogTableHeader()
-	if !strings.Contains(header, " | ") {
-		t.Fatal("expected table header with fixed separators")
-	}
+	assert.Contains(t, header, " | ")
 
+	// Assert row
 	row := inspectLogTableRow(inspectLogRow{indexedAt: "2026-04-30T10:00:00Z", path: "/repo", hash: "abc123"})
-	if !strings.Contains(row, " | ") {
-		t.Fatal("expected table row with fixed separators")
-	}
+	assert.Contains(t, row, " | ")
 }
 
-func TestInspectLogsHorizontalNavigationWithArrows(t *testing.T) {
+func TestInspectLogs_HorizontalNavigation_WithArrows(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	log := inspectLogRow{indexedAt: "2026-04-30T10:00:00Z", path: "/a/very/long/path", hash: "1234567890abcdef", summary: "summary"}
 	model := inspectModel{
 		mode:         inspectViewModeLogs,
 		width:        20,
-		logs:         []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/a/very/long/path", hash: "1234567890abcdef", summary: "summary"}},
-		filteredLogs: []inspectLogRow{{indexedAt: "2026-04-30T10:00:00Z", path: "/a/very/long/path", hash: "1234567890abcdef", summary: "summary"}},
+		logs:         []inspectLogRow{log},
+		filteredLogs: []inspectLogRow{log},
 	}
 
+	// Act — right
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	updatedModel := updated.(inspectModel)
-	if updatedModel.logColumnOffset <= 0 {
-		t.Fatalf("expected positive column offset after right key, got %d", updatedModel.logColumnOffset)
-	}
+	assert.Positive(t, updatedModel.logColumnOffset)
 
+	// Act — left
 	updated, _ = updatedModel.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	updatedModel = updated.(inspectModel)
-	if updatedModel.logColumnOffset != 0 {
-		t.Fatalf("expected zero column offset after left key, got %d", updatedModel.logColumnOffset)
-	}
+	assert.Equal(t, 0, updatedModel.logColumnOffset)
 }
 
-func TestReplaceInspectLogsPreservesSelection(t *testing.T) {
+func TestReplaceInspectLogs_PreservesSelection(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
-		mode: inspectViewModeLogs,
-		logs: []inspectLogRow{
-			{indexedAt: "a", jsonRaw: `{"id":1}`},
-			{indexedAt: "b", jsonRaw: `{"id":2}`},
-		},
-		filteredLogs: []inspectLogRow{
-			{indexedAt: "a", jsonRaw: `{"id":1}`},
-			{indexedAt: "b", jsonRaw: `{"id":2}`},
-		},
-		logSelected: 1,
+		mode:         inspectViewModeLogs,
+		logs:         []inspectLogRow{{indexedAt: "a", jsonRaw: `{"id":1}`}, {indexedAt: "b", jsonRaw: `{"id":2}`}},
+		filteredLogs: []inspectLogRow{{indexedAt: "a", jsonRaw: `{"id":1}`}, {indexedAt: "b", jsonRaw: `{"id":2}`}},
+		logSelected:  1,
 	}
 
+	// Act
 	updated := replaceInspectLogs(model, []inspectLogRow{
 		{indexedAt: "b", jsonRaw: `{"id":2}`},
 		{indexedAt: "c", jsonRaw: `{"id":3}`},
 	})
 
-	if len(updated.filteredLogs) != 2 {
-		t.Fatalf("expected 2 filtered logs, got %d", len(updated.filteredLogs))
-	}
-
-	if updated.logSelected != 0 {
-		t.Fatalf("expected selected log index 0 after refresh, got %d", updated.logSelected)
-	}
+	// Assert
+	require.Len(t, updated.filteredLogs, 2)
+	assert.Equal(t, 0, updated.logSelected)
 }
 
-func TestParseInspectSummaryFields(t *testing.T) {
+func TestParseInspectSummaryFields_ParsesAllFields(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	indexedAt, pathValue, hash := parseInspectSummaryFields("indexed_at=2026-04-30T10:00:00Z path=/repo/internal hash=abcdef")
-	if indexedAt != "2026-04-30T10:00:00Z" {
-		t.Fatalf("unexpected indexed_at: %q", indexedAt)
-	}
-	if pathValue != "/repo/internal" {
-		t.Fatalf("unexpected path: %q", pathValue)
-	}
-	if hash != "abcdef" {
-		t.Fatalf("unexpected hash: %q", hash)
-	}
+
+	// Assert
+	assert.Equal(t, "2026-04-30T10:00:00Z", indexedAt)
+	assert.Equal(t, "/repo/internal", pathValue)
+	assert.Equal(t, "abcdef", hash)
 }
 
-func TestSortInspectLogsNewestFirst(t *testing.T) {
+func TestSortInspectLogsNewestFirst_SortsDescending(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rows := []inspectLogRow{
 		{indexedAt: "2026-04-29T10:00:00Z", path: "/repo/a"},
 		{indexedAt: "2026-04-30T10:00:00Z", path: "/repo/b"},
 		{indexedAt: "2026-04-28T10:00:00Z", path: "/repo/c"},
 	}
 
+	// Act
 	sortInspectLogsNewestFirst(rows)
 
-	if rows[0].indexedAt != "2026-04-30T10:00:00Z" {
-		t.Fatalf("expected first log to be newest, got %q", rows[0].indexedAt)
-	}
-	if rows[1].indexedAt != "2026-04-29T10:00:00Z" {
-		t.Fatalf("expected second log to be middle timestamp, got %q", rows[1].indexedAt)
-	}
-	if rows[2].indexedAt != "2026-04-28T10:00:00Z" {
-		t.Fatalf("expected third log to be oldest, got %q", rows[2].indexedAt)
-	}
+	// Assert
+	assert.Equal(t, "2026-04-30T10:00:00Z", rows[0].indexedAt)
+	assert.Equal(t, "2026-04-29T10:00:00Z", rows[1].indexedAt)
+	assert.Equal(t, "2026-04-28T10:00:00Z", rows[2].indexedAt)
 }
 
-func TestSortInspectLogsNewestFirstKeepsParsableBeforeUnknown(t *testing.T) {
+func TestSortInspectLogsNewestFirst_ParseableBeforeUnknown(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rows := []inspectLogRow{
 		{indexedAt: "-", path: "/repo/a"},
 		{indexedAt: "2026-04-30T10:00:00Z", path: "/repo/b"},
 		{indexedAt: "unknown", path: "/repo/c"},
 	}
 
+	// Act
 	sortInspectLogsNewestFirst(rows)
 
-	if rows[0].indexedAt != "2026-04-30T10:00:00Z" {
-		t.Fatalf("expected parsable timestamp first, got %q", rows[0].indexedAt)
-	}
+	// Assert
+	assert.Equal(t, "2026-04-30T10:00:00Z", rows[0].indexedAt)
 }

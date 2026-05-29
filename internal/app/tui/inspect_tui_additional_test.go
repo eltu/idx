@@ -3,30 +3,25 @@ package tui
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	tea "charm.land/bubbletea/v2"
 
 	"idx/internal/features/indexing"
 )
 
-func TestIsInspectTransactionLogPathMatchesSupportedLayouts(t *testing.T) {
-	if !isInspectTransactionLogPath("/repo/.idx/logs/tlog.idx") {
-		t.Fatal("expected .idx/logs/tlog.idx to be recognized")
-	}
-
-	if !isInspectTransactionLogPath("/repo/any/idx/logs/tlog.idx") {
-		t.Fatal("expected idx/logs/tlog.idx to be recognized")
-	}
-
-	if isInspectTransactionLogPath("/repo/.idx/logs/other.idx") {
-		t.Fatal("expected non-tlog file to be ignored")
-	}
+func TestIsInspectTransactionLogPath_SupportedLayouts(t *testing.T) {
+	t.Parallel()
+	assert.True(t, isInspectTransactionLogPath("/repo/.idx/logs/tlog.idx"))
+	assert.True(t, isInspectTransactionLogPath("/repo/any/idx/logs/tlog.idx"))
+	assert.False(t, isInspectTransactionLogPath("/repo/.idx/logs/other.idx"))
 }
 
-func TestInspectCommonPrefixReturnsSharedPrefix(t *testing.T) {
-	tests := []struct {
-		left     string
-		right    string
-		expected string
+func TestInspectCommonPrefix_ReturnsSharedPrefix(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		left, right, expected string
 	}{
 		{"index", "indexer", "index"},
 		{"tlog", "tlog", "tlog"},
@@ -35,172 +30,141 @@ func TestInspectCommonPrefixReturnsSharedPrefix(t *testing.T) {
 		{"", "tlog", ""},
 		{"tlog", "", ""},
 	}
-
-	for _, tc := range tests {
-		got := inspectCommonPrefix(tc.left, tc.right)
-		if got != tc.expected {
-			t.Fatalf("inspectCommonPrefix(%q, %q) = %q, want %q", tc.left, tc.right, got, tc.expected)
-		}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.left+"/"+tc.right, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, inspectCommonPrefix(tc.left, tc.right))
+		})
 	}
 }
 
-func TestInspectCommandSuggestionsReturnsAllOnEmpty(t *testing.T) {
+func TestInspectCommandSuggestions_ReturnsAllOnEmpty(t *testing.T) {
+	t.Parallel()
 	suggestions := inspectCommandSuggestions("")
-	if len(suggestions) != len(inspectAvailableCommands) {
-		t.Fatalf("expected %d suggestions for empty query, got %d", len(inspectAvailableCommands), len(suggestions))
-	}
+	assert.Len(t, suggestions, len(inspectAvailableCommands))
 }
 
-func TestInspectCommandSuggestionsFiltersPrefix(t *testing.T) {
+func TestInspectCommandSuggestions_FiltersPrefix(t *testing.T) {
+	t.Parallel()
 	suggestions := inspectCommandSuggestions("in")
-	if len(suggestions) != 1 || suggestions[0] != "index" {
-		t.Fatalf("expected [index] for prefix 'in', got %v", suggestions)
-	}
+	assert.Equal(t, []string{"index"}, suggestions)
 }
 
-func TestInspectCommandSuggestionsReturnsEmptyForNoMatch(t *testing.T) {
+func TestInspectCommandSuggestions_NoMatch_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	suggestions := inspectCommandSuggestions("xyz")
-	if len(suggestions) != 0 {
-		t.Fatalf("expected empty suggestions for unknown prefix 'xyz', got %v", suggestions)
-	}
+	assert.Empty(t, suggestions)
 }
 
-func TestAutocompleteInspectCommandSingleMatchCompletes(t *testing.T) {
-	result := autocompleteInspectCommand(":tl")
-	if result != "tlog" {
-		t.Fatalf("expected 'tlog', got %q", result)
-	}
+func TestAutocompleteInspectCommand_SingleMatch_Completes(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "tlog", autocompleteInspectCommand(":tl"))
 }
 
-func TestAutocompleteInspectCommandNoMatchReturnsQuery(t *testing.T) {
-	result := autocompleteInspectCommand(":xyz")
-	if result != ":xyz" {
-		t.Fatalf("expected original query ':xyz', got %q", result)
-	}
+func TestAutocompleteInspectCommand_NoMatch_ReturnsQuery(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ":xyz", autocompleteInspectCommand(":xyz"))
 }
 
-func TestAutocompleteInspectCommandEmptyQueryReturnsQuery(t *testing.T) {
-	result := autocompleteInspectCommand(":")
-	if result != ":" {
-		t.Fatalf("expected original query ':', got %q", result)
-	}
+func TestAutocompleteInspectCommand_EmptyQuery_ReturnsQuery(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ":", autocompleteInspectCommand(":"))
 }
 
-func TestAutocompleteInspectCommandMultipleMatchesExpandsCommonPrefix(t *testing.T) {
+func TestAutocompleteInspectCommand_MultipleMatches_ExpandsCommonPrefix(t *testing.T) {
+	t.Parallel()
 	// Both "index" and any future "i*" command would share prefix;
 	// with current commands ":i" only matches "index" so returns "index".
-	result := autocompleteInspectCommand(":i")
-	if result != "index" {
-		t.Fatalf("expected 'index' for ':i', got %q", result)
-	}
+	assert.Equal(t, "index", autocompleteInspectCommand(":i"))
 }
 
-func TestInspectStringFieldReturnsFirstNonEmpty(t *testing.T) {
-	fields := map[string]any{
-		"a": "  ",
-		"b": "hello",
-		"c": "world",
-	}
-
-	got := inspectStringField(fields, "a", "b", "c")
-	if got != "hello" {
-		t.Fatalf("expected 'hello', got %q", got)
-	}
+func TestInspectStringField_ReturnsFirstNonEmpty(t *testing.T) {
+	t.Parallel()
+	fields := map[string]any{"a": "  ", "b": "hello", "c": "world"}
+	assert.Equal(t, "hello", inspectStringField(fields, "a", "b", "c"))
 }
 
-func TestInspectStringFieldSkipsMissingKeys(t *testing.T) {
+func TestInspectStringField_SkipsMissingKeys(t *testing.T) {
+	t.Parallel()
 	fields := map[string]any{"b": "found"}
-	got := inspectStringField(fields, "missing", "b")
-	if got != "found" {
-		t.Fatalf("expected 'found', got %q", got)
-	}
+	assert.Equal(t, "found", inspectStringField(fields, "missing", "b"))
 }
 
-func TestInspectStringFieldSkipsNonStringValues(t *testing.T) {
+func TestInspectStringField_SkipsNonStringValues(t *testing.T) {
+	t.Parallel()
 	fields := map[string]any{"a": 42, "b": "ok"}
-	got := inspectStringField(fields, "a", "b")
-	if got != "ok" {
-		t.Fatalf("expected 'ok', got %q", got)
-	}
+	assert.Equal(t, "ok", inspectStringField(fields, "a", "b"))
 }
 
-func TestInspectStringFieldReturnsEmptyWhenAllEmpty(t *testing.T) {
+func TestInspectStringField_AllEmpty_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	fields := map[string]any{"a": "  "}
-	got := inspectStringField(fields, "a", "missing")
-	if got != "" {
-		t.Fatalf("expected empty string, got %q", got)
-	}
+	assert.Empty(t, inspectStringField(fields, "a", "missing"))
 }
 
-func TestExtractSummaryValueEqualsSign(t *testing.T) {
+func TestExtractSummaryValue_EqualsSign_ExtractsValue(t *testing.T) {
+	t.Parallel()
 	summary := "indexed_at=2026-05-01T12:00:00Z path=/repo hash=abc"
-	got := extractSummaryValue(summary, "path")
-	if got != "/repo" {
-		t.Fatalf("expected '/repo', got %q", got)
-	}
+	assert.Equal(t, "/repo", extractSummaryValue(summary, "path"))
 }
 
-func TestExtractSummaryValueColonSeparator(t *testing.T) {
+func TestExtractSummaryValue_ColonSeparator_ExtractsValue(t *testing.T) {
+	t.Parallel()
 	summary := "path:/repo/internal hash:abc123"
-	got := extractSummaryValue(summary, "hash")
-	if got != "abc123" {
-		t.Fatalf("expected 'abc123', got %q", got)
-	}
+	assert.Equal(t, "abc123", extractSummaryValue(summary, "hash"))
 }
 
-func TestExtractSummaryValueMissingKeyReturnsEmpty(t *testing.T) {
-	got := extractSummaryValue("path=/repo", "missing")
-	if got != "" {
-		t.Fatalf("expected empty string, got %q", got)
-	}
+func TestExtractSummaryValue_MissingKey_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, extractSummaryValue("path=/repo", "missing"))
 }
 
-func TestExtractSummaryValueReturnsUntilDelimiter(t *testing.T) {
+func TestExtractSummaryValue_ReturnsUntilDelimiter(t *testing.T) {
+	t.Parallel()
 	summary := "indexed_at=2026-05-01,path=/repo"
-	got := extractSummaryValue(summary, "indexed_at")
-	if got != "2026-05-01" {
-		t.Fatalf("expected '2026-05-01', got %q", got)
-	}
+	assert.Equal(t, "2026-05-01", extractSummaryValue(summary, "indexed_at"))
 }
 
-func TestParseInspectSummaryFieldsEmptyReturnsEmpty(t *testing.T) {
+func TestParseInspectSummaryFields_EmptyInput_ReturnsAllEmpty(t *testing.T) {
+	t.Parallel()
 	a, b, c := parseInspectSummaryFields("   ")
-	if a != "" || b != "" || c != "" {
-		t.Fatalf("expected all empty for whitespace input, got %q %q %q", a, b, c)
-	}
+	assert.Empty(t, a)
+	assert.Empty(t, b)
+	assert.Empty(t, c)
 }
 
-func TestParseInspectSummaryFieldsColonSeparator(t *testing.T) {
+func TestParseInspectSummaryFields_ColonSeparator_ParsesCorrectly(t *testing.T) {
+	t.Parallel()
 	indexedAt, pathValue, hash := parseInspectSummaryFields("indexed_at:2026-05-01T00:00:00Z path:/repo hash:deadbeef")
-	if pathValue != "/repo" {
-		t.Fatalf("expected '/repo', got %q", pathValue)
-	}
-	if hash != "deadbeef" {
-		t.Fatalf("expected 'deadbeef', got %q", hash)
-	}
+	assert.Equal(t, "/repo", pathValue)
+	assert.Equal(t, "deadbeef", hash)
 	_ = indexedAt
 }
 
-func TestTrimLastRuneRemovesLastCharacter(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
+func TestTrimLastRune_RemovesLastCharacter(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		input, expected string
 	}{
 		{"hello", "hell"},
 		{"a", ""},
 		{"", ""},
 		{"café", "caf"},
 	}
-
-	for _, tc := range tests {
-		got := trimLastRune(tc.input)
-		if got != tc.expected {
-			t.Fatalf("trimLastRune(%q) = %q, want %q", tc.input, got, tc.expected)
-		}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, trimLastRune(tc.input))
+		})
 	}
 }
 
-func TestInspectBackspaceInDirectorySearchTrimsCursor(t *testing.T) {
+func TestInspectBackspace_InDirectorySearch_TrimsCursor(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		mode:                 inspectViewModeDirectories,
 		directorySearchMode:  true,
@@ -213,14 +177,18 @@ func TestInspectBackspaceInDirectorySearchTrimsCursor(t *testing.T) {
 		},
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	updatedModel := updated.(inspectModel)
-	if updatedModel.directorySearchQuery != "doc" {
-		t.Fatalf("expected 'doc' after backspace, got %q", updatedModel.directorySearchQuery)
-	}
+
+	// Assert
+	assert.Equal(t, "doc", updatedModel.directorySearchQuery)
 }
 
-func TestInspectBackspaceInLogSearchTrimsCursor(t *testing.T) {
+func TestInspectBackspace_InLogSearch_TrimsCursor(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{
 		mode:           inspectViewModeLogs,
 		logSearchMode:  true,
@@ -229,205 +197,158 @@ func TestInspectBackspaceInLogSearchTrimsCursor(t *testing.T) {
 		filteredLogs:   []inspectLogRow{{path: "/repo", indexedAt: "2026-05-01T00:00:00Z", hash: "abc"}},
 	}
 
+	// Act
 	updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	updatedModel := updated.(inspectModel)
-	if updatedModel.logSearchQuery != "rep" {
-		t.Fatalf("expected 'rep' after backspace, got %q", updatedModel.logSearchQuery)
-	}
+
+	// Assert
+	assert.Equal(t, "rep", updatedModel.logSearchQuery)
 }
 
-func TestInspectDocumentsVisibleRangeEmpty(t *testing.T) {
+func TestInspectDocumentsVisibleRange_Empty_ReturnsZeros(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{}
 	start, end := inspectDocumentsVisibleRange(model)
-	if start != 0 || end != 0 {
-		t.Fatalf("expected (0,0) for empty documents, got (%d, %d)", start, end)
-	}
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
 }
 
-func TestInspectDocumentsVisibleRangeUsesHeight(t *testing.T) {
+func TestInspectDocumentsVisibleRange_UsesHeight(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{
 		filteredDocuments: make([]inspectDocumentRow, 20),
 		documentStart:     2,
 		height:            16,
 	}
-
 	start, end := inspectDocumentsVisibleRange(model)
-	if start != 2 {
-		t.Fatalf("expected start=2, got %d", start)
-	}
-	if end <= start {
-		t.Fatalf("expected end > start, got end=%d", end)
-	}
+	assert.Equal(t, 2, start)
+	assert.Greater(t, end, start)
 }
 
-func TestInspectLogsVisibleRangeEmpty(t *testing.T) {
+func TestInspectLogsVisibleRange_Empty_ReturnsZeros(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{}
 	start, end := inspectLogsVisibleRange(model)
-	if start != 0 || end != 0 {
-		t.Fatalf("expected (0,0) for empty logs, got (%d, %d)", start, end)
-	}
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
 }
 
-func TestInspectLogsVisibleRangeUsesHeight(t *testing.T) {
+func TestInspectLogsVisibleRange_UsesHeight(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{
 		filteredLogs: make([]inspectLogRow, 20),
 		logStart:     1,
 		height:       16,
 	}
-
 	start, end := inspectLogsVisibleRange(model)
-	if start != 1 {
-		t.Fatalf("expected start=1, got %d", start)
-	}
-	if end <= start {
-		t.Fatalf("expected end > start, got end=%d", end)
-	}
+	assert.Equal(t, 1, start)
+	assert.Greater(t, end, start)
 }
 
-func TestInspectLogsPageStepMinimumOne(t *testing.T) {
+func TestInspectLogsPageStep_MinimumOne(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{height: 0}
-	step := inspectLogsPageStep(model)
-	if step < 1 {
-		t.Fatalf("expected page step >= 1, got %d", step)
-	}
+	assert.GreaterOrEqual(t, inspectLogsPageStep(model), 1)
 }
 
-func TestInspectLogsPageStepWithNormalHeight(t *testing.T) {
+func TestInspectLogsPageStep_NormalHeight_PositiveStep(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{height: 20}
-	step := inspectLogsPageStep(model)
-	if step < 1 {
-		t.Fatalf("expected positive page step, got %d", step)
-	}
+	assert.GreaterOrEqual(t, inspectLogsPageStep(model), 1)
 }
 
-func TestInspectJSONRangeEmpty(t *testing.T) {
+func TestInspectJSONRange_Empty_ReturnsZeros(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{}
 	start, end := inspectJSONRange(model)
-	if start != 0 || end != 0 {
-		t.Fatalf("expected (0,0) for empty JSON lines, got (%d, %d)", start, end)
-	}
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
 }
 
-func TestInspectJSONRangeUsesHeight(t *testing.T) {
+func TestInspectJSONRange_UsesHeight(t *testing.T) {
+	t.Parallel()
 	model := inspectModel{
 		jsonLines: make([]string, 30),
 		jsonStart: 3,
 		height:    20,
 	}
-
 	start, end := inspectJSONRange(model)
-	if start != 3 {
-		t.Fatalf("expected start=3, got %d", start)
-	}
-	if end <= start {
-		t.Fatalf("expected end > start, got end=%d", end)
-	}
+	assert.Equal(t, 3, start)
+	assert.Greater(t, end, start)
 }
 
-func TestInspectDividerWidthClampsMinimum(t *testing.T) {
-	if inspectDividerWidth(4) != 8 {
-		t.Fatal("expected minimum divider width of 8")
-	}
+func TestInspectDividerWidth_ClampsToRange(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 8, inspectDividerWidth(4), "expected minimum divider width of 8")
+	assert.Equal(t, 120, inspectDividerWidth(200), "expected maximum divider width of 120")
+	assert.Equal(t, 80, inspectDividerWidth(80), "expected divider width of 80 to be returned as-is")
 }
 
-func TestInspectDividerWidthClampsMaximum(t *testing.T) {
-	if inspectDividerWidth(200) != 120 {
-		t.Fatal("expected maximum divider width of 120")
-	}
-}
-
-func TestInspectDividerWidthNormalValue(t *testing.T) {
-	if inspectDividerWidth(80) != 80 {
-		t.Fatal("expected divider width of 80 to be returned as-is")
-	}
-}
-
-func TestInspectBuildLogRowPlainText(t *testing.T) {
+func TestInspectBuildLogRow_PlainText_SetsSummaryAndRaw(t *testing.T) {
+	t.Parallel()
 	row := inspectBuildLogRow("plain summary text", 0, "/repo/.idx/logs/tlog.idx")
-	if row.summary != "plain summary text" {
-		t.Fatalf("expected plain text as summary, got %q", row.summary)
-	}
-	if row.jsonRaw != "plain summary text" {
-		t.Fatalf("expected jsonRaw to equal raw line, got %q", row.jsonRaw)
-	}
+	assert.Equal(t, "plain summary text", row.summary)
+	assert.Equal(t, "plain summary text", row.jsonRaw)
 }
 
-func TestInspectBuildLogRowJSONLine(t *testing.T) {
+func TestInspectBuildLogRow_JSONLine_ParsesFields(t *testing.T) {
+	t.Parallel()
 	line := `{"indexed_at":"2026-05-01T12:00:00Z","path":"/repo/internal","hash":"abc123","summary":"ok"}`
 	row := inspectBuildLogRow(line, 0, "/repo/.idx/logs/tlog.idx")
-	if row.indexedAt != "2026-05-01T12:00:00Z" {
-		t.Fatalf("expected indexed_at from JSON, got %q", row.indexedAt)
-	}
-	if row.path != "/repo/internal" {
-		t.Fatalf("expected path from JSON, got %q", row.path)
-	}
-	if row.hash != "abc123" {
-		t.Fatalf("expected hash from JSON, got %q", row.hash)
-	}
-	if row.summary != "ok" {
-		t.Fatalf("expected summary from JSON, got %q", row.summary)
-	}
+	assert.Equal(t, "2026-05-01T12:00:00Z", row.indexedAt)
+	assert.Equal(t, "/repo/internal", row.path)
+	assert.Equal(t, "abc123", row.hash)
+	assert.Equal(t, "ok", row.summary)
 }
 
-func TestInspectBuildLogRowMissingFieldsFallbackToDash(t *testing.T) {
+func TestInspectBuildLogRow_MissingFields_FallbackToDash(t *testing.T) {
+	t.Parallel()
 	row := inspectBuildLogRow(`{"other":"value"}`, 0, "/repo/.idx/logs/tlog.idx")
-	if row.indexedAt != "-" {
-		t.Fatalf("expected '-' for missing indexed_at, got %q", row.indexedAt)
-	}
-	if row.hash != "-" {
-		t.Fatalf("expected '-' for missing hash, got %q", row.hash)
-	}
+	assert.Equal(t, "-", row.indexedAt)
+	assert.Equal(t, "-", row.hash)
 }
 
-func TestInspectDocumentDirectoryFromKeyWithSeparator(t *testing.T) {
-	got := inspectDocumentDirectory("/repo/internal::main.go", "/repo/internal/main.go")
-	if got != "/repo/internal" {
-		t.Fatalf("expected '/repo/internal' from key separator, got %q", got)
-	}
+func TestInspectDocumentDirectory_FromKeySeparator(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "/repo/internal", inspectDocumentDirectory("/repo/internal::main.go", "/repo/internal/main.go"))
 }
 
-func TestInspectDocumentDirectoryFromPathFallback(t *testing.T) {
-	got := inspectDocumentDirectory("doc1", "/repo/internal/core/service.go")
-	if got != "/repo/internal/core" {
-		t.Fatalf("expected '/repo/internal/core' from path, got %q", got)
-	}
+func TestInspectDocumentDirectory_FromPathFallback(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "/repo/internal/core", inspectDocumentDirectory("doc1", "/repo/internal/core/service.go"))
 }
 
-func TestInspectDocumentDirectoryEmptyPathReturnsDot(t *testing.T) {
-	got := inspectDocumentDirectory("doc1", "")
-	if got != "." {
-		t.Fatalf("expected '.' for empty path, got %q", got)
-	}
+func TestInspectDocumentDirectory_EmptyPath_ReturnsDot(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ".", inspectDocumentDirectory("doc1", ""))
 }
 
-func TestInspectDocumentDirectoryRootFilenameReturnsFilename(t *testing.T) {
-	got := inspectDocumentDirectory("doc1", "main.go")
-	if got != "main.go" {
-		t.Fatalf("expected 'main.go' for root-level file with no slash, got %q", got)
-	}
+func TestInspectDocumentDirectory_RootFilename_ReturnsFilename(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "main.go", inspectDocumentDirectory("doc1", "main.go"))
 }
 
-func TestInspectRowsFromIndexNilReturnsEmpty(t *testing.T) {
+func TestInspectRowsFromIndex_Nil_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	dirs, byDir := inspectRowsFromIndex(nil)
-	if len(dirs) != 0 || len(byDir) != 0 {
-		t.Fatalf("expected empty results for nil index, got dirs=%d byDir=%d", len(dirs), len(byDir))
-	}
+	assert.Empty(t, dirs)
+	assert.Empty(t, byDir)
 }
 
-func TestInspectRowsFromIndexBuildsDirectoriesAndDocuments(t *testing.T) {
+func TestInspectRowsFromIndex_BuildsDirectoriesAndDocuments(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("/repo/internal::service.go", "internal/service.go", 10)
 	index.AddDocument("/repo/internal::core.go", "internal/core.go", 5)
 	index.AddDocument("/repo/cmd::main.go", "cmd/main.go", 3)
 
+	// Act
 	dirs, byDir := inspectRowsFromIndex(index)
-	if len(dirs) != 2 {
-		t.Fatalf("expected 2 directories, got %d", len(dirs))
-	}
-	if len(byDir["/repo/internal"]) != 2 {
-		t.Fatalf("expected 2 documents in /repo/internal, got %d", len(byDir["/repo/internal"]))
-	}
-	if len(byDir["/repo/cmd"]) != 1 {
-		t.Fatalf("expected 1 document in /repo/cmd, got %d", len(byDir["/repo/cmd"]))
-	}
+
+	// Assert
+	require.Len(t, dirs, 2)
+	assert.Len(t, byDir["/repo/internal"], 2)
+	assert.Len(t, byDir["/repo/cmd"], 1)
 }

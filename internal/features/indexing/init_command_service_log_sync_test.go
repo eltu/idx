@@ -6,21 +6,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/features/indexing/storage"
 	"idx/internal/shared/filesystem"
 )
 
-func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
+func TestInitAndSync_AppendIndexLog_WhenFilesChange(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0750))
 
 	filePath := filepath.Join(rootDir, "doc.txt")
-	if err := os.WriteFile(filePath, []byte("needle v1\n"), 0600); err != nil {
-		t.Fatalf("expected seed file creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte("needle v1\n"), 0600))
 
 	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -35,57 +37,38 @@ func TestInitAndSyncAppendIndexLogWhenFilesChange(t *testing.T) {
 	})
 
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+	require.NoError(t, os.Chdir(rootDir))
 
-	if err := os.Chdir(rootDir); err != nil {
-		t.Fatalf("expected chdir to test root to succeed, got %v", err)
-	}
-
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	// Act: initial index
+	require.NoError(t, service.Run())
 
 	logPath := filepath.Join(rootDir, ".idx", "logs", "tlog.idx")
 	beforeInfo, err := os.Stat(logPath)
-	if err != nil {
-		t.Fatalf("expected init log file to exist, got %v", err)
-	}
+	require.NoError(t, err)
 	beforeSize := beforeInfo.Size()
-	if beforeSize <= 0 {
-		t.Fatalf("expected init log to have content, got size %d", beforeSize)
-	}
+	assert.Greater(t, beforeSize, int64(0))
 
-	if err := os.WriteFile(filePath, []byte("needle v2\n"), 0600); err != nil {
-		t.Fatalf("expected file mutation before sync to succeed, got %v", err)
-	}
+	// Mutate file and sync
+	require.NoError(t, os.WriteFile(filePath, []byte("needle v2\n"), 0600))
+	require.NoError(t, service.Sync())
 
-	if err := service.Sync(); err != nil {
-		t.Fatalf("expected sync to succeed, got %v", err)
-	}
-
+	// Assert: log grew
 	afterInfo, err := os.Stat(logPath)
-	if err != nil {
-		t.Fatalf("expected sync log file to exist, got %v", err)
-	}
-	afterSize := afterInfo.Size()
-	if afterSize <= beforeSize {
-		t.Fatalf("expected sync to append to log (before=%d after=%d)", beforeSize, afterSize)
-	}
+	require.NoError(t, err)
+	assert.Greater(t, afterInfo.Size(), beforeSize)
 }
 
-func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
+func TestSync_DoesNotAppendIndexLog_WhenFilesUnchanged(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0750))
 
 	filePath := filepath.Join(rootDir, "doc.txt")
-	if err := os.WriteFile(filePath, []byte("needle stable\n"), 0600); err != nil {
-		t.Fatalf("expected seed file creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte("needle stable\n"), 0600))
 
 	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -100,54 +83,37 @@ func TestSyncDoesNotAppendIndexLogWhenFilesUnchanged(t *testing.T) {
 	})
 
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+	require.NoError(t, os.Chdir(rootDir))
 
-	if err := os.Chdir(rootDir); err != nil {
-		t.Fatalf("expected chdir to test root to succeed, got %v", err)
-	}
-
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
 	logPath := filepath.Join(rootDir, ".idx", "logs", "tlog.idx")
 	beforeInfo, err := os.Stat(logPath)
-	if err != nil {
-		t.Fatalf("expected init log file to exist, got %v", err)
-	}
+	require.NoError(t, err)
 	beforeSize := beforeInfo.Size()
 
-	if err := service.Sync(); err != nil {
-		t.Fatalf("expected sync to succeed, got %v", err)
-	}
+	// Act: sync with no changes
+	require.NoError(t, service.Sync())
 
+	// Assert: log size unchanged
 	afterInfo, err := os.Stat(logPath)
-	if err != nil {
-		t.Fatalf("expected sync log file to exist, got %v", err)
-	}
-	afterSize := afterInfo.Size()
-	if afterSize != beforeSize {
-		t.Fatalf("expected sync without changes to keep log size unchanged (before=%d after=%d)", beforeSize, afterSize)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, beforeSize, afterInfo.Size())
 }
 
-func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
+func TestSync_AppendsOnlyChangedFiles_ToIndexLog(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0750))
 
 	fileA := filepath.Join(rootDir, "a.txt")
 	fileB := filepath.Join(rootDir, "b.txt")
-	if err := os.WriteFile(fileA, []byte("alpha v1\n"), 0600); err != nil {
-		t.Fatalf("expected file A creation to succeed, got %v", err)
-	}
-	if err := os.WriteFile(fileB, []byte("beta v1\n"), 0600); err != nil {
-		t.Fatalf("expected file B creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(fileA, []byte("alpha v1\n"), 0600))
+	require.NoError(t, os.WriteFile(fileB, []byte("beta v1\n"), 0600))
 
 	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -162,69 +128,46 @@ func TestSyncAppendsOnlyChangedFilesToIndexLog(t *testing.T) {
 	})
 
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+	require.NoError(t, os.Chdir(rootDir))
 
-	if err := os.Chdir(rootDir); err != nil {
-		t.Fatalf("expected chdir to test root to succeed, got %v", err)
-	}
-
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
 	logPath := filepath.Join(rootDir, ".idx", "logs", "tlog.idx")
 	initialContent, err := os.ReadFile(logPath) //nolint:gosec
-	if err != nil {
-		t.Fatalf("expected init log file read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 
-	if err := os.WriteFile(fileA, []byte("alpha v2\n"), 0600); err != nil {
-		t.Fatalf("expected file A mutation before sync to succeed, got %v", err)
-	}
-
-	if err := service.Sync(); err != nil {
-		t.Fatalf("expected sync to succeed, got %v", err)
-	}
+	// Act: only change file A
+	require.NoError(t, os.WriteFile(fileA, []byte("alpha v2\n"), 0600))
+	require.NoError(t, service.Sync())
 
 	updatedContent, err := os.ReadFile(logPath) //nolint:gosec
-	if err != nil {
-		t.Fatalf("expected updated log file read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 
+	// Assert
 	initialText := string(initialContent)
 	updatedText := string(updatedContent)
 	aPattern := string(filepath.Separator) + filepath.Base(fileA) + "\thash="
 	bPattern := string(filepath.Separator) + filepath.Base(fileB) + "\thash="
-	if strings.Count(initialText, aPattern) != 1 || strings.Count(initialText, bPattern) != 1 {
-		t.Fatalf("expected initial log to contain one entry for each file, got %q", initialText)
-	}
 
-	if strings.Count(updatedText, aPattern) != 2 {
-		t.Fatalf("expected changed file A to have two log entries after sync, got %q", updatedText)
-	}
-
-	if strings.Count(updatedText, bPattern) != 1 {
-		t.Fatalf("expected unchanged file B to keep one log entry after sync, got %q", updatedText)
-	}
+	assert.Equal(t, 1, strings.Count(initialText, aPattern))
+	assert.Equal(t, 1, strings.Count(initialText, bPattern))
+	assert.Equal(t, 2, strings.Count(updatedText, aPattern), "expected changed file A to have two log entries after sync")
+	assert.Equal(t, 1, strings.Count(updatedText, bPattern), "expected unchanged file B to keep one log entry after sync")
 }
 
-func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
+func TestSync_AppendsOnlyNewFile_ToIndexLog(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0750))
 
 	fileA := filepath.Join(rootDir, "a.txt")
 	fileB := filepath.Join(rootDir, "b.txt")
-	if err := os.WriteFile(fileA, []byte("alpha v1\n"), 0600); err != nil {
-		t.Fatalf("expected file A creation to succeed, got %v", err)
-	}
-	if err := os.WriteFile(fileB, []byte("beta v1\n"), 0600); err != nil {
-		t.Fatalf("expected file B creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(fileA, []byte("alpha v1\n"), 0600))
+	require.NoError(t, os.WriteFile(fileB, []byte("beta v1\n"), 0600))
 
 	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -239,58 +182,34 @@ func TestSyncAppendsOnlyNewFileToIndexLog(t *testing.T) {
 	})
 
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+	require.NoError(t, os.Chdir(rootDir))
 
-	if err := os.Chdir(rootDir); err != nil {
-		t.Fatalf("expected chdir to test root to succeed, got %v", err)
-	}
-
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
 	logPath := filepath.Join(rootDir, ".idx", "logs", "tlog.idx")
 	initialContent, err := os.ReadFile(logPath) //nolint:gosec
-	if err != nil {
-		t.Fatalf("expected init log file read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 
+	// Act: add a new file C, then sync
 	fileC := filepath.Join(rootDir, "c.txt")
-	if err := os.WriteFile(fileC, []byte("charlie v1\n"), 0600); err != nil {
-		t.Fatalf("expected new file C creation before sync to succeed, got %v", err)
-	}
-
-	if err := service.Sync(); err != nil {
-		t.Fatalf("expected sync to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(fileC, []byte("charlie v1\n"), 0600))
+	require.NoError(t, service.Sync())
 
 	updatedContent, err := os.ReadFile(logPath) //nolint:gosec
-	if err != nil {
-		t.Fatalf("expected updated log file read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 
+	// Assert
 	initialText := string(initialContent)
 	updatedText := string(updatedContent)
 	aPattern := string(filepath.Separator) + filepath.Base(fileA) + "\thash="
 	bPattern := string(filepath.Separator) + filepath.Base(fileB) + "\thash="
 	cPattern := string(filepath.Separator) + filepath.Base(fileC) + "\thash="
 
-	if strings.Count(initialText, aPattern) != 1 || strings.Count(initialText, bPattern) != 1 {
-		t.Fatalf("expected initial log to contain one entry for A and B, got %q", initialText)
-	}
-
-	if strings.Count(updatedText, aPattern) != 1 {
-		t.Fatalf("expected unchanged file A to keep one log entry after sync, got %q", updatedText)
-	}
-
-	if strings.Count(updatedText, bPattern) != 1 {
-		t.Fatalf("expected unchanged file B to keep one log entry after sync, got %q", updatedText)
-	}
-
-	if strings.Count(updatedText, cPattern) != 1 {
-		t.Fatalf("expected new file C to be appended exactly once to log after sync, got %q", updatedText)
-	}
+	assert.Equal(t, 1, strings.Count(initialText, aPattern))
+	assert.Equal(t, 1, strings.Count(initialText, bPattern))
+	assert.Equal(t, 1, strings.Count(updatedText, aPattern), "expected unchanged file A to keep one log entry after sync")
+	assert.Equal(t, 1, strings.Count(updatedText, bPattern), "expected unchanged file B to keep one log entry after sync")
+	assert.Equal(t, 1, strings.Count(updatedText, cPattern), "expected new file C to be appended exactly once to log after sync")
 }

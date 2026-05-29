@@ -4,100 +4,109 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/shared/filesystem"
 )
 
-func TestCompositeIgnoreMatcherReturnsTrueWhenFirstMatcherMatches(t *testing.T) {
+func TestCompositeIgnoreMatcher_Matches_ReturnsTrueWhenFirstMatcherMatches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	factory := filesystem.NewCompositeIgnoreMatcherFactory(
 		alwaysMatchFactory{},
 		neverMatchFactory{},
 	)
 	matcher, err := factory.New("/root")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
+	// Act
 	matched, err := matcher.Matches("any/path.go")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !matched {
-		t.Error("expected match from first factory, got false")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, matched)
 }
 
-func TestCompositeIgnoreMatcherReturnsTrueWhenSecondMatcherMatches(t *testing.T) {
+func TestCompositeIgnoreMatcher_Matches_ReturnsTrueWhenSecondMatcherMatches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	factory := filesystem.NewCompositeIgnoreMatcherFactory(
 		neverMatchFactory{},
 		alwaysMatchFactory{},
 	)
 	matcher, err := factory.New("/root")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
+	// Act
 	matched, err := matcher.Matches("any/path.go")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !matched {
-		t.Error("expected match from second factory, got false")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, matched)
 }
 
-func TestCompositeIgnoreMatcherReturnsFalseWhenNoMatcherMatches(t *testing.T) {
+func TestCompositeIgnoreMatcher_Matches_ReturnsFalseWhenNoMatcherMatches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	factory := filesystem.NewCompositeIgnoreMatcherFactory(
 		neverMatchFactory{},
 		neverMatchFactory{},
 	)
 	matcher, err := factory.New("/root")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
+	// Act
 	matched, err := matcher.Matches("any/path.go")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if matched {
-		t.Error("expected no match, got true")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.False(t, matched)
 }
 
-func TestCompositeIgnoreMatcherPropagatesFactoryError(t *testing.T) {
-	factory := filesystem.NewCompositeIgnoreMatcherFactory(
-		errorFactory{},
-	)
+func TestCompositeIgnoreMatcher_New_PropagatesFactoryError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	factory := filesystem.NewCompositeIgnoreMatcherFactory(errorFactory{})
+
+	// Act
 	_, err := factory.New("/root")
-	if err == nil {
-		t.Fatal("expected error from inner factory, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestCompositeIgnoreMatcherPropagatesMatcherError(t *testing.T) {
-	factory := filesystem.NewCompositeIgnoreMatcherFactory(
-		errorOnMatchFactory{},
-	)
+func TestCompositeIgnoreMatcher_Matches_PropagatesMatcherError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	factory := filesystem.NewCompositeIgnoreMatcherFactory(errorOnMatchFactory{})
 	matcher, err := factory.New("/root")
-	if err != nil {
-		t.Fatalf("unexpected factory error: %v", err)
-	}
+	require.NoError(t, err)
+
+	// Act
 	_, err = matcher.Matches("any/path.go")
-	if err == nil {
-		t.Fatal("expected error from inner matcher, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestCompositeIgnoreMatcherWithGlobFactoryIntegration(t *testing.T) {
+func TestCompositeIgnoreMatcher_WithGlobFactory_MatchesConfiguredPatterns(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	factory := filesystem.NewCompositeIgnoreMatcherFactory(
 		filesystem.NewGlobIgnoreMatcherFactory([]string{"*.tmp"}),
 		filesystem.NewGlobIgnoreMatcherFactory([]string{"vendor/"}),
 	)
 	matcher, err := factory.New("/root")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
+	// Assert
 	assertGlobMatches(t, matcher, "session.tmp", true)
 	assertGlobMatches(t, matcher, "vendor", true)
 	assertGlobMatches(t, matcher, "main.go", false)

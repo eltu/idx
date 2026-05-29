@@ -13,16 +13,25 @@ import (
 )
 
 func TestServerStateRepository_ReadState_ReturnsNilWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := daemon.NewServerStateRepository()
+
+	// Act
 	state, err := repo.ReadState("/nonexistent/project/path")
+
+	// Assert
 	require.NoError(t, err)
 	assert.Nil(t, state)
 }
 
-func TestServerStateRepository_SaveAndRead(t *testing.T) {
+func TestServerStateRepository_SaveAndRead_RoundTripsState(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	projectPath := t.TempDir()
 	repo := daemon.NewServerStateRepository()
-
 	want := &daemon.ServerState{
 		PID:         42,
 		StartedAt:   time.Now().Truncate(time.Second),
@@ -30,9 +39,11 @@ func TestServerStateRepository_SaveAndRead(t *testing.T) {
 		ProjectPath: projectPath,
 	}
 
+	// Act
 	require.NoError(t, repo.SaveState(projectPath, want))
-
 	got, err := repo.ReadState(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, want.PID, got.PID)
@@ -41,36 +52,47 @@ func TestServerStateRepository_SaveAndRead(t *testing.T) {
 	assert.Equal(t, want.StartedAt.Unix(), got.StartedAt.Unix())
 }
 
-func TestServerStateRepository_RemoveState(t *testing.T) {
+func TestServerStateRepository_RemoveState_DeletesPersistedState(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	projectPath := t.TempDir()
 	repo := daemon.NewServerStateRepository()
-
 	state := &daemon.ServerState{PID: 99, ProjectPath: projectPath}
 	require.NoError(t, repo.SaveState(projectPath, state))
 
+	// Act
 	require.NoError(t, repo.RemoveState(projectPath))
-
 	got, err := repo.ReadState(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
 
 func TestServerStateRepository_RemoveState_IdempotentWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := daemon.NewServerStateRepository()
-	err := repo.RemoveState("/nonexistent/project/path")
-	assert.NoError(t, err)
+
+	// Act & Assert
+	assert.NoError(t, repo.RemoveState("/nonexistent/project/path"))
 }
 
-func TestServerStateRepository_StateFilePath_UsesProjectBaseName(t *testing.T) {
-	home, _ := os.UserHomeDir()
-	projectPath := t.TempDir()
-	baseName := filepath.Base(projectPath)
+func TestServerStateRepository_SaveState_WritesFileInsideProject(t *testing.T) {
+	t.Parallel()
 
+	// Arrange
+	projectPath := t.TempDir()
 	repo := daemon.NewServerStateRepository()
 	state := &daemon.ServerState{PID: 1}
+
+	// Act
 	require.NoError(t, repo.SaveState(projectPath, state))
 
-	stateFile := filepath.Join(home, ".idx", baseName+".server.state")
+	// Assert
+	stateFile := filepath.Join(projectPath, ".idx", "server.state")
 	_, err := os.Stat(stateFile)
 	assert.NoError(t, err, "expected state file at %s", stateFile)
 }

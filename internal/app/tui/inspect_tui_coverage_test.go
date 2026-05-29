@@ -5,252 +5,224 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"idx/internal/features/indexing"
 )
 
 // --- clampInt ---
 
-func TestClampIntBelowLowReturnsLow(t *testing.T) {
-	if got := clampInt(-5, 0, 10); got != 0 {
-		t.Fatalf("expected 0, got %d", got)
-	}
+func TestClampInt_BelowLow_ReturnsLow(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 0, clampInt(-5, 0, 10))
 }
 
-func TestClampIntAboveHighReturnsHigh(t *testing.T) {
-	if got := clampInt(15, 0, 10); got != 10 {
-		t.Fatalf("expected 10, got %d", got)
-	}
+func TestClampInt_AboveHigh_ReturnsHigh(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 10, clampInt(15, 0, 10))
 }
 
-func TestClampIntWithinRangeReturnsValue(t *testing.T) {
-	if got := clampInt(5, 0, 10); got != 5 {
-		t.Fatalf("expected 5, got %d", got)
-	}
+func TestClampInt_WithinRange_ReturnsValue(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 5, clampInt(5, 0, 10))
 }
 
 // --- inspectInputLine ---
 
-func TestInspectInputLineShowsCommandError(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeNone,
-		commandError: "unknown command \"bad\"",
-	}
+func TestInspectInputLine_ShowsCommandError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	model := inspectModel{commandMode: inspectCommandModeNone, commandError: "unknown command \"bad\""}
+
+	// Act
 	line := inspectInputLine(model, false, "")
-	if !strings.Contains(line, "unknown command") {
-		t.Fatalf("expected error message in line, got %q", line)
-	}
+
+	// Assert
+	assert.Contains(t, line, "unknown command")
 }
 
-func TestInspectInputLineShowsNonEmptySearchQuery(t *testing.T) {
+func TestInspectInputLine_ShowsNonEmptySearchQuery(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	model := inspectModel{commandMode: inspectCommandModeNone}
+
+	// Act
 	line := inspectInputLine(model, false, "myquery")
-	if !strings.Contains(line, "myquery") {
-		t.Fatalf("expected search query in line, got %q", line)
-	}
+
+	// Assert
+	assert.Contains(t, line, "myquery")
 }
 
-func TestInspectInputLineCommandModeWithSuggestions(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: "ind",
-	}
+func TestInspectInputLine_CommandModeWithSuggestions(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: "ind"}
+
+	// Act
 	line := inspectInputLine(model, false, "")
-	if !strings.Contains(line, "ind") {
-		t.Fatalf("expected command query in line, got %q", line)
-	}
+
+	// Assert
+	assert.Contains(t, line, "ind")
 }
 
-func TestInspectInputLineCommandModeNoSuggestions(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: "zzz",
-	}
+func TestInspectInputLine_CommandModeNoSuggestions(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: "zzz"}
+
+	// Act
 	line := inspectInputLine(model, false, "")
-	if !strings.Contains(line, "zzz") {
-		t.Fatalf("expected command query in line, got %q", line)
-	}
+
+	// Assert
+	assert.Contains(t, line, "zzz")
 }
 
 // --- inspectHorizontalWindow ---
 
-func TestInspectHorizontalWindowZeroWidthReturnsEmpty(t *testing.T) {
-	got := inspectHorizontalWindow("hello", 0, 0)
-	if got != "" {
-		t.Fatalf("expected empty string for zero width, got %q", got)
-	}
+func TestInspectHorizontalWindow_ZeroWidth_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, inspectHorizontalWindow("hello", 0, 0))
 }
 
-func TestInspectHorizontalWindowOffsetBeyondTextReturnsEmpty(t *testing.T) {
-	got := inspectHorizontalWindow("hello", 5, 100)
-	if got != "" {
-		t.Fatalf("expected empty string for offset beyond text, got %q", got)
-	}
+func TestInspectHorizontalWindow_OffsetBeyondText_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, inspectHorizontalWindow("hello", 5, 100))
 }
 
-func TestInspectHorizontalWindowNegativeOffsetTreatedAsZero(t *testing.T) {
-	got := inspectHorizontalWindow("hello", 3, -1)
-	if !strings.HasPrefix(got, "hel") {
-		t.Fatalf("expected 'hel', got %q", got)
-	}
+func TestInspectHorizontalWindow_NegativeOffset_TreatedAsZero(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, strings.HasPrefix(inspectHorizontalWindow("hello", 3, -1), "hel"))
 }
 
 // --- adjustInspectJSONViewport ---
 
-func TestAdjustInspectJSONViewportClampsJsonStart(t *testing.T) {
-	model := inspectModel{
-		jsonLines: []string{"a", "b", "c", "d", "e"},
-		jsonStart: 100,
-		height:    10,
-	}
+func TestAdjustInspectJSONViewport_ClampsJsonStart(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	model := inspectModel{jsonLines: []string{"a", "b", "c", "d", "e"}, jsonStart: 100, height: 10}
+
+	// Act
 	model = adjustInspectJSONViewport(model)
-	if model.jsonStart < 0 {
-		t.Fatalf("expected jsonStart >= 0, got %d", model.jsonStart)
-	}
-	if model.jsonStart > len(model.jsonLines) {
-		t.Fatalf("expected jsonStart <= len(jsonLines), got %d", model.jsonStart)
-	}
+
+	// Assert
+	assert.GreaterOrEqual(t, model.jsonStart, 0)
+	assert.LessOrEqual(t, model.jsonStart, len(model.jsonLines))
 }
 
-func TestAdjustInspectJSONViewportEmptyLines(t *testing.T) {
+func TestAdjustInspectJSONViewport_EmptyLines_ResetsToZero(t *testing.T) {
+	t.Parallel()
+
 	model := inspectModel{jsonLines: nil, jsonStart: 5}
 	model = adjustInspectJSONViewport(model)
-	if model.jsonStart != 0 {
-		t.Fatalf("expected jsonStart=0 for empty lines, got %d", model.jsonStart)
-	}
+	assert.Equal(t, 0, model.jsonStart)
 }
 
 // --- inspectJSONRange ---
 
-func TestInspectJSONRangeStartAtOrBeyondEndClampsToLastLine(t *testing.T) {
-	// jsonStart is so large that start >= end, should clamp to last line
-	model := inspectModel{
-		jsonLines: []string{"line1", "line2", "line3"},
-		jsonStart: 999,
-		height:    1, // inspectJSONHeight = max(1-7, 1) = 1
-	}
+func TestInspectJSONRange_StartBeyondEnd_ClampsToLastLine(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{jsonLines: []string{"line1", "line2", "line3"}, jsonStart: 999, height: 1}
 	start, end := inspectJSONRange(model)
-	if start >= end {
-		t.Fatalf("expected start < end after clamp, got start=%d end=%d", start, end)
-	}
+	assert.Less(t, start, end)
 }
 
 // --- inspectReadJSONString ---
 
-func TestInspectReadJSONStringEscapedQuote(t *testing.T) {
+func TestInspectReadJSONString_EscapedQuote(t *testing.T) {
+	t.Parallel()
+
 	line := `"hello \"world\""`
-	token, end := inspectReadJSONString(line, 0)
-	if !strings.HasPrefix(token, `"`) {
-		t.Fatalf("expected token to start with quote, got %q", token)
-	}
-	_ = end
+	token, _ := inspectReadJSONString(line, 0)
+	assert.True(t, strings.HasPrefix(token, `"`))
 }
 
-func TestInspectReadJSONStringUnterminated(t *testing.T) {
+func TestInspectReadJSONString_Unterminated(t *testing.T) {
+	t.Parallel()
+
 	line := `"unterminated`
 	token, end := inspectReadJSONString(line, 0)
-	if token == "" {
-		t.Fatal("expected non-empty token for unterminated string")
-	}
-	if end != len(line) {
-		t.Fatalf("expected end=%d for unterminated string, got %d", len(line), end)
-	}
+	assert.NotEmpty(t, token)
+	assert.Equal(t, len(line), end)
 }
 
 // --- adjustInspectDocumentsViewport ---
 
-func TestAdjustInspectDocumentsViewportEmptyResetsSelection(t *testing.T) {
-	model := inspectModel{
-		filteredDocuments: nil,
-		documentStart:     3,
-		documentSelected:  5,
-	}
+func TestAdjustInspectDocumentsViewport_EmptyResetsSelection(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{filteredDocuments: nil, documentStart: 3, documentSelected: 5}
 	model = adjustInspectDocumentsViewport(model)
-	if model.documentStart != 0 || model.documentSelected != 0 {
-		t.Fatalf("expected (0,0) for empty docs, got (%d, %d)", model.documentStart, model.documentSelected)
-	}
+	assert.Equal(t, 0, model.documentStart)
+	assert.Equal(t, 0, model.documentSelected)
 }
 
-func TestAdjustInspectDocumentsViewportScrollsDown(t *testing.T) {
+func TestAdjustInspectDocumentsViewport_ScrollsDown(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 20)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  15,
-		documentStart:     0,
-		height:            10, // listHeight = max(10-8, 1) = 2
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 15, documentStart: 0, height: 10}
 	model = adjustInspectDocumentsViewport(model)
-	if model.documentStart > model.documentSelected {
-		t.Fatalf("expected documentStart <= documentSelected, got start=%d sel=%d", model.documentStart, model.documentSelected)
-	}
+	assert.LessOrEqual(t, model.documentStart, model.documentSelected)
 }
 
-func TestAdjustInspectDocumentsViewportScrollsUp(t *testing.T) {
+func TestAdjustInspectDocumentsViewport_ScrollsUp(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 20)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  2,
-		documentStart:     10,
-		height:            20,
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 2, documentStart: 10, height: 20}
 	model = adjustInspectDocumentsViewport(model)
-	if model.documentStart > model.documentSelected {
-		t.Fatalf("expected documentStart <= documentSelected, got start=%d sel=%d", model.documentStart, model.documentSelected)
-	}
+	assert.LessOrEqual(t, model.documentStart, model.documentSelected)
 }
 
 // --- updateInspectDocumentsSelection ---
 
-func TestUpdateInspectDocumentsSelectionPgUp(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_PgUp_Decrements(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 20)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  10,
-		height:            10,
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 10, height: 10}
 	model = updateInspectDocumentsSelection(model, "pgup")
-	if model.documentSelected >= 10 {
-		t.Fatalf("expected documentSelected < 10 after pgup, got %d", model.documentSelected)
-	}
+	assert.Less(t, model.documentSelected, 10)
 }
 
-func TestUpdateInspectDocumentsSelectionPgUpClampsToZero(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_PgUp_ClampsToZero(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  1,
-		height:            20,
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 1, height: 20}
 	model = updateInspectDocumentsSelection(model, "pgup")
-	if model.documentSelected < 0 {
-		t.Fatalf("expected documentSelected >= 0 after pgup, got %d", model.documentSelected)
-	}
+	assert.GreaterOrEqual(t, model.documentSelected, 0)
 }
 
-func TestUpdateInspectDocumentsSelectionPgDown(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_PgDown_Increments(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 20)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  0,
-		height:            10,
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 0, height: 10}
 	model = updateInspectDocumentsSelection(model, "pgdown")
-	if model.documentSelected <= 0 {
-		t.Fatalf("expected documentSelected > 0 after pgdown, got %d", model.documentSelected)
-	}
+	assert.Positive(t, model.documentSelected)
 }
 
-func TestUpdateInspectDocumentsSelectionPgDownClampsToMax(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_PgDown_ClampsToMax(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
-	model := inspectModel{
-		filteredDocuments: docs,
-		documentSelected:  4,
-		height:            20,
-	}
+	model := inspectModel{filteredDocuments: docs, documentSelected: 4, height: 20}
 	model = updateInspectDocumentsSelection(model, "pgdown")
-	if model.documentSelected >= len(docs) {
-		t.Fatalf("expected documentSelected < len(docs), got %d", model.documentSelected)
-	}
+	assert.Less(t, model.documentSelected, len(docs))
 }
 
 // --- updateInspectDirectorySearchMode ---
@@ -259,43 +231,34 @@ func newDirectorySearchModel() inspectModel {
 	return inspectModel{
 		mode:                inspectViewModeDirectories,
 		directorySearchMode: true,
-		directories: []inspectDirectoryRow{
-			{path: "/repo/internal"},
-			{path: "/repo/cmd"},
-		},
-		filteredDirectories: []inspectDirectoryRow{
-			{path: "/repo/internal"},
-			{path: "/repo/cmd"},
-		},
+		directories:         []inspectDirectoryRow{{path: "/repo/internal"}, {path: "/repo/cmd"}},
+		filteredDirectories: []inspectDirectoryRow{{path: "/repo/internal"}, {path: "/repo/cmd"}},
 	}
 }
 
-func TestUpdateInspectDirectorySearchModeKeyRunes(t *testing.T) {
+func TestUpdateInspectDirectorySearchMode_KeyRunes_AppendsQuery(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectorySearchModel()
 	result, _ := updateInspectDirectorySearchMode(model, tea.KeyPressMsg{Text: "int"})
-	updated := result.(inspectModel)
-	if updated.directorySearchQuery != "int" {
-		t.Fatalf("expected 'int', got %q", updated.directorySearchQuery)
-	}
+	assert.Equal(t, "int", result.(inspectModel).directorySearchQuery)
 }
 
-func TestUpdateInspectDirectorySearchModeEnterExitsSearch(t *testing.T) {
+func TestUpdateInspectDirectorySearchMode_Enter_ExitsSearch(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectorySearchModel()
 	model.directorySearchQuery = "int"
 	result, _ := updateInspectDirectorySearchMode(model, tea.KeyPressMsg{Code: tea.KeyEnter})
-	updated := result.(inspectModel)
-	if updated.directorySearchMode {
-		t.Fatal("expected directorySearchMode=false after enter")
-	}
+	assert.False(t, result.(inspectModel).directorySearchMode)
 }
 
-func TestUpdateInspectDirectorySearchModeCtrlCQuits(t *testing.T) {
+func TestUpdateInspectDirectorySearchMode_CtrlC_Quits(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectorySearchModel()
 	result, _ := updateInspectDirectorySearchMode(model, tea.KeyPressMsg{Text: "ctrl+c"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting=true after ctrl+c")
-	}
+	assert.True(t, result.(inspectModel).quitting)
 }
 
 // --- updateInspectLogSearchMode ---
@@ -304,56 +267,50 @@ func newLogSearchModel() inspectModel {
 	return inspectModel{
 		mode:          inspectViewModeLogs,
 		logSearchMode: true,
-		logs: []inspectLogRow{
-			{path: "/repo", indexedAt: "2026-05-01", hash: "abc"},
-		},
-		filteredLogs: []inspectLogRow{
-			{path: "/repo", indexedAt: "2026-05-01", hash: "abc"},
-		},
+		logs:          []inspectLogRow{{path: "/repo", indexedAt: "2026-05-01", hash: "abc"}},
+		filteredLogs:  []inspectLogRow{{path: "/repo", indexedAt: "2026-05-01", hash: "abc"}},
 	}
 }
 
-func TestUpdateInspectLogSearchModeEnterExitsSearch(t *testing.T) {
+func TestUpdateInspectLogSearchMode_Enter_ExitsSearch(t *testing.T) {
+	t.Parallel()
+
 	model := newLogSearchModel()
 	model.logSearchQuery = "repo"
 	result, _ := updateInspectLogSearchMode(model, tea.KeyPressMsg{Code: tea.KeyEnter})
-	updated := result.(inspectModel)
-	if updated.logSearchMode {
-		t.Fatal("expected logSearchMode=false after enter")
-	}
+	assert.False(t, result.(inspectModel).logSearchMode)
 }
 
-func TestUpdateInspectLogSearchModeKeyRunesAppendsQuery(t *testing.T) {
+func TestUpdateInspectLogSearchMode_KeyRunes_AppendsQuery(t *testing.T) {
+	t.Parallel()
+
 	model := newLogSearchModel()
 	result, _ := updateInspectLogSearchMode(model, tea.KeyPressMsg{Text: "rep"})
-	updated := result.(inspectModel)
-	if updated.logSearchQuery != "rep" {
-		t.Fatalf("expected 'rep', got %q", updated.logSearchQuery)
-	}
+	assert.Equal(t, "rep", result.(inspectModel).logSearchQuery)
 }
 
-func TestUpdateInspectLogSearchModeBackspaceTrims(t *testing.T) {
+func TestUpdateInspectLogSearchMode_Backspace_Trims(t *testing.T) {
+	t.Parallel()
+
 	model := newLogSearchModel()
 	model.logSearchQuery = "repo"
 	result, _ := updateInspectLogSearchMode(model, tea.KeyPressMsg{Code: tea.KeyBackspace})
-	updated := result.(inspectModel)
-	if updated.logSearchQuery != "rep" {
-		t.Fatalf("expected 'rep' after backspace, got %q", updated.logSearchQuery)
-	}
+	assert.Equal(t, "rep", result.(inspectModel).logSearchQuery)
 }
 
-func TestUpdateInspectLogSearchModeCtrlCQuits(t *testing.T) {
+func TestUpdateInspectLogSearchMode_CtrlC_Quits(t *testing.T) {
+	t.Parallel()
+
 	model := newLogSearchModel()
 	result, _ := updateInspectLogSearchMode(model, tea.KeyPressMsg{Text: "ctrl+c"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting=true after ctrl+c")
-	}
+	assert.True(t, result.(inspectModel).quitting)
 }
 
 // --- autocompleteInspectCommand multi-match path ---
 
-func TestAutocompleteInspectCommandMultiMatchExpandsCommonPrefix(t *testing.T) {
+func TestAutocompleteInspectCommand_MultiMatch_ExpandsCommonPrefix(t *testing.T) {
+	t.Parallel()
+
 	// Temporarily add a second command with a common prefix to trigger multi-match path.
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"inspect", "index"}
@@ -362,113 +319,97 @@ func TestAutocompleteInspectCommandMultiMatchExpandsCommonPrefix(t *testing.T) {
 	// "in" matches both "inspect" and "index", common prefix is "in"
 	// len("in") == len("in"), so returns query
 	result := autocompleteInspectCommand(":in")
-	// Since common prefix "in" is not longer than normalized "in", it returns the original query
-	if result != ":in" {
-		t.Fatalf("expected ':in' when prefix not longer than query, got %q", result)
-	}
+	assert.Equal(t, ":in", result)
 }
 
-func TestAutocompleteInspectCommandMultiMatchExtendsPrefix(t *testing.T) {
-	// Temporarily override to have two commands where query is shorter than their common prefix.
+func TestAutocompleteInspectCommand_MultiMatch_ExtendsPrefix(t *testing.T) {
+	t.Parallel()
+
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"inspect", "inspector"}
 	defer func() { inspectAvailableCommands = original }()
 
 	// "ins" matches both, common prefix is "inspect" which is longer than "ins"
 	result := autocompleteInspectCommand(":ins")
-	if result != "inspect" {
-		t.Fatalf("expected 'inspect' as extended common prefix, got %q", result)
-	}
+	assert.Equal(t, "inspect", result)
 }
 
-func TestAutocompleteInspectCommandMultiMatchNoCommonPrefix(t *testing.T) {
+func TestAutocompleteInspectCommand_MultiMatch_NoCommonPrefix(t *testing.T) {
+	t.Parallel()
+
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"alpha", "beta"}
 	defer func() { inspectAvailableCommands = original }()
 
-	// Empty normalized matches all, but normalized == "" causes early return
-	// Try with a prefix that somehow matches both — impossible with alpha/beta
-	// Instead test with two different starting chars which can't share prefix
+	// "a" only matches "alpha" → single match
 	result := autocompleteInspectCommand(":a")
-	// "a" only matches "alpha" → single match → returns "alpha"
-	if result != "alpha" {
-		t.Fatalf("expected 'alpha', got %q", result)
-	}
+	assert.Equal(t, "alpha", result)
 }
 
 // --- inspectDocumentJSON ---
 
-func TestInspectDocumentJSONNilIndexReturnsError(t *testing.T) {
-	row := inspectDocumentRow{key: "dir::file.go"}
-	_, err := inspectDocumentJSON(nil, row)
-	if err == nil {
-		t.Fatal("expected error for nil index")
-	}
+func TestInspectDocumentJSON_NilIndex_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := inspectDocumentJSON(nil, inspectDocumentRow{key: "dir::file.go"})
+	require.Error(t, err)
 }
 
-func TestInspectDocumentJSONMissingDocumentReturnsError(t *testing.T) {
+func TestInspectDocumentJSON_MissingDocument_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	index := indexing.NewInvertedIndex()
-	row := inspectDocumentRow{key: "dir::missing.go"}
-	_, err := inspectDocumentJSON(index, row)
-	if err == nil {
-		t.Fatal("expected error for missing document")
-	}
+	_, err := inspectDocumentJSON(index, inspectDocumentRow{key: "dir::missing.go"})
+	require.Error(t, err)
 }
 
-func TestInspectDocumentJSONReturnsValidJSON(t *testing.T) {
+func TestInspectDocumentJSON_ValidDocument_ReturnsJSON(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("dir::file.go", "dir/file.go", 42)
-	row := inspectDocumentRow{key: "dir::file.go", name: "file.go", path: "dir/file.go"}
-	result, err := inspectDocumentJSON(index, row)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(result, "file.go") {
-		t.Fatalf("expected JSON to contain filename, got %q", result)
-	}
+
+	// Act
+	result, err := inspectDocumentJSON(index, inspectDocumentRow{key: "dir::file.go", name: "file.go", path: "dir/file.go"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, result, "file.go")
 }
 
 // --- inspectJSONStringIsKey ---
 
-func TestInspectJSONStringIsKeyReturnsFalseWhenNoColon(t *testing.T) {
+func TestInspectJSONStringIsKey_ReturnsFalseWhenNoColon(t *testing.T) {
+	t.Parallel()
+
 	line := `"value" , "next"`
-	// from=7 (after the closing quote of "value"), there's no colon
-	if inspectJSONStringIsKey(line, 7) {
-		t.Fatal("expected false when colon not found after string")
-	}
+	assert.False(t, inspectJSONStringIsKey(line, 7))
 }
 
-func TestInspectJSONStringIsKeyReturnsFalseAtEnd(t *testing.T) {
+func TestInspectJSONStringIsKey_ReturnsFalseAtEnd(t *testing.T) {
+	t.Parallel()
+
 	line := `"value"`
-	if inspectJSONStringIsKey(line, len(line)) {
-		t.Fatal("expected false when from >= len(line)")
-	}
+	assert.False(t, inspectJSONStringIsKey(line, len(line)))
 }
 
 // --- replaceInspectLogs selection preservation ---
 
-func TestReplaceInspectLogsPreservesSelectedRow(t *testing.T) {
-	logs := []inspectLogRow{
-		{path: "/a", jsonRaw: "raw-a"},
-		{path: "/b", jsonRaw: "raw-b"},
-	}
-	model := inspectModel{
-		logs:         logs,
-		filteredLogs: logs,
-		logSelected:  1,
-	}
-	newLogs := []inspectLogRow{
-		{path: "/c", jsonRaw: "raw-c"},
-		{path: "/b", jsonRaw: "raw-b"},
-	}
+func TestReplaceInspectLogs_PreservesSelectedRow(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	logs := []inspectLogRow{{path: "/a", jsonRaw: "raw-a"}, {path: "/b", jsonRaw: "raw-b"}}
+	model := inspectModel{logs: logs, filteredLogs: logs, logSelected: 1}
+	newLogs := []inspectLogRow{{path: "/c", jsonRaw: "raw-c"}, {path: "/b", jsonRaw: "raw-b"}}
+
+	// Act
 	model = replaceInspectLogs(model, newLogs)
-	// raw-b should still be selected
-	if model.logSelected < 0 || model.logSelected >= len(model.filteredLogs) {
-		t.Fatalf("logSelected out of range: %d (len=%d)", model.logSelected, len(model.filteredLogs))
-	}
-	if model.filteredLogs[model.logSelected].jsonRaw != "raw-b" {
-		t.Fatalf("expected raw-b to remain selected, got %q", model.filteredLogs[model.logSelected].jsonRaw)
-	}
+
+	// Assert
+	require.True(t, model.logSelected >= 0 && model.logSelected < len(model.filteredLogs))
+	assert.Equal(t, "raw-b", model.filteredLogs[model.logSelected].jsonRaw)
 }
 
 // --- updateInspectJSONMode ---
@@ -479,91 +420,75 @@ func newJSONModel() inspectModel {
 	for i := range lines {
 		lines[i] = "line"
 	}
-	return inspectModel{
-		mode:      inspectViewModeJSON,
-		jsonLines: lines,
-		jsonStart: 2,
-		height:    20,
-		width:     80,
-	}
+	return inspectModel{mode: inspectViewModeJSON, jsonLines: lines, jsonStart: 2, height: 20, width: 80}
 }
 
-func TestUpdateInspectJSONModeQuitCtrlC(t *testing.T) {
-	model := newJSONModel()
-	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Text: "ctrl+c"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting after ctrl+c")
-	}
+func TestUpdateInspectJSONMode_CtrlC_Quits(t *testing.T) {
+	t.Parallel()
+
+	result, _ := updateInspectJSONMode(newJSONModel(), tea.KeyPressMsg{Text: "ctrl+c"})
+	assert.True(t, result.(inspectModel).quitting)
 }
 
-func TestUpdateInspectJSONModeQuitQ(t *testing.T) {
-	model := newJSONModel()
-	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Text: "q"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting after q")
-	}
+func TestUpdateInspectJSONMode_Q_Quits(t *testing.T) {
+	t.Parallel()
+
+	result, _ := updateInspectJSONMode(newJSONModel(), tea.KeyPressMsg{Text: "q"})
+	assert.True(t, result.(inspectModel).quitting)
 }
 
-func TestUpdateInspectJSONModeEscReturnsToDocuments(t *testing.T) {
+func TestUpdateInspectJSONMode_Esc_ReturnsToDocuments(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonReturnMode = inspectViewModeDocuments
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Code: tea.KeyEscape})
-	updated := result.(inspectModel)
-	if updated.mode != inspectViewModeDocuments {
-		t.Fatalf("expected documents mode after esc, got %v", updated.mode)
-	}
+	assert.Equal(t, inspectViewModeDocuments, result.(inspectModel).mode)
 }
 
-func TestUpdateInspectJSONModeEscReturnsToLogs(t *testing.T) {
+func TestUpdateInspectJSONMode_Esc_ReturnsToLogs(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonReturnMode = inspectViewModeLogs
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Code: tea.KeyEscape})
-	updated := result.(inspectModel)
-	if updated.mode != inspectViewModeLogs {
-		t.Fatalf("expected logs mode after esc, got %v", updated.mode)
-	}
+	assert.Equal(t, inspectViewModeLogs, result.(inspectModel).mode)
 }
 
-func TestUpdateInspectJSONModeUpDecrementsStart(t *testing.T) {
+func TestUpdateInspectJSONMode_K_DecrementsStart(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonStart = 3
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Text: "k"})
-	updated := result.(inspectModel)
-	if updated.jsonStart >= 3 {
-		t.Fatalf("expected jsonStart < 3 after k, got %d", updated.jsonStart)
-	}
+	assert.Less(t, result.(inspectModel).jsonStart, 3)
 }
 
-func TestUpdateInspectJSONModeDownIncrementsStart(t *testing.T) {
+func TestUpdateInspectJSONMode_J_IncrementsStart(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonStart = 0
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Text: "j"})
-	updated := result.(inspectModel)
-	if updated.jsonStart <= 0 {
-		t.Fatalf("expected jsonStart > 0 after j, got %d", updated.jsonStart)
-	}
+	assert.Positive(t, result.(inspectModel).jsonStart)
 }
 
-func TestUpdateInspectJSONModePgUpDecrementsStart(t *testing.T) {
+func TestUpdateInspectJSONMode_PgUp_DecrementsStart(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonStart = 3
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Code: tea.KeyPgUp})
-	updated := result.(inspectModel)
-	if updated.jsonStart >= 3 {
-		t.Fatalf("expected jsonStart < 3 after pgup, got %d", updated.jsonStart)
-	}
+	assert.Less(t, result.(inspectModel).jsonStart, 3)
 }
 
-func TestUpdateInspectJSONModePgDownIncrementsStart(t *testing.T) {
+func TestUpdateInspectJSONMode_PgDown_IncrementsStart(t *testing.T) {
+	t.Parallel()
+
 	model := newJSONModel()
 	model.jsonStart = 0
 	result, _ := updateInspectJSONMode(model, tea.KeyPressMsg{Code: tea.KeyPgDown})
-	updated := result.(inspectModel)
-	if updated.jsonStart <= 0 {
-		t.Fatalf("expected jsonStart > 0 after pgdown, got %d", updated.jsonStart)
-	}
+	assert.Positive(t, result.(inspectModel).jsonStart)
 }
 
 // --- updateInspectDocumentSearchMode ---
@@ -583,32 +508,29 @@ func newDocSearchModel() inspectModel {
 	}
 }
 
-func TestUpdateInspectDocumentSearchModeEnterExitsSearch(t *testing.T) {
+func TestUpdateInspectDocumentSearchMode_Enter_ExitsSearch(t *testing.T) {
+	t.Parallel()
+
 	model := newDocSearchModel()
 	model.documentSearchQuery = "srv"
 	result, _ := updateInspectDocumentSearchMode(model, tea.KeyPressMsg{Code: tea.KeyEnter})
-	updated := result.(inspectModel)
-	if updated.documentSearchMode {
-		t.Fatal("expected documentSearchMode=false after enter")
-	}
+	assert.False(t, result.(inspectModel).documentSearchMode)
 }
 
-func TestUpdateInspectDocumentSearchModeKeyRunesAppendsQuery(t *testing.T) {
+func TestUpdateInspectDocumentSearchMode_KeyRunes_AppendsQuery(t *testing.T) {
+	t.Parallel()
+
 	model := newDocSearchModel()
 	result, _ := updateInspectDocumentSearchMode(model, tea.KeyPressMsg{Text: "srv"})
-	updated := result.(inspectModel)
-	if updated.documentSearchQuery != "srv" {
-		t.Fatalf("expected 'srv', got %q", updated.documentSearchQuery)
-	}
+	assert.Equal(t, "srv", result.(inspectModel).documentSearchQuery)
 }
 
-func TestUpdateInspectDocumentSearchModeCtrlCQuits(t *testing.T) {
+func TestUpdateInspectDocumentSearchMode_CtrlC_Quits(t *testing.T) {
+	t.Parallel()
+
 	model := newDocSearchModel()
 	result, _ := updateInspectDocumentSearchMode(model, tea.KeyPressMsg{Text: "ctrl+c"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting=true after ctrl+c")
-	}
+	assert.True(t, result.(inspectModel).quitting)
 }
 
 // --- updateInspectDirectoriesMode navigation ---
@@ -617,11 +539,7 @@ func newDirectoriesModel() inspectModel {
 	return inspectModel{
 		mode: inspectViewModeDirectories,
 		filteredDirectories: []inspectDirectoryRow{
-			{path: "/repo/a"},
-			{path: "/repo/b"},
-			{path: "/repo/c"},
-			{path: "/repo/d"},
-			{path: "/repo/e"},
+			{path: "/repo/a"}, {path: "/repo/b"}, {path: "/repo/c"}, {path: "/repo/d"}, {path: "/repo/e"},
 		},
 		directorySelected: 2,
 		height:            20,
@@ -629,274 +547,235 @@ func newDirectoriesModel() inspectModel {
 	}
 }
 
-func TestUpdateInspectDirectoriesModeQuits(t *testing.T) {
-	model := newDirectoriesModel()
-	result, _ := updateInspectDirectoriesMode(model, tea.KeyPressMsg{Text: "ctrl+c"})
-	updated := result.(inspectModel)
-	if !updated.quitting {
-		t.Fatal("expected quitting after ctrl+c")
-	}
+func TestUpdateInspectDirectoriesMode_CtrlC_Quits(t *testing.T) {
+	t.Parallel()
+
+	result, _ := updateInspectDirectoriesMode(newDirectoriesModel(), tea.KeyPressMsg{Text: "ctrl+c"})
+	assert.True(t, result.(inspectModel).quitting)
 }
 
-func TestUpdateInspectDirectoriesModePgUp(t *testing.T) {
+func TestUpdateInspectDirectoriesMode_PgUp_Decrements(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectoriesModel()
 	model.directorySelected = 4
 	result, _ := updateInspectDirectoriesMode(model, tea.KeyPressMsg{Code: tea.KeyPgUp})
-	updated := result.(inspectModel)
-	if updated.directorySelected >= 4 {
-		t.Fatalf("expected directorySelected < 4 after pgup, got %d", updated.directorySelected)
-	}
+	assert.Less(t, result.(inspectModel).directorySelected, 4)
 }
 
-func TestUpdateInspectDirectoriesModePgDown(t *testing.T) {
+func TestUpdateInspectDirectoriesMode_PgDown_Increments(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectoriesModel()
 	model.directorySelected = 0
 	result, _ := updateInspectDirectoriesMode(model, tea.KeyPressMsg{Code: tea.KeyPgDown})
-	updated := result.(inspectModel)
-	if updated.directorySelected <= 0 {
-		t.Fatalf("expected directorySelected > 0 after pgdown, got %d", updated.directorySelected)
-	}
+	assert.Positive(t, result.(inspectModel).directorySelected)
 }
 
-func TestUpdateInspectDirectoriesModeEnterOnEmptyNoOp(t *testing.T) {
+func TestUpdateInspectDirectoriesMode_EnterOnEmpty_IsNoop(t *testing.T) {
+	t.Parallel()
+
 	model := newDirectoriesModel()
 	model.filteredDirectories = nil
 	result, _ := updateInspectDirectoriesMode(model, tea.KeyPressMsg{Code: tea.KeyEnter})
-	updated := result.(inspectModel)
-	if updated.mode != inspectViewModeDirectories {
-		t.Fatal("expected mode unchanged when no directories")
-	}
+	assert.Equal(t, inspectViewModeDirectories, result.(inspectModel).mode)
 }
 
 // --- inspectTruncateLine ---
 
-func TestInspectTruncateLineZeroWidthReturnsEmpty(t *testing.T) {
-	got := inspectTruncateLine("hello", 0)
-	if got != "" {
-		t.Fatalf("expected empty for width=0, got %q", got)
-	}
+func TestInspectTruncateLine_ZeroWidth_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, inspectTruncateLine("hello", 0))
 }
 
-func TestInspectTruncateLineWidthThreeOrLessHardTruncate(t *testing.T) {
-	got := inspectTruncateLine("hello world", 3)
-	if got != "hel" {
-		t.Fatalf("expected 'hel' for width=3, got %q", got)
-	}
+func TestInspectTruncateLine_WidthThreeOrLess_HardTruncate(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "hel", inspectTruncateLine("hello world", 3))
 }
 
-func TestInspectTruncateLineExactLengthNoTruncation(t *testing.T) {
-	got := inspectTruncateLine("hello", 5)
-	if got != "hello" {
-		t.Fatalf("expected 'hello', got %q", got)
-	}
+func TestInspectTruncateLine_ExactLength_NoTruncation(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "hello", inspectTruncateLine("hello", 5))
 }
 
-func TestInspectTruncateLineLongerThanWidthAddsEllipsis(t *testing.T) {
+func TestInspectTruncateLine_LongerThanWidth_AddsEllipsis(t *testing.T) {
+	t.Parallel()
+
 	got := inspectTruncateLine("hello world", 8)
-	if !strings.HasSuffix(got, "...") {
-		t.Fatalf("expected '...' suffix for truncated line, got %q", got)
-	}
-	if len([]rune(got)) != 8 {
-		t.Fatalf("expected length 8, got %d (%q)", len([]rune(got)), got)
-	}
+	assert.True(t, strings.HasSuffix(got, "..."))
+	assert.Equal(t, 8, len([]rune(got)))
 }
 
-// --- inspectDirectoriesVisibleRange start >= end clamp ---
+// --- visible range clamps ---
 
-func TestInspectDirectoriesVisibleRangeStartBeyondEndClampsToLast(t *testing.T) {
+func TestInspectDirectoriesVisibleRange_StartBeyondEnd_ClampsToLast(t *testing.T) {
+	t.Parallel()
+
 	model := inspectModel{
 		filteredDirectories: []inspectDirectoryRow{{path: "/a"}, {path: "/b"}, {path: "/c"}},
 		directoryStart:      999,
-		height:              1, // listHeight = max(1-11, 1) = 1
+		height:              1,
 	}
 	start, end := inspectDirectoriesVisibleRange(model)
-	if start >= end {
-		t.Fatalf("expected start < end, got start=%d end=%d", start, end)
-	}
+	assert.Less(t, start, end)
 }
 
-// --- inspectDocumentsVisibleRange start >= end clamp ---
+func TestInspectDocumentsVisibleRange_StartBeyondEnd_ClampsToLast(t *testing.T) {
+	t.Parallel()
 
-func TestInspectDocumentsVisibleRangeStartBeyondEndClampsToLast(t *testing.T) {
 	model := inspectModel{
 		filteredDocuments: []inspectDocumentRow{{name: "a"}, {name: "b"}},
 		documentStart:     999,
-		height:            1, // listHeight = max(1-12, 1) = 1
+		height:            1,
 	}
 	start, end := inspectDocumentsVisibleRange(model)
-	if start >= end {
-		t.Fatalf("expected start < end, got start=%d end=%d", start, end)
-	}
+	assert.Less(t, start, end)
 }
 
-// --- inspectLogsVisibleRange start >= end clamp ---
+func TestInspectLogsVisibleRange_StartBeyondEnd_ClampsToLast(t *testing.T) {
+	t.Parallel()
 
-func TestInspectLogsVisibleRangeStartBeyondEndClampsToLast(t *testing.T) {
 	model := inspectModel{
 		filteredLogs: []inspectLogRow{{path: "/a"}, {path: "/b"}},
 		logStart:     999,
 		height:       1,
 	}
 	start, end := inspectLogsVisibleRange(model)
-	if start >= end {
-		t.Fatalf("expected start < end, got start=%d end=%d", start, end)
-	}
+	assert.Less(t, start, end)
 }
 
 // --- Update WindowSizeMsg ---
 
-func TestUpdateHandlesWindowSizeMsg(t *testing.T) {
-	index := indexing.NewInvertedIndex()
-	model := newInspectModel(index)
+func TestUpdate_WindowSizeMsg_UpdatesDimensions(t *testing.T) {
+	t.Parallel()
+
+	model := newInspectModel(indexing.NewInvertedIndex())
 	result, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	updated := result.(inspectModel)
-	if updated.width != 120 || updated.height != 40 {
-		t.Fatalf("expected width=120 height=40, got %d %d", updated.width, updated.height)
-	}
+	assert.Equal(t, 120, updated.width)
+	assert.Equal(t, 40, updated.height)
 }
 
-func TestUpdateHandlesWindowSizeMsgInJSONMode(t *testing.T) {
-	index := indexing.NewInvertedIndex()
-	model := newInspectModel(index)
+func TestUpdate_WindowSizeMsg_InJSONMode_UpdatesWidth(t *testing.T) {
+	t.Parallel()
+
+	model := newInspectModel(indexing.NewInvertedIndex())
 	model.mode = inspectViewModeJSON
 	model.jsonLines = []string{"line1", "line2"}
 	result, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	updated := result.(inspectModel)
-	if updated.width != 100 {
-		t.Fatalf("expected width=100, got %d", updated.width)
-	}
+	assert.Equal(t, 100, result.(inspectModel).width)
 }
 
-func TestUpdateHandlesWindowSizeMsgInDocumentsMode(t *testing.T) {
-	index := indexing.NewInvertedIndex()
-	model := newInspectModel(index)
+func TestUpdate_WindowSizeMsg_InDocumentsMode_UpdatesHeight(t *testing.T) {
+	t.Parallel()
+
+	model := newInspectModel(indexing.NewInvertedIndex())
 	model.mode = inspectViewModeDocuments
 	result, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	updated := result.(inspectModel)
-	if updated.height != 24 {
-		t.Fatalf("expected height=24, got %d", updated.height)
-	}
+	assert.Equal(t, 24, result.(inspectModel).height)
 }
 
-// --- Update command mode via colon key ---
+// --- Update colon enters command mode ---
 
-func TestUpdateEntersCommandModeOnColon(t *testing.T) {
-	index := indexing.NewInvertedIndex()
-	model := newInspectModel(index)
+func TestUpdate_Colon_EntersCommandMode(t *testing.T) {
+	t.Parallel()
+
+	model := newInspectModel(indexing.NewInvertedIndex())
 	result, _ := model.Update(tea.KeyPressMsg{Text: ":"})
-	updated := result.(inspectModel)
-	if updated.commandMode != inspectCommandModeCommand {
-		t.Fatalf("expected commandModeCommand, got %v", updated.commandMode)
-	}
+	assert.Equal(t, inspectCommandModeCommand, result.(inspectModel).commandMode)
 }
 
-func TestUpdateRealtimeRefreshMsgInLogsMode(t *testing.T) {
-	index := indexing.NewInvertedIndex()
-	model := newInspectModel(index)
+func TestUpdate_RealtimeRefreshMsg_InLogsMode_PreservesMode(t *testing.T) {
+	t.Parallel()
+
+	model := newInspectModel(indexing.NewInvertedIndex())
 	model.mode = inspectViewModeLogs
 	result, _ := model.Update(inspectRealtimeRefreshMsg{})
-	updated := result.(inspectModel)
-	if updated.mode != inspectViewModeLogs {
-		t.Fatal("expected logs mode preserved after refresh")
-	}
+	assert.Equal(t, inspectViewModeLogs, result.(inspectModel).mode)
 }
 
-// --- updateInspectDocumentsSelection up/down boundary cases ---
+// --- updateInspectDocumentsSelection boundary cases ---
 
-func TestUpdateInspectDocumentsSelectionUpAtZeroNoOp(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_Up_AtZero_IsNoop(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
 	model := inspectModel{filteredDocuments: docs, documentSelected: 0}
 	model = updateInspectDocumentsSelection(model, "up")
-	if model.documentSelected != 0 {
-		t.Fatalf("expected documentSelected=0 (no-op), got %d", model.documentSelected)
-	}
+	assert.Equal(t, 0, model.documentSelected)
 }
 
-func TestUpdateInspectDocumentsSelectionUpDecrementsWhenAboveZero(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_K_Decrements(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
 	model := inspectModel{filteredDocuments: docs, documentSelected: 3}
 	model = updateInspectDocumentsSelection(model, "k")
-	if model.documentSelected != 2 {
-		t.Fatalf("expected documentSelected=2, got %d", model.documentSelected)
-	}
+	assert.Equal(t, 2, model.documentSelected)
 }
 
-func TestUpdateInspectDocumentsSelectionDownAtMaxNoOp(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_Down_AtMax_IsNoop(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
 	model := inspectModel{filteredDocuments: docs, documentSelected: 4}
 	model = updateInspectDocumentsSelection(model, "down")
-	if model.documentSelected != 4 {
-		t.Fatalf("expected documentSelected=4 (no-op at max), got %d", model.documentSelected)
-	}
+	assert.Equal(t, 4, model.documentSelected)
 }
 
-func TestUpdateInspectDocumentsSelectionDownIncrementsWhenBelowMax(t *testing.T) {
+func TestUpdateInspectDocumentsSelection_J_Increments(t *testing.T) {
+	t.Parallel()
+
 	docs := make([]inspectDocumentRow, 5)
 	model := inspectModel{filteredDocuments: docs, documentSelected: 1}
 	model = updateInspectDocumentsSelection(model, "j")
-	if model.documentSelected != 2 {
-		t.Fatalf("expected documentSelected=2, got %d", model.documentSelected)
-	}
+	assert.Equal(t, 2, model.documentSelected)
 }
 
-// --- updateInspectCommandInputMode backspace and unknown command ---
+// --- updateInspectCommandInputMode ---
 
-func TestUpdateInspectCommandInputModeBackspace(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: "ind",
-	}
+func TestUpdateInspectCommandInputMode_Backspace_TrimsQuery(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: "ind"}
 	result, _ := updateInspectCommandInputMode(model, tea.KeyPressMsg{Code: tea.KeyBackspace})
-	updated := result.(inspectModel)
-	if updated.commandQuery != "in" {
-		t.Fatalf("expected 'in' after backspace, got %q", updated.commandQuery)
-	}
+	assert.Equal(t, "in", result.(inspectModel).commandQuery)
 }
 
-func TestUpdateInspectCommandInputModeEnterUnknownCommandSetsError(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: "bad",
-	}
+func TestUpdateInspectCommandInputMode_Enter_UnknownCommand_SetsError(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: "bad"}
 	result, _ := updateInspectCommandInputMode(model, tea.KeyPressMsg{Code: tea.KeyEnter})
-	updated := result.(inspectModel)
-	if updated.commandError == "" {
-		t.Fatal("expected commandError for unknown command")
-	}
+	assert.NotEmpty(t, result.(inspectModel).commandError)
 }
 
-func TestUpdateInspectCommandInputModeTabAutocompletes(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: ":tl",
-	}
+func TestUpdateInspectCommandInputMode_Tab_Autocompletes(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: ":tl"}
 	result, _ := updateInspectCommandInputMode(model, tea.KeyPressMsg{Code: tea.KeyTab})
-	updated := result.(inspectModel)
-	if updated.commandQuery != "tlog" {
-		t.Fatalf("expected 'tlog' after tab, got %q", updated.commandQuery)
-	}
+	assert.Equal(t, "tlog", result.(inspectModel).commandQuery)
 }
 
-func TestUpdateInspectCommandInputModeKeyRunesAppendsChars(t *testing.T) {
-	model := inspectModel{
-		commandMode:  inspectCommandModeCommand,
-		commandQuery: "in",
-	}
+func TestUpdateInspectCommandInputMode_KeyRunes_AppendsChars(t *testing.T) {
+	t.Parallel()
+
+	model := inspectModel{commandMode: inspectCommandModeCommand, commandQuery: "in"}
 	result, _ := updateInspectCommandInputMode(model, tea.KeyPressMsg{Text: "d"})
-	updated := result.(inspectModel)
-	if updated.commandQuery != "ind" {
-		t.Fatalf("expected 'ind', got %q", updated.commandQuery)
-	}
+	assert.Equal(t, "ind", result.(inspectModel).commandQuery)
 }
 
 // --- updateInspectDocumentSearchMode delete key ---
 
-func TestUpdateInspectDocumentSearchModeDeleteTrims(t *testing.T) {
+func TestUpdateInspectDocumentSearchMode_Delete_Trims(t *testing.T) {
+	t.Parallel()
+
 	model := newDocSearchModel()
 	model.documentSearchQuery = "srv"
 	result, _ := updateInspectDocumentSearchMode(model, tea.KeyPressMsg{Code: tea.KeyDelete})
-	updated := result.(inspectModel)
-	if updated.documentSearchQuery != "sr" {
-		t.Fatalf("expected 'sr' after delete, got %q", updated.documentSearchQuery)
-	}
+	assert.Equal(t, "sr", result.(inspectModel).documentSearchQuery)
 }

@@ -4,132 +4,183 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestHumanAgeJustNow(t *testing.T) {
+func TestHumanAge_RecentTime_ReturnsJustNow(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := humanAge(time.Now().Add(-10 * time.Second))
-	if got != "just now" {
-		t.Fatalf("expected 'just now' for <1m, got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "just now", got)
 }
 
-func TestHumanAgeMinutes(t *testing.T) {
+func TestHumanAge_FiveMinutesAgo_ReturnsMinutesLabel(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := humanAge(time.Now().Add(-5 * time.Minute))
-	if !strings.Contains(got, "minute") {
-		t.Fatalf("expected minutes label, got %q", got)
-	}
-	if !strings.Contains(got, "5") {
-		t.Fatalf("expected 5 in minutes output, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "minute")
+	assert.Contains(t, got, "5")
 }
 
-func TestHumanAgeHours(t *testing.T) {
+func TestHumanAge_ThreeHoursAgo_ReturnsHoursLabel(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := humanAge(time.Now().Add(-3 * time.Hour))
-	if !strings.Contains(got, "hour") {
-		t.Fatalf("expected hours label, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "hour")
 }
 
-func TestHumanAgeDays(t *testing.T) {
+func TestHumanAge_TwoDaysAgo_ReturnsDaysLabel(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := humanAge(time.Now().Add(-48 * time.Hour))
-	if !strings.Contains(got, "day") {
-		t.Fatalf("expected days label, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "day")
 }
 
-func TestHumanAgeOldDateReturnsFormatted(t *testing.T) {
+func TestHumanAge_OldDate_ReturnsFormattedDate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	old := time.Now().Add(-30 * 24 * time.Hour)
+
+	// Act
 	got := humanAge(old)
-	if strings.Contains(got, "ago") {
-		t.Fatalf("expected formatted date for >7 days, got %q", got)
-	}
+
+	// Assert
+	assert.False(t, strings.Contains(got, "ago"), "expected formatted date for >7 days, got %q", got)
 }
 
-func TestFormatBytesBytes(t *testing.T) {
+func TestFormatBytes_Bytes_ReturnsBytes(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := formatBytes(512)
-	if got != "512 B" {
-		t.Fatalf("expected '512 B', got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "512 B", got)
 }
 
-func TestFormatBytesKB(t *testing.T) {
+func TestFormatBytes_Kilobytes_ReturnsKB(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := formatBytes(2048)
-	if got != "2.0 KB" {
-		t.Fatalf("expected '2.0 KB', got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "2.0 KB", got)
 }
 
-func TestFormatBytesMB(t *testing.T) {
+func TestFormatBytes_Megabytes_ReturnsMB(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := formatBytes(2*1024*1024 + 100*1024)
-	if !strings.Contains(got, "MB") {
-		t.Fatalf("expected MB suffix, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "MB")
 }
 
-func TestFormatBytesGB(t *testing.T) {
+func TestFormatBytes_Gigabytes_ReturnsGB(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := formatBytes(2 * 1024 * 1024 * 1024)
-	if got != "2.0 GB" {
-		t.Fatalf("expected '2.0 GB', got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "2.0 GB", got)
 }
 
-func TestDaemonStatusLineNilRepo(t *testing.T) {
+func TestDaemonStatusLine_NilRepo_ReturnsNotConfigured(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := daemonStatusLine(nil, "/some/project")
-	if !strings.Contains(got, "not configured") {
-		t.Fatalf("expected 'not configured' for nil repo, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "not configured")
 }
 
-func TestDaemonStatusLineNoMatchingProject(t *testing.T) {
+func TestDaemonStatusLine_NoMatchingProject_ReturnsNotConfigured(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := &panelFakeDaemonRepo{statuses: map[string]*DaemonProjectStatus{
 		"/other/project": {Enabled: true, PID: 1234},
 	}}
+
+	// Act
 	got := daemonStatusLine(repo, "/my/project")
-	if !strings.Contains(got, "not configured") {
-		t.Fatalf("expected 'not configured' for no matching project, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "not configured")
 }
 
-func TestDaemonStatusLineDisabledProject(t *testing.T) {
+func TestDaemonStatusLine_DisabledProject_ReturnsDisabled(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := &panelFakeDaemonRepo{statuses: map[string]*DaemonProjectStatus{
 		"/my/project": {Enabled: false, PID: 1234},
 	}}
+
+	// Act
 	got := daemonStatusLine(repo, "/my/project")
-	if !strings.Contains(got, "disabled") {
-		t.Fatalf("expected 'disabled' for disabled project, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "disabled")
 }
 
-func TestDaemonStatusLineActiveProject(t *testing.T) {
+func TestDaemonStatusLine_ActiveProject_ReturnsWatchingAndPID(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := &panelFakeDaemonRepo{statuses: map[string]*DaemonProjectStatus{
 		"/my/project": {Enabled: true, PID: 4821, StartedAt: time.Now()},
 	}}
+
+	// Act
 	got := daemonStatusLine(repo, "/my/project")
-	if !strings.Contains(got, "watching") {
-		t.Fatalf("expected 'watching' for active project, got %q", got)
-	}
-	if !strings.Contains(got, "4821") {
-		t.Fatalf("expected PID 4821 in output, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "watching")
+	assert.Contains(t, got, "4821")
 }
 
-func TestBuildStatusPanelContentContainsProjectName(t *testing.T) {
+func TestBuildStatusPanelContent_ContainsProjectName(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	data := statusPanelData{
 		projectRoot: "/home/user/my-project",
 		summary:     statusSummary{CheckedFiles: 10, CheckedDirectories: 2, HasLatest: false},
 		directories: []string{},
 		indexStatus: "✅ up to date",
 	}
+
+	// Act
 	got := buildStatusPanelContent(nil, data)
-	if !strings.Contains(got, "my-project") {
-		t.Fatalf("expected project name in panel, got %q", got)
-	}
-	if !strings.Contains(got, "up to date") {
-		t.Fatalf("expected index status in panel, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, "my-project")
+	assert.Contains(t, got, "up to date")
 }
 
-func TestBuildStatusPanelContentIncludesConfigWhenProvided(t *testing.T) {
+func TestBuildStatusPanelContent_IncludesConfigWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	data := statusPanelData{
 		projectRoot:     "/home/user/proj",
 		summary:         statusSummary{},
@@ -138,40 +189,51 @@ func TestBuildStatusPanelContentIncludesConfigWhenProvided(t *testing.T) {
 		configFilePath:  "/home/user/proj/.idx.yml",
 		configOverrides: []string{"search.format", "bm25.k1"},
 	}
+
+	// Act
 	got := buildStatusPanelContent(nil, data)
-	if !strings.Contains(got, ".idx.yml") {
-		t.Fatalf("expected config file name in panel, got %q", got)
-	}
-	if !strings.Contains(got, "2 overrides") {
-		t.Fatalf("expected override count in panel, got %q", got)
-	}
+
+	// Assert
+	assert.Contains(t, got, ".idx.yml")
+	assert.Contains(t, got, "2 overrides")
 }
 
-func TestBuildStatusPanelContentOmitsConfigWhenAbsent(t *testing.T) {
+func TestBuildStatusPanelContent_OmitsConfigWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	data := statusPanelData{
 		projectRoot: "/home/user/proj",
 		summary:     statusSummary{},
 		directories: []string{},
 		indexStatus: "✅ up to date",
 	}
+
+	// Act
 	got := buildStatusPanelContent(nil, data)
-	if strings.Contains(got, "Config") {
-		t.Fatalf("expected no Config row when configFilePath is empty, got %q", got)
-	}
+
+	// Assert
+	assert.NotContains(t, got, "Config")
 }
 
-func TestIndexTotalSizeBytesEmptyDirectories(t *testing.T) {
+func TestIndexTotalSizeBytes_EmptyDirectories_ReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := indexTotalSizeBytes([]string{})
-	if got != 0 {
-		t.Fatalf("expected 0 for empty directories, got %d", got)
-	}
+
+	// Assert
+	assert.Equal(t, int64(0), got)
 }
 
-func TestIndexTotalSizeBytesSkipsMissingFiles(t *testing.T) {
+func TestIndexTotalSizeBytes_MissingFiles_ReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := indexTotalSizeBytes([]string{"/nonexistent/path"})
-	if got != 0 {
-		t.Fatalf("expected 0 for missing index file, got %d", got)
-	}
+
+	// Assert
+	assert.Equal(t, int64(0), got)
 }
 
 // panelFakeDaemonRepo implements ProjectMonitorChecker for status panel tests.

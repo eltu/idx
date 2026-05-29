@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/shared/filesystem"
 )
 
@@ -38,7 +41,10 @@ type allowAllMatcher struct{}
 
 func (allowAllMatcher) Matches(string) (bool, error) { return false, nil }
 
-func TestIndexedDirectoriesAndEligibleDirectories(t *testing.T) {
+func TestIndexedDirectories_AndEligibleDirectories_ReturnsIndexedAndEligible(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := "/repo"
 	child := filepath.Join(root, "child")
 	tree := indexedTreeStub{
@@ -58,24 +64,22 @@ func TestIndexedDirectoriesAndEligibleDirectories(t *testing.T) {
 		errStat: map[string]error{},
 	}
 
+	// Act
 	indexed, err := IndexedDirectories(tree, root)
-	if err != nil {
-		t.Fatalf("expected indexed directories without error, got %v", err)
-	}
-	if len(indexed) != 2 {
-		t.Fatalf("expected two indexed directories, got %v", indexed)
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, indexed, 2)
 
 	eligible, err := eligibleDirectories(tree, root, allowAllMatcher{})
-	if err != nil {
-		t.Fatalf("expected eligible directories without error, got %v", err)
-	}
-	if len(eligible) != 2 {
-		t.Fatalf("expected two eligible directories, got %v", eligible)
-	}
+	require.NoError(t, err)
+	assert.Len(t, eligible, 2)
 }
 
-func TestIndexedDirectoriesErrors(t *testing.T) {
+func TestIndexedDirectories_StatError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := "/repo"
 	treeWithStatError := indexedTreeStub{
 		entries: map[string][]filesystem.DirectoryEntry{root: {}},
@@ -84,10 +88,18 @@ func TestIndexedDirectoriesErrors(t *testing.T) {
 		errStat: map[string]error{filepath.Join(root, ".idx", "index.idx"): errors.New("stat failed")},
 	}
 
-	if _, err := IndexedDirectories(treeWithStatError, root); err == nil {
-		t.Fatal("expected error when index stat fails")
-	}
+	// Act
+	_, err := IndexedDirectories(treeWithStatError, root)
 
+	// Assert
+	require.Error(t, err)
+}
+
+func TestIndexedDirectories_ReadDirError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	root := "/repo"
 	treeWithReadError := indexedTreeStub{
 		entries: map[string][]filesystem.DirectoryEntry{},
 		exists:  map[string]bool{},
@@ -95,7 +107,9 @@ func TestIndexedDirectoriesErrors(t *testing.T) {
 		errStat: map[string]error{},
 	}
 
-	if _, err := IndexedDirectories(treeWithReadError, root); err == nil {
-		t.Fatal("expected error when directory read fails")
-	}
+	// Act
+	_, err := IndexedDirectories(treeWithReadError, root)
+
+	// Assert
+	require.Error(t, err)
 }

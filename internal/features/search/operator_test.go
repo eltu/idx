@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	search "idx/internal/features/search"
 )
@@ -22,43 +25,48 @@ func searchableIndexWithDisjointTerms() *indexing.InvertedIndex {
 	return index
 }
 
-func TestSearchCommandServiceOROperatorReturnsBothDocumentsWhenTermsAreDisjoint(t *testing.T) {
+func TestSearchCommandService_OROperator_ReturnsBothDocumentsWhenTermsAreDisjoint(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithDisjointTerms()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "a.go"): "module search", filepath.Join(rootDir, "b.go"): "idx tool"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "a.go"): "module search",
+		filepath.Join(rootDir, "b.go"): "idx tool",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorOR})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorOR}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-	if response["count"] != float64(2) {
-		t.Fatalf("expected OR to return 2 results, got %v", response["count"])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
+	assert.Equal(t, float64(2), response["count"])
 }
 
-func TestSearchCommandServiceANDOperatorReturnsNoResultsWhenTermsAreDisjoint(t *testing.T) {
+func TestSearchCommandService_ANDOperator_ReturnsNoResultsWhenTermsAreDisjoint(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithDisjointTerms()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "a.go"): "module search", filepath.Join(rootDir, "b.go"): "idx tool"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "a.go"): "module search",
+		filepath.Join(rootDir, "b.go"): "idx tool",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND})
-	if err != nil {
-		t.Fatalf("expected no error for empty AND results, got %v", err)
-	}
-	if len(output.lines) == 0 {
-		t.Fatal("expected output for empty AND results")
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND}))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
 }
 
 func searchableIndexWithCoverageSkew() *indexing.InvertedIndex {
@@ -74,31 +82,30 @@ func searchableIndexWithCoverageSkew() *indexing.InvertedIndex {
 	return index
 }
 
-func TestSearchCommandServiceOROperatorRanksFullMatchAbovePartialMatch(t *testing.T) {
+func TestSearchCommandService_OROperator_RanksFullMatchAbovePartialMatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithCoverageSkew()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "full.go"): "module idx", filepath.Join(rootDir, "partial.go"): "module module module"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "full.go"):    "module idx",
+		filepath.Join(rootDir, "partial.go"): "module module module",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorOR, Explain: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Operator: search.OperatorOR, Explain: true}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
-	if len(results) < 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
-	}
+	require.GreaterOrEqual(t, len(results), 2)
 	topFile := results[0].(map[string]any)["file"].(string)
-	if topFile != "full.go" && topFile != "./full.go" {
-		t.Fatalf("expected full.go (all terms matched) to rank first, got %q", topFile)
-	}
+	assert.True(t, topFile == "full.go" || topFile == "./full.go", "expected full.go first, got %q", topFile)
 }
 
 func searchableIndexWithSameScoreButConcentratedTerms() *indexing.InvertedIndex {
@@ -110,36 +117,39 @@ func searchableIndexWithSameScoreButConcentratedTerms() *indexing.InvertedIndex 
 	index.DocumentCount = 2
 	index.AverageDocLength = 3
 	for _, term := range []string{"alpha", "beta"} {
-		index.Terms[term] = &indexing.TermStats{IDF: 1.0, Docs: map[string]*indexing.DocTermStats{"concentrated.go": {TF: 1}, "scattered.go": {TF: 1}}}
+		index.Terms[term] = &indexing.TermStats{IDF: 1.0, Docs: map[string]*indexing.DocTermStats{
+			"concentrated.go": {TF: 1},
+			"scattered.go":    {TF: 1},
+		}}
 	}
 	return index
 }
 
-func TestSearchTermConcentrationBreaksTieInFavorOfCoLocatedTerms(t *testing.T) {
+func TestSearchCommandService_TermConcentration_BreaksTieInFavorOfCoLocatedTerms(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithSameScoreButConcentratedTerms()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "concentrated.go"): "alpha beta", filepath.Join(rootDir, "scattered.go"): "alpha\nbeta"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	fileReader := fakeSearchFileReader{files: map[string]string{
+		filepath.Join(rootDir, "concentrated.go"): "alpha beta",
+		filepath.Join(rootDir, "scattered.go"):    "alpha\nbeta",
+	}}
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("alpha beta", search.Options{Format: search.OutputJSON, Explain: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("alpha beta", search.Options{Format: search.OutputJSON, Explain: true}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
-	if len(results) < 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
-	}
+	require.GreaterOrEqual(t, len(results), 2)
 	topFile := results[0].(map[string]any)["file"].(string)
-	if topFile != "concentrated.go" && topFile != "./concentrated.go" {
-		t.Fatalf("expected concentrated.go (all terms on one line) to rank first, got %q", topFile)
-	}
+	assert.True(t, topFile == "concentrated.go" || topFile == "./concentrated.go",
+		"expected concentrated.go first, got %q", topFile)
 }
 
 func searchableIndexForRelaxation() *indexing.InvertedIndex {
@@ -152,142 +162,111 @@ func searchableIndexForRelaxation() *indexing.InvertedIndex {
 	index.AddPathTerms("minimal.go", "minimal.go")
 	index.DocumentCount = 3
 	index.AverageDocLength = 5
-
 	index.Terms["func"] = &indexing.TermStats{IDF: 0.6, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}, "relaxed.go": {TF: 1}, "minimal.go": {TF: 1}}}
 	index.Terms["abc"] = &indexing.TermStats{IDF: 0.7, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}, "relaxed.go": {TF: 1}, "minimal.go": {TF: 1}}}
 	index.Terms["x"] = &indexing.TermStats{IDF: 0.8, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}, "relaxed.go": {TF: 1}, "minimal.go": {TF: 1}}}
 	index.Terms["y"] = &indexing.TermStats{IDF: 0.9, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}, "relaxed.go": {TF: 1}}}
 	index.Terms["int"] = &indexing.TermStats{IDF: 1.0, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}, "relaxed.go": {TF: 1}}}
 	index.Terms["10"] = &indexing.TermStats{IDF: 1.1, Docs: map[string]*indexing.DocTermStats{"full.go": {TF: 1}}}
-
 	return index
 }
 
-func TestSearchCommandServiceANDRelaxationReturnsResultsWhenStrictANDIsEmpty(t *testing.T) {
-	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
+func relaxationFileReader(rootDir string) fakeSearchFileReader {
+	return fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
 		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
 		filepath.Join(rootDir, "minimal.go"): "func abc x",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
-
-	err := service.RunWithOptions("func abc x y int missing", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
-	if response["count"] == float64(0) {
-		t.Fatal("expected relaxation to return results when strict AND is empty")
-	}
 }
 
-func TestSearchCommandServiceANDRelaxationRanksByMatchedTokenCount(t *testing.T) {
+func TestSearchCommandService_ANDRelaxation_ReturnsResultsWhenStrictANDIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
-		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
-		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
-		filepath.Join(rootDir, "minimal.go"): "func abc x",
-	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, relaxationFileReader(rootDir), repo)
 
-	err := service.RunWithOptions("func abc x y int 10", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("func abc x y int missing",
+		search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
+	assert.NotEqual(t, float64(0), response["count"], "expected relaxation to return results")
+}
 
+func TestSearchCommandService_ANDRelaxation_RanksByMatchedTokenCount(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	rootDir := filepath.Join(string(filepath.Separator), "repo")
+	tree := searchTreeWithIndexes(rootDir, nil)
+	out := &capturingTextOutput{}
+	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
+	service := newSearchCommandServiceForFunctionalTests(tree, out, relaxationFileReader(rootDir), repo)
+
+	// Act
+	require.NoError(t, service.RunWithOptions("func abc x y int 10",
+		search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2}))
+
+	// Assert
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
-	if len(results) < 2 {
-		t.Fatalf("expected at least 2 results, got %d", len(results))
-	}
-
+	require.GreaterOrEqual(t, len(results), 2)
 	first := results[0].(map[string]any)["file"].(string)
 	second := results[1].(map[string]any)["file"].(string)
-	if (first != "full.go" && first != "./full.go") || (second != "relaxed.go" && second != "./relaxed.go") {
-		t.Fatalf("expected higher term coverage order [full.go, relaxed.go], got [%q, %q]", first, second)
-	}
+	assert.True(t, first == "full.go" || first == "./full.go", "expected full.go first, got %q", first)
+	assert.True(t, second == "relaxed.go" || second == "./relaxed.go", "expected relaxed.go second, got %q", second)
 }
 
-func TestSearchCommandServiceANDRelaxationDropsSecondTokenWhenThresholdIsGreaterThanOne(t *testing.T) {
+func TestSearchCommandService_ANDRelaxation_DropsSecondTokenWhenThresholdIsGreaterThanOne(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
-		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
-		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
-		filepath.Join(rootDir, "minimal.go"): "func abc x",
-	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, relaxationFileReader(rootDir), repo)
 
-	err := service.RunWithOptions("func xpto", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 1})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("func xpto",
+		search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 1}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
-	if response["count"] == float64(0) {
-		t.Fatal("expected relaxation >1 to keep first token and return func matches")
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
+	assert.NotEqual(t, float64(0), response["count"], "expected relaxation >1 to keep first token")
 }
 
-func TestSearchCommandServiceANDRelaxationThresholdIsDynamic(t *testing.T) {
+func TestSearchCommandService_ANDRelaxation_ThresholdIsDynamic(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexForRelaxation()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
-		filepath.Join(rootDir, "full.go"):    "func abc x y int 10",
-		filepath.Join(rootDir, "relaxed.go"): "func abc x y int",
-		filepath.Join(rootDir, "minimal.go"): "func abc x",
-	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
 
-	err := service.RunWithOptions("func xpto", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act — 2-term query with >2 threshold: no results
+	out1 := &capturingTextOutput{}
+	svc1 := newSearchCommandServiceForFunctionalTests(tree, out1, relaxationFileReader(rootDir), repo)
+	require.NoError(t, svc1.RunWithOptions("func xpto",
+		search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2}))
+	var r1 map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out1.lines[0]), &r1))
+	assert.Equal(t, float64(0), r1["count"])
 
-	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
-	if response["count"] != float64(0) {
-		t.Fatalf("expected no relaxed results for 2-term query with >2 threshold, got %v", response["count"])
-	}
-
-	output.lines = nil
-	err = service.RunWithOptions("func abc xpto", search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
-	if response["count"] == float64(0) {
-		t.Fatal("expected 3-term query with >2 threshold to relax and return results")
-	}
+	// Act — 3-term query with >2 threshold: should relax and return results
+	out2 := &capturingTextOutput{}
+	svc2 := newSearchCommandServiceForFunctionalTests(tree, out2, relaxationFileReader(rootDir), repo)
+	require.NoError(t, svc2.RunWithOptions("func abc xpto",
+		search.Options{Format: search.OutputJSON, Operator: search.OperatorAND, RelaxationEnabled: true, RelaxationMinExclusive: 2}))
+	var r2 map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out2.lines[0]), &r2))
+	assert.NotEqual(t, float64(0), r2["count"], "expected 3-term query with >2 threshold to relax")
 }

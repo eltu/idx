@@ -10,120 +10,120 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"idx/internal/shared/filesystem"
 )
 
 // ---- watchNewDirectory ----
 
-func TestWatchNewDirectoryNonCreateEventIsNoop(t *testing.T) {
+func TestWatchNewDirectory_NonCreateEvent_IsNoop(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
 	event := fsnotify.Event{Op: fsnotify.Write, Name: filepath.Join(root, "file.go")}
-	if err := svc.watchNewDirectory(event, watcher, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error for non-Create event: %v", err)
-	}
+
+	// Act & Assert
+	require.NoError(t, svc.watchNewDirectory(event, watcher, root, neverMatcher{}))
 }
 
-func TestWatchNewDirectoryCreateEventOnFileIsNoop(t *testing.T) {
+func TestWatchNewDirectory_CreateEventOnFile_IsNoop(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	file := filepath.Join(root, "new.go")
-	if err := os.WriteFile(file, []byte("package x"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
+	require.NoError(t, os.WriteFile(file, []byte("package x"), 0644))
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
 	event := fsnotify.Event{Op: fsnotify.Create, Name: file}
-	if err := svc.watchNewDirectory(event, watcher, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error for Create event on file: %v", err)
-	}
+
+	// Act & Assert
+	require.NoError(t, svc.watchNewDirectory(event, watcher, root, neverMatcher{}))
 }
 
-func TestWatchNewDirectoryCreateEventOnNewDirAddsWatch(t *testing.T) {
+func TestWatchNewDirectory_CreateEventOnNewDir_AddsWatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	newDir := filepath.Join(root, "newpkg")
-	if err := os.Mkdir(newDir, 0755); err != nil {
-		t.Fatalf("failed to create dir: %v", err)
-	}
+	require.NoError(t, os.Mkdir(newDir, 0755))
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
 	event := fsnotify.Event{Op: fsnotify.Create, Name: newDir}
-	if err := svc.watchNewDirectory(event, watcher, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error for Create event on directory: %v", err)
-	}
+
+	// Act & Assert
+	require.NoError(t, svc.watchNewDirectory(event, watcher, root, neverMatcher{}))
 }
 
-func TestWatchNewDirectoryOutsideRootIsNoop(t *testing.T) {
+func TestWatchNewDirectory_OutsideRoot_IsNoop(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	outside := filepath.Join(filepath.Dir(root), "outside")
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
 	event := fsnotify.Event{Op: fsnotify.Create, Name: outside}
-	if err := svc.watchNewDirectory(event, watcher, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error for outside-root Create: %v", err)
-	}
+
+	// Act & Assert
+	require.NoError(t, svc.watchNewDirectory(event, watcher, root, neverMatcher{}))
 }
 
 // ---- writeWatchBatchSummary ----
 
-func TestWriteWatchBatchSummaryWritesOutput(t *testing.T) {
+func TestWriteWatchBatchSummary_WritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
-
 	dirs := []string{"/repo/pkg", "/repo/cmd"}
 	files := map[string]struct{}{"pkg/svc.go": {}, "cmd/main.go": {}}
 
-	if err := svc.writeWatchBatchSummary(dirs, files); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output from writeWatchBatchSummary")
-	}
-	joined := strings.Join(out.lines, "\n")
-	if !strings.Contains(joined, "2 dir(s)") {
-		t.Fatalf("expected dir count in summary, got %q", joined)
-	}
+	// Act
+	require.NoError(t, svc.writeWatchBatchSummary(dirs, files))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
+	assert.Contains(t, strings.Join(out.lines, "\n"), "2 dir(s)")
 }
 
-func TestWriteWatchBatchSummaryNoFilesShowsStructuralChange(t *testing.T) {
+func TestWriteWatchBatchSummary_NoFiles_ShowsStructuralChange(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	if err := svc.writeWatchBatchSummary([]string{"/repo"}, map[string]struct{}{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	joined := strings.Join(out.lines, "\n")
-	if !strings.Contains(joined, "structural change") {
-		t.Fatalf("expected 'structural change' for empty files, got %q", joined)
-	}
+	// Act
+	require.NoError(t, svc.writeWatchBatchSummary([]string{"/repo"}, map[string]struct{}{}))
+
+	// Assert
+	assert.Contains(t, strings.Join(out.lines, "\n"), "structural change")
 }
 
 // ---- flushWatchedBatch with ErrNotExist on removeDirectoryIndex ----
 
-func TestFlushWatchedBatchSkipsDirectoryWhenRemoveNotExist(t *testing.T) {
+func TestFlushWatchedBatch_SkipsDirectoryWhenRemoveNotExist(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	targetDir := filepath.Join(root, "pkg")
 	out := &internalWatchOutput{}
@@ -135,10 +135,12 @@ func TestFlushWatchedBatchSkipsDirectoryWhenRemoveNotExist(t *testing.T) {
 	svc.output = out
 
 	pending := map[string]struct{}{targetDir: {}}
+
+	// Act
 	err := svc.flushWatchedBatch(pending, map[string]struct{}{}, root, neverMatcher{}, false)
-	if err != nil {
-		t.Fatalf("expected ErrNotExist to be silently skipped, got %v", err)
-	}
+
+	// Assert
+	require.NoError(t, err, "ErrNotExist should be silently skipped")
 }
 
 // removeNotExistProjectTree returns empty ReadDir (no files) and os.ErrNotExist from RemoveAll.
@@ -155,144 +157,134 @@ func (t *removeNotExistProjectTree) RemoveAll(_ string) error           { return
 
 // ---- addRecursiveWatches ----
 
-func TestAddRecursiveWatchesSkipsSystemDirectory(t *testing.T) {
+func TestAddRecursiveWatches_SkipsSystemDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	gitDir := filepath.Join(root, ".git")
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
-	// .git should be skipped immediately — no error
-	if err := svc.addRecursiveWatches(watcher, gitDir, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error for system directory: %v", err)
-	}
+
+	// Act & Assert — .git should be skipped immediately
+	require.NoError(t, svc.addRecursiveWatches(watcher, gitDir, root, neverMatcher{}))
 }
 
-func TestAddRecursiveWatchesAddsRealDirectory(t *testing.T) {
+func TestAddRecursiveWatches_AddsRealDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	subdir := filepath.Join(root, "pkg")
-	if err := os.Mkdir(subdir, 0755); err != nil {
-		t.Fatalf("failed to create subdir: %v", err)
-	}
-
+	require.NoError(t, os.Mkdir(subdir, 0755))
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	tree := &realDirProjectTree{root: root}
 	svc := newWatchService(root)
 	svc.projectTree = tree
 
-	if err := svc.addRecursiveWatches(watcher, root, root, neverMatcher{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	// Act & Assert
+	require.NoError(t, svc.addRecursiveWatches(watcher, root, root, neverMatcher{}))
 }
 
 // ---- addWatchPath ----
 
-func TestAddWatchPathNonExistentReturnsError(t *testing.T) {
+func TestAddWatchPath_NonExistent_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
 
-	err = addWatchPath(watcher, "/nonexistent/xyz/abc")
-	if err == nil {
-		t.Fatal("expected error for non-existent watch path")
-	}
+	// Act & Assert
+	require.Error(t, addWatchPath(watcher, "/nonexistent/xyz/abc"))
 }
 
-func TestAddWatchPathExistingDirSucceeds(t *testing.T) {
+func TestAddWatchPath_ExistingDir_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
 
-	if err := addWatchPath(watcher, dir); err != nil {
-		t.Fatalf("unexpected error for existing dir: %v", err)
-	}
+	// Act & Assert
+	require.NoError(t, addWatchPath(watcher, dir))
 }
 
-func TestAddWatchPathIdempotentForAlreadyWatched(t *testing.T) {
+func TestAddWatchPath_IdempotentForAlreadyWatched(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
 
-	// First add
-	if err := addWatchPath(watcher, dir); err != nil {
-		t.Fatalf("unexpected error on first add: %v", err)
-	}
-	// Second add of same path — should be idempotent
-	if err := addWatchPath(watcher, dir); err != nil {
-		t.Fatalf("unexpected error on duplicate add: %v", err)
-	}
+	// Act — first and second add of same path should both succeed
+	require.NoError(t, addWatchPath(watcher, dir))
+	require.NoError(t, addWatchPath(watcher, dir))
 }
 
 // ---- consumeWatchEvents ----
 
-func TestConsumeWatchEventsExitsWhenWatcherClosed(t *testing.T) {
+func TestConsumeWatchEvents_ExitsWhenWatcherClosed(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
-
+	require.NoError(t, err)
 	svc := newWatchService(root)
 	done := make(chan error, 1)
+
+	// Act
 	go func() {
 		done <- svc.consumeWatchEvents(context.Background(), watcher, root, neverMatcher{}, false, 50*time.Millisecond)
 	}()
-
 	watcher.Close()
 
+	// Assert
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected nil when watcher is closed, got %v", err)
-		}
+		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for consumeWatchEvents to return")
 	}
 }
 
-func TestConsumeWatchEventsFlushesAfterDebounce(t *testing.T) {
+func TestConsumeWatchEvents_FlushesAfterDebounce(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	out := &internalWatchOutput{}
-
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
-	if err := watcher.Add(root); err != nil {
-		t.Fatalf("failed to add watch: %v", err)
-	}
-
+	require.NoError(t, err)
+	require.NoError(t, watcher.Add(root))
 	svc := newWatchService(root)
 	svc.output = out
 	done := make(chan error, 1)
+
+	// Act
 	go func() {
 		done <- svc.consumeWatchEvents(context.Background(), watcher, root, neverMatcher{}, false, 30*time.Millisecond)
 	}()
 
 	// Write a file to trigger an event.
-	testFile := filepath.Join(root, "trigger.go")
-	_ = os.WriteFile(testFile, []byte("package x"), 0644)
+	_ = os.WriteFile(filepath.Join(root, "trigger.go"), []byte("package x"), 0644)
 
-	// Wait enough for the debounce timer to fire and flush, then close the watcher.
+	// Sleep 200ms for the debounce timer (30ms) to fire and flush before closing.
+	// This sleep is intentional: we're testing real FS-event debounce timing.
 	time.Sleep(200 * time.Millisecond)
 	watcher.Close()
 
+	// Assert
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
@@ -302,31 +294,34 @@ func TestConsumeWatchEventsFlushesAfterDebounce(t *testing.T) {
 
 // ---- writeWatchHeader ----
 
-func TestWriteWatchHeaderWritesOutput(t *testing.T) {
-	root := t.TempDir()
+func TestWriteWatchHeader_WritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
-	svc := newWatchService(root)
+	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	if err := svc.writeWatchHeader(root, 250*time.Millisecond); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output from writeWatchHeader")
-	}
+	// Act
+	require.NoError(t, svc.writeWatchHeader(t.TempDir(), 250*time.Millisecond))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
 }
 
 // ---- createFileWatcher error path ----
 
-func TestCreateFileWatcherReturnsErrorWhenReadDirFails(t *testing.T) {
+func TestCreateFileWatcher_ReturnsErrorWhenReadDirFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.projectTree = &readDirErrTree{root: root}
 
+	// Act & Assert
 	_, err := svc.createFileWatcher(root, neverMatcher{})
-	if err == nil {
-		t.Fatal("expected error when projectTree.ReadDir fails in addRecursiveWatches")
-	}
+	require.Error(t, err)
 }
 
 // readDirErrTree fails ReadDir for any path.
@@ -343,162 +338,169 @@ func (t *readDirErrTree) RemoveAll(_ string) error           { return nil }
 
 // ---- addRecursiveWatches error path ----
 
-func TestAddRecursiveWatchesReturnsErrorForNonExistentPath(t *testing.T) {
+func TestAddRecursiveWatches_ReturnsErrorForNonExistentPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
-	nonExistent := filepath.Join(root, "doesnotexist")
-
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
-	err = svc.addRecursiveWatches(watcher, nonExistent, root, neverMatcher{})
-	if err == nil {
-		t.Fatal("expected error for non-existent directory")
-	}
+
+	// Act & Assert
+	require.Error(t, svc.addRecursiveWatches(watcher, filepath.Join(root, "doesnotexist"), root, neverMatcher{}))
 }
 
-func TestAddRecursiveWatchesSkipsIgnoredDirectory(t *testing.T) {
+func TestAddRecursiveWatches_SkipsIgnoredDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	vendorDir := filepath.Join(root, "vendor")
-	if err := os.Mkdir(vendorDir, 0755); err != nil {
-		t.Fatalf("failed to create vendor: %v", err)
-	}
-
+	require.NoError(t, os.Mkdir(vendorDir, 0755))
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatalf("failed to create watcher: %v", err)
-	}
+	require.NoError(t, err)
 	defer watcher.Close()
-
 	svc := newWatchService(root)
-	// alwaysMatcher ignores vendor — addRecursiveWatches should return nil without watching it.
-	if err := svc.addRecursiveWatches(watcher, vendorDir, root, alwaysMatcher{}); err != nil {
-		t.Fatalf("unexpected error for ignored directory: %v", err)
-	}
+
+	// alwaysMatcher ignores vendor — addRecursiveWatches should return nil without watching it
+	require.NoError(t, svc.addRecursiveWatches(watcher, vendorDir, root, alwaysMatcher{}))
 }
 
 // ---- createFileWatcher success path ----
 
-func TestCreateFileWatcherSucceedsForRealDir(t *testing.T) {
+func TestCreateFileWatcher_SucceedsForRealDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
-	// internalWatchProjectTree returns nil,nil for ReadDir, so addRecursiveWatches succeeds.
+
+	// Act — internalWatchProjectTree returns nil,nil for ReadDir, so addRecursiveWatches succeeds
 	watcher, err := svc.createFileWatcher(root, neverMatcher{})
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
+
+	// Assert
+	require.NoError(t, err)
 	defer watcher.Close()
 }
 
 // ---- isWithinRoot with unreachable relative path ----
 
-func TestIsWithinRootReturnsFalseForDotDotPath(t *testing.T) {
+func TestIsWithinRoot_ReturnsFalseForDotDotPath(t *testing.T) {
+	t.Parallel()
+
 	// filepath.Rel returns a path starting with ".." when path is outside root.
-	if isWithinRoot("/a/b/c", "/a/b") {
-		t.Fatal("expected false for parent path")
-	}
+	assert.False(t, isWithinRoot("/a/b/c", "/a/b"))
 }
 
 // ---- writeWatchFileList with files under limit ----
 
-func TestWriteWatchFileListWithFilesUnderLimit(t *testing.T) {
+func TestWriteWatchFileList_FilesUnderLimit_WritesAll(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	files := []string{"a.go", "b.go"}
-	if err := svc.writeWatchFileList(files); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Each file + trailing blank line.
-	if len(out.lines) < 3 {
-		t.Fatalf("expected at least 3 lines, got %d: %v", len(out.lines), out.lines)
-	}
+	// Act
+	require.NoError(t, svc.writeWatchFileList([]string{"a.go", "b.go"}))
+
+	// Assert — each file + trailing blank line
+	assert.GreaterOrEqual(t, len(out.lines), 3)
 }
 
 // ---- writeUpdatedFiles error-free path ----
 
-func TestWriteUpdatedFilesWithSingleFile(t *testing.T) {
+func TestWriteUpdatedFiles_SingleFile_WritesFileName(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	if err := svc.writeUpdatedFiles(map[string]struct{}{"main.go": {}}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	joined := strings.Join(out.lines, "\n")
-	if !strings.Contains(joined, "main.go") {
-		t.Fatalf("expected file name in output, got %q", joined)
-	}
+	// Act
+	require.NoError(t, svc.writeUpdatedFiles(map[string]struct{}{"main.go": {}}))
+
+	// Assert
+	assert.Contains(t, strings.Join(out.lines, "\n"), "main.go")
 }
 
-// ---- isIgnoredPath with relative-path error (unreachable in practice) ----
+// ---- isIgnoredPath with relative-path error ----
 
-func TestIsIgnoredPathReturnsFalseForRelativePath(t *testing.T) {
+func TestIsIgnoredPath_ReturnsFalseForRelativePath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	child := filepath.Join(root, "pkg")
-	// neverMatcher always returns false.
+
+	// Act — neverMatcher always returns false
 	ignored, err := isIgnoredPath(root, child, false, neverMatcher{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ignored {
-		t.Fatal("expected false from neverMatcher for child path")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.False(t, ignored)
 }
 
 // ---- resetDebounceTimer drains expired channel ----
 
-func TestResetDebounceTimerDrainsExpiredChannel(t *testing.T) {
-	debounce := 1 * time.Millisecond
-	// Create a timer that fires immediately.
-	first, _ := resetDebounceTimer(nil, debounce)
+func TestResetDebounceTimer_DrainsExpiredChannel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — create a timer that fires immediately
+	first, _ := resetDebounceTimer(nil, 1*time.Millisecond)
 	time.Sleep(5 * time.Millisecond) // let timer fire
-	// Reset the already-fired timer; the drain branch executes.
-	second, ch := resetDebounceTimer(first, debounce)
-	if second == nil || ch == nil {
-		t.Fatal("expected non-nil timer and channel after draining")
-	}
+
+	// Act — reset the already-fired timer; the drain branch executes
+	second, ch := resetDebounceTimer(first, 1*time.Millisecond)
+
+	// Assert
+	require.NotNil(t, second)
+	require.NotNil(t, ch)
 	second.Stop()
 }
 
 // ---- resolveWatchContext error paths ----
 
-func TestResolveWatchContextCurrentDirError(t *testing.T) {
-	tree := &errCurrentDirTree{}
+func TestResolveWatchContext_CurrentDirError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	svc := newWatchService(t.TempDir())
-	svc.projectTree = tree
+	svc.projectTree = &errCurrentDirTree{}
 
+	// Act & Assert
 	_, _, err := svc.resolveWatchContext()
-	if err == nil {
-		t.Fatal("expected error when CurrentDir fails")
-	}
+	require.Error(t, err)
 }
 
-func TestResolveWatchContextFindGitRootError(t *testing.T) {
+func TestResolveWatchContext_FindGitRootError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
-	tree := &errGitRootTree{root: root}
 	svc := newWatchService(root)
-	svc.projectTree = tree
+	svc.projectTree = &errGitRootTree{root: root}
 
+	// Act & Assert
 	_, _, err := svc.resolveWatchContext()
-	if err == nil {
-		t.Fatal("expected error when FindGitRoot fails")
-	}
+	require.Error(t, err)
 }
 
-func TestResolveWatchContextMatcherFactoryError(t *testing.T) {
+func TestResolveWatchContext_MatcherFactoryError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.matcherFactory = &errMatcherFactory{}
 
+	// Act & Assert
 	_, _, err := svc.resolveWatchContext()
-	if err == nil {
-		t.Fatal("expected error when matcherFactory.New fails")
-	}
+	require.Error(t, err)
 }
 
 type errCurrentDirTree struct{}
@@ -531,41 +533,41 @@ func (errMatcherFactory) New(_ string) (filesystem.IgnoreMatcher, error) {
 
 // ---- watchLoop error propagation from resolveWatchContext ----
 
-func TestWatchLoopPropagatesResolveWatchContextError(t *testing.T) {
+func TestWatchLoop_PropagatesResolveWatchContextError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.projectTree = &errCurrentDirTree{}
 
-	err := svc.watchLoop(false, 100*time.Millisecond)
-	if err == nil {
-		t.Fatal("expected error from watchLoop when resolveWatchContext fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.watchLoop(false, 100*time.Millisecond))
 }
 
-func TestWatchLoopUsesDefaultDebounceWhenZero(t *testing.T) {
+func TestWatchLoop_UsesDefaultDebounceWhenZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — debounce <= 0 → default is applied, then resolveWatchContext fails
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.projectTree = &errCurrentDirTree{}
 
-	// debounce <= 0 → default is applied, then resolveWatchContext fails.
-	err := svc.watchLoop(false, 0)
-	if err == nil {
-		t.Fatal("expected error from watchLoop when resolveWatchContext fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.watchLoop(false, 0))
 }
 
-func TestWatchLoopWriteWatchHeaderFailureReturnsError(t *testing.T) {
+func TestWatchLoop_WriteWatchHeaderFailure_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — resolveWatchContext succeeds → createFileWatcher succeeds → writeWatchHeader fails
 	root := t.TempDir()
 	svc := newWatchService(root)
-	// Use a tree where Exists returns true so ensureRootIndex skips index creation.
 	svc.projectTree = &alwaysExistsWatchTree{root: root}
 	svc.output = &failFirstOutput{}
 
-	// resolveWatchContext succeeds → createFileWatcher succeeds → writeWatchHeader fails.
-	err := svc.watchLoop(false, 50*time.Millisecond)
-	if err == nil {
-		t.Fatal("expected error when writeWatchHeader fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.watchLoop(false, 50*time.Millisecond))
 }
 
 // alwaysExistsWatchTree returns true for all Exists calls and empty ReadDir.
@@ -593,14 +595,16 @@ func (o *failFirstOutput) WriteLine(_ string) error {
 
 // ---- ensureRootIndex error paths ----
 
-func TestEnsureRootIndexReturnsErrorWhenExistsFails(t *testing.T) {
+func TestEnsureRootIndex_ReturnsErrorWhenExistsFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.projectTree = &errExistsTree{root: root}
 
-	if err := svc.ensureRootIndex(root, neverMatcher{}); err == nil {
-		t.Fatal("expected error when Exists fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.ensureRootIndex(root, neverMatcher{}))
 }
 
 // errExistsTree returns an error from Exists.
@@ -617,27 +621,30 @@ func (t *errExistsTree) RemoveAll(_ string) error           { return nil }
 
 // ---- resolveWatchContext additional error paths ----
 
-func TestResolveWatchContextEnsureRootIndexError(t *testing.T) {
+func TestResolveWatchContext_EnsureRootIndexError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	svc.projectTree = &errExistsTree{root: root}
 
+	// Act & Assert
 	_, _, err := svc.resolveWatchContext()
-	if err == nil {
-		t.Fatal("expected error when ensureRootIndex fails")
-	}
+	require.Error(t, err)
 }
 
-func TestResolveWatchContextSyncBeforeWatchError(t *testing.T) {
+func TestResolveWatchContext_SyncBeforeWatchError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — Exists returns true (skip index creation) but ReadDir fails (syncAllDirectoriesBeforeWatch fails)
 	root := t.TempDir()
 	svc := newWatchService(root)
-	// Exists returns true (skip index creation) but ReadDir fails (syncAllDirectoriesBeforeWatch fails).
 	svc.projectTree = &existsButReadDirErrTree{root: root}
 
+	// Act & Assert
 	_, _, err := svc.resolveWatchContext()
-	if err == nil {
-		t.Fatal("expected error when syncAllDirectoriesBeforeWatch fails")
-	}
+	require.Error(t, err)
 }
 
 // existsButReadDirErrTree returns true for Exists and error for ReadDir.
@@ -654,65 +661,75 @@ func (t *existsButReadDirErrTree) RemoveAll(_ string) error           { return n
 
 // ---- trackEventFiles ignored path ----
 
-func TestTrackEventFilesIgnoresMatchedPath(t *testing.T) {
+func TestTrackEventFiles_IgnoresMatchedPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	file := filepath.Join(root, "vendor.go")
-	if err := os.WriteFile(file, []byte("x"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
 	svc := newWatchService(root)
 	pending := make(map[string]struct{})
+
+	// Act
 	svc.trackEventFiles(fsnotify.Event{Op: fsnotify.Write, Name: file}, root, alwaysMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected ignored file to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
 // ---- trackEventDirectories ignored path ----
 
-func TestTrackEventDirectoriesIgnoresMatchedPath(t *testing.T) {
+func TestTrackEventDirectories_IgnoresMatchedPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	vendorDir := filepath.Join(root, "vendor")
-	if err := os.Mkdir(vendorDir, 0755); err != nil {
-		t.Fatalf("failed to create dir: %v", err)
-	}
-
+	require.NoError(t, os.Mkdir(vendorDir, 0755))
 	svc := newWatchService(root)
 	pending := make(map[string]struct{})
+
+	// Act
 	svc.trackEventDirectories(fsnotify.Event{Op: fsnotify.Write, Name: vendorDir}, root, alwaysMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected ignored dir to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
 // ---- output error paths in watch event writers ----
 
-func TestWriteWatchFileListWriteErrorReturnsError(t *testing.T) {
+func TestWriteWatchFileList_WriteError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	svc := newWatchService(t.TempDir())
 	svc.output = &failFirstOutput{}
 
-	if err := svc.writeWatchFileList([]string{"a.go"}); err == nil {
-		t.Fatal("expected error when WriteLine fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.writeWatchFileList([]string{"a.go"}))
 }
 
-func TestWriteUpdatedFilesWriteErrorOnHeaderReturnsError(t *testing.T) {
+func TestWriteUpdatedFiles_WriteErrorOnHeader_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	svc := newWatchService(t.TempDir())
 	svc.output = &failFirstOutput{}
 
-	if err := svc.writeUpdatedFiles(map[string]struct{}{"main.go": {}}); err == nil {
-		t.Fatal("expected error when header WriteLine fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.writeUpdatedFiles(map[string]struct{}{"main.go": {}}))
 }
 
-func TestWriteWatchBatchSummaryWriteErrorReturnsError(t *testing.T) {
+func TestWriteWatchBatchSummary_WriteError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	svc := newWatchService(t.TempDir())
 	svc.output = &failFirstOutput{}
 
-	if err := svc.writeWatchBatchSummary([]string{"/repo"}, map[string]struct{}{}); err == nil {
-		t.Fatal("expected error when summary WriteLine fails")
-	}
+	// Act & Assert
+	require.Error(t, svc.writeWatchBatchSummary([]string{"/repo"}, map[string]struct{}{}))
 }
 
 // realDirProjectTree reads from the real filesystem.
@@ -743,10 +760,7 @@ func (t *realDirProjectTree) ReadDir(dir string) ([]filesystem.DirectoryEntry, e
 }
 func (t *realDirProjectTree) Exists(path string) (bool, error) {
 	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	return false, nil
+	return err == nil, nil
 }
 func (t *realDirProjectTree) WriteFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0600)

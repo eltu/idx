@@ -4,67 +4,62 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- findProjectRoot ---
 
-func TestFindProjectRootFromRootItself(t *testing.T) {
+func TestFindProjectRoot_FromRootItself_ReturnsRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".idx"), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".idx"), 0o750))
+
+	// Act
 	got, err := findProjectRoot(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != dir {
-		t.Errorf("expected %q, got %q", dir, got)
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, dir, got)
 }
 
-func TestFindProjectRootFromSubdirectory(t *testing.T) {
+func TestFindProjectRoot_FromSubdirectory_FindsRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	nested := filepath.Join(root, "internal", "core", "pkg")
-	if err := os.MkdirAll(nested, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, ".idx"), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(nested, 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".idx"), 0o750))
 
+	// Act
 	got, err := findProjectRoot(nested)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != root {
-		t.Errorf("expected root %q, got %q", root, got)
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, root, got)
 }
 
-func TestFindProjectRootReturnsErrorWhenNoDotIdx(t *testing.T) {
+func TestFindProjectRoot_NoDotIdx_ReturnsError(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir() // no .idx directory
 	_, err := findProjectRoot(dir)
-	if err == nil {
-		t.Fatal("expected error when no .idx found, got nil")
-	}
+	require.Error(t, err)
 }
 
-func TestFindProjectRootPrefersDeeperMarker(t *testing.T) {
+func TestFindProjectRoot_NestedDotIdx_StopsAtClosestAncestor(t *testing.T) {
+	t.Parallel()
+
 	// Two nested .idx directories — should stop at the closest ancestor.
 	outer := t.TempDir()
 	inner := filepath.Join(outer, "sub")
-	if err := os.MkdirAll(filepath.Join(inner, ".idx"), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(outer, ".idx"), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(inner, ".idx"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(outer, ".idx"), 0o750))
 
 	got, err := findProjectRoot(inner)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != inner {
-		t.Errorf("expected inner root %q, got %q", inner, got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, inner, got)
 }

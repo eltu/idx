@@ -7,383 +7,335 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	search "idx/internal/features/search"
 	"idx/internal/shared/config"
 )
 
 // ---- padRight ----
 
-func TestPadRightPadsShortString(t *testing.T) {
-	result := padRight("ab", 5)
-	if result != "ab   " {
-		t.Fatalf("expected %q, got %q", "ab   ", result)
-	}
+func TestPadRight_ShortString_PaddedToWidth(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "ab   ", padRight("ab", 5))
 }
 
-func TestPadRightDoesNotTrimWhenAlreadyWide(t *testing.T) {
-	result := padRight("abcde", 3)
-	if result != "abcde" {
-		t.Fatalf("expected unchanged string, got %q", result)
-	}
+func TestPadRight_AlreadyWide_NotTrimmed(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "abcde", padRight("abcde", 3))
 }
 
-func TestPadRightExactWidthIsUnchanged(t *testing.T) {
-	result := padRight("abc", 3)
-	if result != "abc" {
-		t.Fatalf("expected %q, got %q", "abc", result)
-	}
+func TestPadRight_ExactWidth_Unchanged(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "abc", padRight("abc", 3))
 }
 
 // ---- formatConfigFloat ----
 
-func TestFormatConfigFloatRendersDecimal(t *testing.T) {
-	got := formatConfigFloat(1.5)
-	if got != "1.5" {
-		t.Fatalf("expected 1.5, got %q", got)
-	}
+func TestFormatConfigFloat_Decimal_RendersCorrectly(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "1.5", formatConfigFloat(1.5))
 }
 
-func TestFormatConfigFloatRendersZero(t *testing.T) {
-	got := formatConfigFloat(0)
-	if got != "0" {
-		t.Fatalf("expected 0, got %q", got)
-	}
+func TestFormatConfigFloat_Zero_RendersZero(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "0", formatConfigFloat(0))
 }
 
 // ---- formatIgnorePatterns ----
 
-func TestFormatIgnorePatternsEmptySliceReturnsBrackets(t *testing.T) {
-	got := formatIgnorePatterns(nil)
-	if got != "[]" {
-		t.Fatalf("expected [], got %q", got)
-	}
+func TestFormatIgnorePatterns_NilSlice_ReturnsBrackets(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "[]", formatIgnorePatterns(nil))
 }
 
-func TestFormatIgnorePatternsMultiplePatterns(t *testing.T) {
-	got := formatIgnorePatterns([]string{"vendor", "*.tmp"})
-	if got != "[vendor, *.tmp]" {
-		t.Fatalf("expected [vendor, *.tmp], got %q", got)
-	}
+func TestFormatIgnorePatterns_MultiplePatterns_FormatsCorrectly(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "[vendor, *.tmp]", formatIgnorePatterns([]string{"vendor", "*.tmp"}))
 }
 
 // ---- configTableColumnWidths ----
 
-func TestConfigTableColumnWidthsFindsLongest(t *testing.T) {
+func TestConfigTableColumnWidths_FindsLongestKeyAndValue(t *testing.T) {
+	t.Parallel()
 	rows := []configRow{
 		{key: "ab", value: "x"},
 		{key: "long_key", value: "longer_val"},
 	}
 	maxKey, maxVal := configTableColumnWidths(rows)
-	if maxKey != 8 {
-		t.Fatalf("expected maxKey=8, got %d", maxKey)
-	}
-	if maxVal != 10 {
-		t.Fatalf("expected maxVal=10, got %d", maxVal)
-	}
+	assert.Equal(t, 8, maxKey)
+	assert.Equal(t, 10, maxVal)
 }
 
-func TestConfigTableColumnWidthsEmptyRows(t *testing.T) {
+func TestConfigTableColumnWidths_EmptyRows_ReturnsZeros(t *testing.T) {
+	t.Parallel()
 	maxKey, maxVal := configTableColumnWidths(nil)
-	if maxKey != 0 || maxVal != 0 {
-		t.Fatalf("expected 0,0 for empty rows, got %d,%d", maxKey, maxVal)
-	}
+	assert.Equal(t, 0, maxKey)
+	assert.Equal(t, 0, maxVal)
 }
 
 // ---- canExecuteWithCobra ----
 
-func TestCanExecuteWithCobraKnownCommands(t *testing.T) {
+func TestCanExecuteWithCobra_KnownCommands_ReturnTrue(t *testing.T) {
+	t.Parallel()
 	known := []string{"sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v"}
 	for _, cmd := range known {
-		if !canExecuteWithCobra(cmd) {
-			t.Errorf("expected %q to be executable with cobra", cmd)
-		}
+		cmd := cmd
+		t.Run(cmd, func(t *testing.T) {
+			t.Parallel()
+			assert.True(t, canExecuteWithCobra(cmd), "expected %q to be executable with cobra", cmd)
+		})
 	}
 }
 
-func TestCanExecuteWithCobraUnknownCommand(t *testing.T) {
-	if canExecuteWithCobra("unknown") {
-		t.Fatal("expected unknown command to return false")
-	}
+func TestCanExecuteWithCobra_UnknownCommand_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+	assert.False(t, canExecuteWithCobra("unknown"))
 }
 
-func TestCanExecuteWithCobraEmptyString(t *testing.T) {
-	if canExecuteWithCobra("") {
-		t.Fatal("expected empty string to return false")
-	}
+func TestCanExecuteWithCobra_EmptyString_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+	assert.False(t, canExecuteWithCobra(""))
 }
 
 // ---- parseInspectArguments ----
 
-func TestParseInspectArgumentsNoArgsReturnsEmpty(t *testing.T) {
+func TestParseInspectArguments_NoArgs_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	path, err := parseInspectArguments(nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if path != "" {
-		t.Fatalf("expected empty path, got %q", path)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, path)
 }
 
-func TestParseInspectArgumentsSingleArgReturnsPath(t *testing.T) {
+func TestParseInspectArguments_SingleArg_ReturnsPath(t *testing.T) {
+	t.Parallel()
 	path, err := parseInspectArguments([]string{"/some/dir"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if path != "/some/dir" {
-		t.Fatalf("expected /some/dir, got %q", path)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "/some/dir", path)
 }
 
-func TestParseInspectArgumentsTooManyArgsReturnsError(t *testing.T) {
+func TestParseInspectArguments_TooManyArgs_ReturnsError(t *testing.T) {
+	t.Parallel()
 	_, err := parseInspectArguments([]string{"a", "b"})
-	if err == nil {
-		t.Fatal("expected error for multiple arguments, got nil")
-	}
+	require.Error(t, err)
 }
 
-func TestParseInspectArgumentsFlagLikeArgReturnsError(t *testing.T) {
+func TestParseInspectArguments_FlagLikeArg_ReturnsError(t *testing.T) {
+	t.Parallel()
 	_, err := parseInspectArguments([]string{"--foo"})
-	if err == nil {
-		t.Fatal("expected error for flag-like argument, got nil")
-	}
+	require.Error(t, err)
 }
 
 // ---- LineWriter ----
 
-func TestLineWriterWriteLineWritesToTarget(t *testing.T) {
+func TestLineWriter_WriteLine_WritesToTarget(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	buf := &bytes.Buffer{}
 	w := NewLineWriter(buf)
-	if err := w.WriteLine("hello"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(buf.String(), "hello") {
-		t.Fatalf("expected output to contain 'hello', got %q", buf.String())
-	}
+
+	// Act
+	err := w.WriteLine("hello")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "hello")
 }
 
-func TestLineWriterSetQuietSuppressesOutput(t *testing.T) {
+func TestLineWriter_SetQuiet_SuppressesOutput(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	w := NewLineWriter(buf)
 	w.SetQuiet(true)
 	_ = w.WriteLine("suppressed")
-	if buf.Len() != 0 {
-		t.Fatalf("expected no output when quiet, got %q", buf.String())
-	}
+	assert.Empty(t, buf.String())
 }
 
-func TestLineWriterWriteInlineWritesWithoutNewline(t *testing.T) {
+func TestLineWriter_WriteInline_WritesWithoutNewline(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	w := NewLineWriter(buf)
 	_ = w.WriteInline("partial")
-	if !strings.Contains(buf.String(), "partial") {
-		t.Fatalf("expected output to contain 'partial', got %q", buf.String())
-	}
-	if strings.HasSuffix(buf.String(), "\n") {
-		t.Fatal("expected no trailing newline from WriteInline")
-	}
+	assert.Contains(t, buf.String(), "partial")
+	assert.False(t, strings.HasSuffix(buf.String(), "\n"), "expected no trailing newline from WriteInline")
 }
 
-func TestLineWriterWriteInlineQuietSuppresses(t *testing.T) {
+func TestLineWriter_WriteInline_QuietSuppresses(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	w := NewLineWriter(buf)
 	w.SetQuiet(true)
 	_ = w.WriteInline("suppressed")
-	if buf.Len() != 0 {
-		t.Fatalf("expected no output when quiet, got %q", buf.String())
-	}
+	assert.Empty(t, buf.String())
 }
 
 // ---- NewCommandRunner + With* builders ----
 
-func TestNewCommandRunnerHasDefaultConfig(t *testing.T) {
+func TestNewCommandRunner_HasDefaultConfig(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	def := config.DefaultIdxConfig()
-	if runner.config.Search.Format != def.Search.Format {
-		t.Fatalf("expected default search format %q, got %q", def.Search.Format, runner.config.Search.Format)
-	}
+	assert.Equal(t, def.Search.Format, runner.config.Search.Format)
 }
 
-func TestWithBuildInfoAttachesVersionAndDate(t *testing.T) {
+func TestWithBuildInfo_AttachesVersionAndDate(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithBuildInfo(BuildInfo{Version: "v1.2.3", BuildDate: "2026-01-01T00:00:00Z"})
-	if runner.buildInfo.Version != "v1.2.3" {
-		t.Fatalf("expected version v1.2.3, got %q", runner.buildInfo.Version)
-	}
+	assert.Equal(t, "v1.2.3", runner.buildInfo.Version)
 }
 
-func TestWithConfigAttachesConfigAndOverrides(t *testing.T) {
+func TestWithConfig_AttachesConfigAndOverrides(t *testing.T) {
+	t.Parallel()
 	cfg := config.DefaultIdxConfig()
 	cfg.Search.Format = search.OutputJSON
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(cfg, "/project/.idx.yml", []string{"search.format"})
-	if runner.configFilePath != "/project/.idx.yml" {
-		t.Fatalf("expected config path, got %q", runner.configFilePath)
-	}
-	if len(runner.configOverrides) != 1 || runner.configOverrides[0] != "search.format" {
-		t.Fatalf("expected overrides [search.format], got %v", runner.configOverrides)
-	}
+	assert.Equal(t, "/project/.idx.yml", runner.configFilePath)
+	assert.Equal(t, []string{"search.format"}, runner.configOverrides)
 }
 
-func TestWithQuietToggleWiresTarget(t *testing.T) {
+func TestWithQuietToggle_WiresTarget(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	writer := NewLineWriter(buf)
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithQuietToggle(writer)
-	if runner.quietToggle == nil {
-		t.Fatal("expected quietToggle to be set")
-	}
+	assert.NotNil(t, runner.quietToggle)
 }
 
 // ---- validateSearchFlagValues ----
 
-func TestValidateSearchFlagValuesNegativeContextErrors(t *testing.T) {
-	err := validateSearchFlagValues(-1, 0, 0, false)
-	if err == nil {
-		t.Fatal("expected error for negative context")
+func TestValidateSearchFlagValues_NegativeOrZeroInvalid_ReturnsError(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		context     int
+		from        int
+		size        int
+		sizeChanged bool
+	}{
+		{"negative context", -1, 0, 0, false},
+		{"negative from", 0, -1, 0, false},
+		{"negative size", 0, 0, -1, false},
+		{"zero size with sizeChanged", 0, 0, 0, true},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateSearchFlagValues(tc.context, tc.from, tc.size, tc.sizeChanged)
+			require.Error(t, err)
+		})
 	}
 }
 
-func TestValidateSearchFlagValuesNegativeFromErrors(t *testing.T) {
-	err := validateSearchFlagValues(0, -1, 0, false)
-	if err == nil {
-		t.Fatal("expected error for negative from")
-	}
-}
-
-func TestValidateSearchFlagValuesNegativeSizeErrors(t *testing.T) {
-	err := validateSearchFlagValues(0, 0, -1, false)
-	if err == nil {
-		t.Fatal("expected error for negative size")
-	}
-}
-
-func TestValidateSearchFlagValuesZeroSizeWithChangedFlagErrors(t *testing.T) {
-	err := validateSearchFlagValues(0, 0, 0, true)
-	if err == nil {
-		t.Fatal("expected error for size=0 when sizeChanged=true")
-	}
-}
-
-func TestValidateSearchFlagValuesValidInputNoError(t *testing.T) {
-	if err := validateSearchFlagValues(2, 0, 10, true); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestValidateSearchFlagValues_ValidInput_NoError(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, validateSearchFlagValues(2, 0, 10, true))
 }
 
 // ---- validateSearchFormat ----
 
-func TestValidateSearchFormatRejectsUnknown(t *testing.T) {
-	if err := validateSearchFormat("xml", false); err == nil {
-		t.Fatal("expected error for unknown format")
-	}
+func TestValidateSearchFormat_RejectsUnknown(t *testing.T) {
+	t.Parallel()
+	require.Error(t, validateSearchFormat("xml", false))
 }
 
-func TestValidateSearchFormatRejectsPrettyJSONWithTextFormat(t *testing.T) {
-	if err := validateSearchFormat(search.OutputText, true); err == nil {
-		t.Fatal("expected error when prettyJSON=true with text format")
-	}
+func TestValidateSearchFormat_RejectsPrettyJSONWithTextFormat(t *testing.T) {
+	t.Parallel()
+	require.Error(t, validateSearchFormat(search.OutputText, true))
 }
 
-func TestValidateSearchFormatAcceptsJSON(t *testing.T) {
-	if err := validateSearchFormat(search.OutputJSON, false); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestValidateSearchFormat_AcceptsJSON(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, validateSearchFormat(search.OutputJSON, false))
 }
 
 // ---- validateSearchOperator ----
 
-func TestValidateSearchOperatorRejectsUnknown(t *testing.T) {
-	if err := validateSearchOperator("XOR"); err == nil {
-		t.Fatal("expected error for unknown operator")
-	}
+func TestValidateSearchOperator_RejectsUnknown(t *testing.T) {
+	t.Parallel()
+	require.Error(t, validateSearchOperator("XOR"))
 }
 
-func TestValidateSearchOperatorAcceptsAND(t *testing.T) {
-	if err := validateSearchOperator(search.OperatorAND); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestValidateSearchOperatorAcceptsOR(t *testing.T) {
-	if err := validateSearchOperator(search.OperatorOR); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestValidateSearchOperator_AcceptsValidOperators(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, validateSearchOperator(search.OperatorAND))
+	assert.NoError(t, validateSearchOperator(search.OperatorOR))
 }
 
 // ---- validateSearchRelaxation ----
 
-func TestValidateSearchRelaxationEmptyStringIsValid(t *testing.T) {
+func TestValidateSearchRelaxation_EmptyString_IsValid(t *testing.T) {
+	t.Parallel()
 	cfg := &searchCommandConfig{operator: search.OperatorAND}
-	if err := validateSearchRelaxation(cfg); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, validateSearchRelaxation(cfg))
 }
 
-func TestValidateSearchRelaxationRequiresANDOperator(t *testing.T) {
+func TestValidateSearchRelaxation_WithOROperator_ReturnsError(t *testing.T) {
+	t.Parallel()
 	cfg := &searchCommandConfig{operator: search.OperatorOR, relaxation: ">2"}
-	if err := validateSearchRelaxation(cfg); err == nil {
-		t.Fatal("expected error when relaxation used with OR operator")
-	}
+	require.Error(t, validateSearchRelaxation(cfg))
 }
 
-func TestValidateSearchRelaxationValidFormat(t *testing.T) {
+func TestValidateSearchRelaxation_ValidFormat_ParsesCorrectly(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cfg := &searchCommandConfig{operator: search.OperatorAND, relaxation: ">2"}
-	if err := validateSearchRelaxation(cfg); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !cfg.relaxationEnabled || cfg.relaxationMin != 2 {
-		t.Fatalf("expected relaxationEnabled=true relaxationMin=2, got %v/%d", cfg.relaxationEnabled, cfg.relaxationMin)
-	}
+
+	// Act
+	err := validateSearchRelaxation(cfg)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, cfg.relaxationEnabled)
+	assert.Equal(t, 2, cfg.relaxationMin)
 }
 
-func TestValidateSearchRelaxationInvalidFormat(t *testing.T) {
+func TestValidateSearchRelaxation_MissingAngleBracket_ReturnsError(t *testing.T) {
+	t.Parallel()
 	cfg := &searchCommandConfig{operator: search.OperatorAND, relaxation: "2"}
-	if err := validateSearchRelaxation(cfg); err == nil {
-		t.Fatal("expected error for missing > prefix")
-	}
+	require.Error(t, validateSearchRelaxation(cfg))
 }
 
 // ---- formatVersionDate ----
 
-func TestFormatVersionDateValidRFC3339(t *testing.T) {
+func TestFormatVersionDate_ValidRFC3339_FormatsDate(t *testing.T) {
+	t.Parallel()
 	date := "2026-01-15T12:00:00Z"
 	result := formatVersionDate(date)
-	if result == date {
-		t.Fatal("expected formatted date, got raw RFC3339 string")
-	}
-	if !strings.Contains(result, "2026") {
-		t.Fatalf("expected year 2026 in result, got %q", result)
-	}
+	assert.NotEqual(t, date, result, "expected formatted date, got raw RFC3339 string")
+	assert.Contains(t, result, "2026")
 }
 
-func TestFormatVersionDateInvalidPassthrough(t *testing.T) {
+func TestFormatVersionDate_Invalid_PassesThrough(t *testing.T) {
+	t.Parallel()
 	raw := "not-a-date"
-	result := formatVersionDate(raw)
-	if result != raw {
-		t.Fatalf("expected passthrough for invalid date, got %q", result)
-	}
+	assert.Equal(t, raw, formatVersionDate(raw))
 }
 
 // ---- defaultConfigValues ----
 
-func TestDefaultConfigValuesHasExpectedKeys(t *testing.T) {
+func TestDefaultConfigValues_HasExpectedKeys(t *testing.T) {
+	t.Parallel()
 	def := defaultConfigValues()
 	required := []string{"search.format", "search.size", "bm25.k1", "bm25.b", "log.level"}
 	for _, key := range required {
-		if _, ok := def[key]; !ok {
-			t.Errorf("expected key %q in default config values", key)
-		}
+		assert.Contains(t, def, key)
 	}
 }
 
 // ---- buildConfigRows ----
 
-func TestBuildConfigRowsReturnsAllKeys(t *testing.T) {
+func TestBuildConfigRows_ReturnsAllKeys_IncludingSearchFormat(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	rows := buildConfigRows(runner)
-	if len(rows) == 0 {
-		t.Fatal("expected non-empty config rows")
-	}
+	require.NotEmpty(t, rows)
 	found := false
 	for _, r := range rows {
 		if r.key == "search.format" {
@@ -391,91 +343,82 @@ func TestBuildConfigRowsReturnsAllKeys(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Fatal("expected search.format in config rows")
-	}
+	assert.True(t, found, "expected search.format in config rows")
 }
 
 // ---- validateSearchInput ----
 
-func TestValidateSearchInputNoQueryAndNoFiltersErrors(t *testing.T) {
+func TestValidateSearchInput_NoQueryAndNoFilters_ReturnsError(t *testing.T) {
+	t.Parallel()
 	err := validateSearchInput("", nil, nil, []string{"idx", "search"})
-	if err == nil {
-		t.Fatal("expected error for empty query with no filters")
-	}
+	require.Error(t, err)
 }
 
-func TestValidateSearchInputWithQueryNoError(t *testing.T) {
-	if err := validateSearchInput("foo", nil, nil, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestValidateSearchInput_WithQuery_NoError(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, validateSearchInput("foo", nil, nil, nil))
 }
 
-func TestValidateSearchInputExtFilterAloneIsValid(t *testing.T) {
-	if err := validateSearchInput("", nil, []string{"go"}, nil); err != nil {
-		t.Fatalf("unexpected error with ext filter: %v", err)
-	}
+func TestValidateSearchInput_ExtFilterAlone_IsValid(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, validateSearchInput("", nil, []string{"go"}, nil))
 }
 
 // ---- currentDirTilde ----
 
-func TestCurrentDirTildeReturnsNonEmpty(t *testing.T) {
+func TestCurrentDirTilde_ReturnsNonEmpty(t *testing.T) {
+	t.Parallel()
 	result := currentDirTilde()
-	if result == "" {
-		t.Fatal("expected non-empty path from currentDirTilde")
-	}
+	assert.NotEmpty(t, result)
 }
 
 // ---- searchCommandConfig.options ----
 
-func TestSearchCommandConfigOptionsMapsFormat(t *testing.T) {
-	cfg := searchCommandConfig{
-		format:   search.OutputJSON,
-		operator: search.OperatorAND,
+func TestSearchCommandConfig_Options_MapsAllFields(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		cfg   searchCommandConfig
+		check func(t *testing.T, opts search.Options)
+	}{
+		{
+			"maps format",
+			searchCommandConfig{format: search.OutputJSON, operator: search.OperatorAND},
+			func(t *testing.T, opts search.Options) { assert.Equal(t, search.OutputJSON, opts.Format) },
+		},
+		{
+			"maps path query",
+			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, pathQueries: []string{"internal/core"}},
+			func(t *testing.T, opts search.Options) { assert.Equal(t, "internal/core", opts.PathQuery) },
+		},
+		{
+			"maps extension query",
+			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, extensionQueries: []string{"go"}},
+			func(t *testing.T, opts search.Options) { assert.Equal(t, "go", opts.ExtensionQuery) },
+		},
+		{
+			"maps operator",
+			searchCommandConfig{format: search.OutputText, operator: search.OperatorOR},
+			func(t *testing.T, opts search.Options) { assert.Equal(t, search.OperatorOR, opts.Operator) },
+		},
+		{
+			"maps matchesOnly",
+			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, matchesOnly: true},
+			func(t *testing.T, opts search.Options) { assert.True(t, opts.MatchesOnly) },
+		},
+		{
+			"maps legacyMatchesOnly",
+			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, legacyMatchesOnly: true},
+			func(t *testing.T, opts search.Options) { assert.True(t, opts.MatchesOnly) },
+		},
 	}
-	opts := cfg.options()
-	if opts.Format != search.OutputJSON {
-		t.Fatalf("expected JSON format, got %q", opts.Format)
-	}
-}
-
-func TestSearchCommandConfigOptionsPathQuerySetWhenPresent(t *testing.T) {
-	cfg := searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, pathQueries: []string{"internal/core"}}
-	opts := cfg.options()
-	if opts.PathQuery != "internal/core" {
-		t.Fatalf("expected PathQuery=internal/core, got %q", opts.PathQuery)
-	}
-}
-
-func TestSearchCommandConfigOptionsExtensionQuerySetWhenPresent(t *testing.T) {
-	cfg := searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, extensionQueries: []string{"go"}}
-	opts := cfg.options()
-	if opts.ExtensionQuery != "go" {
-		t.Fatalf("expected ExtensionQuery=go, got %q", opts.ExtensionQuery)
-	}
-}
-
-func TestSearchCommandConfigOptionsMapsOperator(t *testing.T) {
-	cfg := searchCommandConfig{format: search.OutputText, operator: search.OperatorOR}
-	opts := cfg.options()
-	if opts.Operator != search.OperatorOR {
-		t.Fatalf("expected OR operator, got %q", opts.Operator)
-	}
-}
-
-func TestSearchCommandConfigOptionsMatchesOnlyFlagSet(t *testing.T) {
-	cfg := searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, matchesOnly: true}
-	opts := cfg.options()
-	if !opts.MatchesOnly {
-		t.Fatal("expected MatchesOnly=true")
-	}
-}
-
-func TestSearchCommandConfigOptionsLegacyMatchesOnlySetsFlag(t *testing.T) {
-	cfg := searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, legacyMatchesOnly: true}
-	opts := cfg.options()
-	if !opts.MatchesOnly {
-		t.Fatal("expected MatchesOnly=true via legacyMatchesOnly")
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opts := tc.cfg.options()
+			tc.check(t, opts)
+		})
 	}
 }
 
@@ -485,9 +428,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	old := os.Stdout
 	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
+	require.NoError(t, err)
 	os.Stdout = w
 
 	fn()
@@ -499,114 +440,93 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-func TestShowConfigBannerSilentWithNoFile(t *testing.T) {
+func TestShowConfigBanner_NoFile_PrintsNothing(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	// configFilePath is empty → showConfigBanner should print nothing
 	output := captureStdout(t, func() { runner.showConfigBanner() })
-	if output != "" {
-		t.Fatalf("expected no output when configFilePath is empty, got %q", output)
-	}
+	assert.Empty(t, output)
 }
 
-func TestShowConfigBannerWithFilePrintsPath(t *testing.T) {
+func TestShowConfigBanner_WithFile_PrintsPath(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", nil)
 	output := captureStdout(t, func() { runner.showConfigBanner() })
-	if !strings.Contains(output, ".idx.yml") {
-		t.Fatalf("expected config path in banner, got %q", output)
-	}
+	assert.Contains(t, output, ".idx.yml")
 }
 
-func TestShowConfigBannerWithOverridesMentionsCount(t *testing.T) {
+func TestShowConfigBanner_WithOverrides_MentionsCount(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", []string{"search.format"})
 	output := captureStdout(t, func() { runner.showConfigBanner() })
-	if !strings.Contains(output, "1") {
-		t.Fatalf("expected override count in banner output, got %q", output)
-	}
+	assert.Contains(t, output, "1")
 }
 
-func TestWriteConfigDetailsNoFilePathPrintsNoFileMessage(t *testing.T) {
+func TestWriteConfigDetails_NoFilePath_PrintsNoFileMessage(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	output := captureStdout(t, func() {
-		if err := runner.writeConfigDetails(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		err := runner.writeConfigDetails()
+		require.NoError(t, err)
 	})
-	if !strings.Contains(output, "No .idx.yml") {
-		t.Fatalf("expected no-file message, got %q", output)
-	}
+	assert.Contains(t, output, "No .idx.yml")
 }
 
-func TestWriteConfigDetailsWithFilePathPrintsTable(t *testing.T) {
+func TestWriteConfigDetails_WithFilePath_PrintsTable(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithConfig(config.DefaultIdxConfig(), "/project/.idx.yml", []string{"search.format"})
 	output := captureStdout(t, func() {
-		if err := runner.writeConfigDetails(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		err := runner.writeConfigDetails()
+		require.NoError(t, err)
 	})
-	if !strings.Contains(output, "search.format") {
-		t.Fatalf("expected config table with search.format, got %q", output)
-	}
+	assert.Contains(t, output, "search.format")
 }
 
-func TestPrintConfigNoFileMessageContainsTip(t *testing.T) {
+func TestPrintConfigNoFileMessage_ContainsTipOrPath(t *testing.T) {
 	output := captureStdout(t, printConfigNoFileMessage)
-	if !strings.Contains(output, "Tip:") && !strings.Contains(output, "tip") && !strings.Contains(output, ".idx.yml") {
-		t.Fatalf("expected tip in no-file message, got %q", output)
-	}
+	hasTip := strings.Contains(output, "Tip:") || strings.Contains(output, "tip") || strings.Contains(output, ".idx.yml")
+	assert.True(t, hasTip, "expected tip in no-file message, got %q", output)
 }
 
-func TestPrintConfigTableWithOverrideShowsSource(t *testing.T) {
+func TestPrintConfigTable_WithOverride_ShowsSource(t *testing.T) {
 	rows := []configRow{
 		{key: "search.format", value: "json", defaultValue: "text"},
 	}
 	overrideSet := map[string]bool{"search.format": true}
 	output := captureStdout(t, func() { printConfigTable(rows, overrideSet) })
-	if !strings.Contains(output, "search.format") {
-		t.Fatalf("expected key in table output, got %q", output)
-	}
+	assert.Contains(t, output, "search.format")
 }
 
-func TestPrintConfigTableWithoutOverrideShowsDefault(t *testing.T) {
+func TestPrintConfigTable_WithoutOverride_ShowsDefault(t *testing.T) {
 	rows := []configRow{
 		{key: "search.format", value: "text", defaultValue: "text"},
 	}
 	output := captureStdout(t, func() { printConfigTable(rows, map[string]bool{}) })
-	if !strings.Contains(output, "search.format") {
-		t.Fatalf("expected key in table output, got %q", output)
-	}
+	assert.Contains(t, output, "search.format")
 }
 
 // ---- isIgnorableServerStopError ----
 
-func TestIsIgnorableServerStopErrorNotRunning(t *testing.T) {
-	err := errors.New("server not running")
-	if !isIgnorableServerStopError(err) {
-		t.Fatal("expected not-running to be ignorable")
+func TestIsIgnorableServerStopError_IgnorableMessages_ReturnTrue(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		msg  string
+	}{
+		{"not running", "server not running"},
+		{"state not found", "state not found"},
+		{"path not found", "path not found"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.True(t, isIgnorableServerStopError(errors.New(tc.msg)))
+		})
 	}
 }
 
-func TestIsIgnorableServerStopErrorStateNotFound(t *testing.T) {
-	err := errors.New("state not found")
-	if !isIgnorableServerStopError(err) {
-		t.Fatal("expected state-not-found to be ignorable")
-	}
-}
-
-func TestIsIgnorableServerStopErrorNotFound(t *testing.T) {
-	err := errors.New("path not found")
-	if !isIgnorableServerStopError(err) {
-		t.Fatal("expected not-found to be ignorable")
-	}
-}
-
-func TestIsIgnorableServerStopErrorOtherErrorNotIgnorable(t *testing.T) {
-	err := errors.New("permission denied")
-	if isIgnorableServerStopError(err) {
-		t.Fatal("expected permission denied to not be ignorable")
-	}
+func TestIsIgnorableServerStopError_PermissionDenied_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+	assert.False(t, isIgnorableServerStopError(errors.New("permission denied")))
 }
 
 // ---- WithSkillsCommand / WithReadCommand ----
@@ -619,20 +539,18 @@ type stubReadCommand struct{}
 
 func (s stubReadCommand) RunWithOptions(filePath string, fromLine, toLine int) error { return nil }
 
-func TestWithSkillsCommandSetsField(t *testing.T) {
+func TestWithSkillsCommand_SetsField(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithSkillsCommand(stubSkillsCommand{})
-	if runner.skillsCommand == nil {
-		t.Fatal("expected skillsCommand to be set")
-	}
+	assert.NotNil(t, runner.skillsCommand)
 }
 
-func TestWithReadCommandSetsField(t *testing.T) {
+func TestWithReadCommand_SetsField(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithReadCommand(stubReadCommand{})
-	if runner.readCommand == nil {
-		t.Fatal("expected readCommand to be set")
-	}
+	assert.NotNil(t, runner.readCommand)
 }
 
 // ---- InitCommandAdapter ----
@@ -641,46 +559,40 @@ type stubInitRunner struct{ runErr error }
 
 func (s stubInitRunner) Run() error { return s.runErr }
 
-func TestInitCommandAdapterRunFromPathChangesToProjectDir(t *testing.T) {
+func TestInitCommandAdapter_RunFromPath_ChangesToProjectDir(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	adapter := NewInitCommandAdapter(stubInitRunner{}, nil)
-	if err := adapter.RunFromPath(dir); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, adapter.RunFromPath(dir))
 }
 
-func TestInitCommandAdapterRunFromPathInvalidDirReturnsError(t *testing.T) {
+func TestInitCommandAdapter_RunFromPath_InvalidDir_ReturnsError(t *testing.T) {
+	t.Parallel()
 	adapter := NewInitCommandAdapter(stubInitRunner{}, nil)
 	err := adapter.RunFromPath("/nonexistent/path/xyz")
-	if err == nil {
-		t.Fatal("expected error for nonexistent path")
-	}
+	require.Error(t, err)
 }
 
-func TestInitCommandAdapterRunFromPathPropagatesRunError(t *testing.T) {
+func TestInitCommandAdapter_RunFromPath_PropagatesRunError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	adapter := NewInitCommandAdapter(stubInitRunner{runErr: errors.New("index failed")}, nil)
+
+	// Act
 	err := adapter.RunFromPath(dir)
-	if err == nil {
-		t.Fatal("expected error from Run()")
-	}
-	if !strings.Contains(err.Error(), "index failed") {
-		t.Fatalf("expected run error in message, got %q", err.Error())
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "index failed")
 }
 
 // ---- renderVersionOutput ----
 
-func TestRenderVersionOutputContainsVersion(t *testing.T) {
+func TestRenderVersionOutput_ContainsVersionAndDate(t *testing.T) {
+	t.Parallel()
 	output := renderVersionOutput("v9.9.9", "2026-01-01T00:00:00Z")
-	if !strings.Contains(output, "v9.9.9") {
-		t.Fatalf("expected version in output, got %q", output)
-	}
-}
-
-func TestRenderVersionOutputContainsBuildDate(t *testing.T) {
-	output := renderVersionOutput("v1.0.0", "2026-06-15T10:00:00Z")
-	if !strings.Contains(output, "2026") {
-		t.Fatalf("expected year in output, got %q", output)
-	}
+	assert.Contains(t, output, "v9.9.9")
+	assert.Contains(t, output, "2026")
 }

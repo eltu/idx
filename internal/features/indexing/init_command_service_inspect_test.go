@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/shared/filesystem"
 )
@@ -22,7 +25,10 @@ func (s *stubInspectUIRunner) Run(index *indexing.InvertedIndex) error {
 	return s.err
 }
 
-func TestInitCommandServiceInspectWithoutPathRunsTUI(t *testing.T) {
+func TestInitCommandService_Inspect_WithoutPath_RunsTUI(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal")
 	tree := newFakeProjectTree(rootDir, rootDir)
@@ -61,29 +67,22 @@ func TestInitCommandServiceInspectWithoutPathRunsTUI(t *testing.T) {
 		DaemonRepo:     nil,
 	}, stub)
 
+	// Act
 	err := service.Inspect("")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if !stub.called {
-		t.Fatal("expected inspect without path to run TUI")
-	}
-
-	if stub.index == nil || stub.index.DocumentCount != 2 {
-		t.Fatalf("expected inspect TUI to receive merged project indices, got %+v", stub.index)
-	}
-
-	if len(stub.index.Documents) != 2 {
-		t.Fatalf("expected merged inspect index with 2 documents, got %d", len(stub.index.Documents))
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no JSON output lines in TUI mode, got %d", len(output.lines))
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, stub.called, "expected inspect without path to run TUI")
+	require.NotNil(t, stub.index)
+	assert.Equal(t, 2, stub.index.DocumentCount)
+	assert.Len(t, stub.index.Documents, 2)
+	assert.Empty(t, output.lines, "expected no JSON output lines in TUI mode")
 }
 
-func TestInitCommandServiceInspectWithoutPathFailsWhenProjectHasNoIndex(t *testing.T) {
+func TestInitCommandService_Inspect_WithoutPath_FailsWhenProjectHasNoIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []filesystem.DirectoryEntry{}
@@ -99,13 +98,17 @@ func TestInitCommandServiceInspectWithoutPathFailsWhenProjectHasNoIndex(t *testi
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Inspect("")
-	if err == nil {
-		t.Fatal("expected an error when project has no indexed directories")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceInspectWritesIndexPayloadFromPath(t *testing.T) {
+func TestInitCommandService_Inspect_WithPath_WritesIndexPayload(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -137,26 +140,21 @@ func TestInitCommandServiceInspectWritesIndexPayloadFromPath(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Inspect(".")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 1 {
-		t.Fatalf("expected 1 output line, got %d", len(output.lines))
-	}
-
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 1)
 	var payload indexing.InvertedIndex
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
-		t.Fatalf("expected valid JSON inspect payload, got %v", err)
-	}
-
-	if payload.DocumentCount != 1 {
-		t.Fatalf("expected inspect payload with 1 document, got %d", payload.DocumentCount)
-	}
+	require.NoError(t, json.Unmarshal([]byte(output.lines[0]), &payload))
+	assert.Equal(t, 1, payload.DocumentCount)
 }
 
-func TestInitCommandServiceInspectFailsWhenNoIndexExists(t *testing.T) {
+func TestInitCommandService_Inspect_FailsWhenNoIndexExists(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	matcherFactory := fakeIgnoreMatcherFactory{ignoredPaths: map[string]bool{}}
@@ -176,21 +174,19 @@ func TestInitCommandServiceInspectFailsWhenNoIndexExists(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Inspect("internal")
-	if err == nil {
-		t.Fatal("expected an error when no index exists, got nil")
-	}
 
-	if len(indexRepo.savedIndices) != 0 {
-		t.Fatalf("expected no index saves (inspect is read-only), got %d", len(indexRepo.savedIndices))
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no output lines on failure, got %d", len(output.lines))
-	}
+	// Assert
+	require.Error(t, err)
+	assert.Empty(t, indexRepo.savedIndices, "expected no index saves (inspect is read-only)")
+	assert.Empty(t, output.lines, "expected no output lines on failure")
 }
 
-func TestInitCommandServiceInspectLoadsNestedIndexFromRelativePath(t *testing.T) {
+func TestInitCommandService_Inspect_LoadsNestedIndexFromRelativePath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	nestedDir := filepath.Join(rootDir, "internal")
 	tree := newFakeProjectTree(rootDir, rootDir)
@@ -217,21 +213,13 @@ func TestInitCommandServiceInspectLoadsNestedIndexFromRelativePath(t *testing.T)
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Inspect("internal/")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 1 {
-		t.Fatalf("expected 1 output line, got %d", len(output.lines))
-	}
-
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 1)
 	var payload indexing.InvertedIndex
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
-		t.Fatalf("expected valid JSON inspect payload, got %v", err)
-	}
-
-	if payload.DocumentCount != 2 {
-		t.Fatalf("expected inspect payload with 2 documents, got %d", payload.DocumentCount)
-	}
+	require.NoError(t, json.Unmarshal([]byte(output.lines[0]), &payload))
+	assert.Equal(t, 2, payload.DocumentCount)
 }

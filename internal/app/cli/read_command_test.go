@@ -3,58 +3,54 @@ package cli
 import (
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---- newReadCommand ----
 
-func TestReadCommandRequiresExactlyOneArg(t *testing.T) {
+func TestReadCommand_RequiresExactlyOneArg(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newReadCommand()
 	cmd.SetArgs([]string{})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error when no args provided")
-	}
+	require.Error(t, cmd.Execute())
 }
 
-func TestReadCommandReturnsErrorWhenReadCommandNil(t *testing.T) {
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
+func TestReadCommand_NilReadCommand_ReturnsError(t *testing.T) {
+	t.Parallel()
 	// readCommand is nil by default
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newReadCommand()
 	err := cmd.RunE(cmd, []string{"/some/file"})
-	if err == nil {
-		t.Fatal("expected error when readCommand is not configured")
-	}
+	require.Error(t, err)
 }
 
-func TestReadCommandDelegatesToReadCommand(t *testing.T) {
+func TestReadCommand_DelegatesToReadCommand(t *testing.T) {
+	t.Parallel()
 	stub := &stubReadCommand{}
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithReadCommand(stub)
 	cmd := runner.newReadCommand()
-	if err := cmd.RunE(cmd, []string{"/some/file"}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, cmd.RunE(cmd, []string{"/some/file"}))
 }
 
-func TestReadCommandPropagatesReadError(t *testing.T) {
+func TestReadCommand_PropagatesReadError(t *testing.T) {
+	t.Parallel()
 	stub := &errReadCommand{err: errors.New("read failed")}
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithReadCommand(stub)
 	cmd := runner.newReadCommand()
-	if err := cmd.RunE(cmd, []string{"/some/file"}); err == nil {
-		t.Fatal("expected error to propagate from readCommand")
-	}
+	require.Error(t, cmd.RunE(cmd, []string{"/some/file"}))
 }
 
-func TestReadCommandHasFromAndToFlags(t *testing.T) {
+func TestReadCommand_HasFromAndToFlags(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newReadCommand()
-	if cmd.Flags().Lookup("from") == nil {
-		t.Fatal("expected --from flag to be registered")
-	}
-	if cmd.Flags().Lookup("to") == nil {
-		t.Fatal("expected --to flag to be registered")
-	}
+	assert.NotNil(t, cmd.Flags().Lookup("from"), "expected --from flag to be registered")
+	assert.NotNil(t, cmd.Flags().Lookup("to"), "expected --to flag to be registered")
 }
 
 type errReadCommand struct{ err error }

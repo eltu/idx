@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	appserver "idx/internal/app/server"
 	search "idx/internal/features/search"
@@ -14,61 +16,51 @@ import (
 
 // --- validateSearchConfig ---
 
-func TestValidateSearchConfigValidInputNoError(t *testing.T) {
+func TestValidateSearchConfig_ValidInput_NoError(t *testing.T) {
+	t.Parallel()
 	cfg := &searchCommandConfig{
 		format:   search.OutputText,
 		operator: search.OperatorAND,
 	}
-	if err := validateSearchConfig(cfg, false); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, validateSearchConfig(cfg, false))
 }
 
-func TestValidateSearchConfigNegativeContextErrors(t *testing.T) {
-	cfg := &searchCommandConfig{
-		format:       search.OutputText,
-		operator:     search.OperatorAND,
-		contextLines: -1,
+func TestValidateSearchConfig_InvalidInputs_ReturnErrors(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		cfg  *searchCommandConfig
+	}{
+		{
+			"negative context",
+			&searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, contextLines: -1},
+		},
+		{
+			"bad format",
+			&searchCommandConfig{format: "xml", operator: search.OperatorAND},
+		},
+		{
+			"bad operator",
+			&searchCommandConfig{format: search.OutputText, operator: "XOR"},
+		},
+		{
+			"invalid relaxation",
+			&searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, relaxation: "no-angle"},
+		},
 	}
-	if err := validateSearchConfig(cfg, false); err == nil {
-		t.Fatal("expected error for negative context")
-	}
-}
-
-func TestValidateSearchConfigBadFormatErrors(t *testing.T) {
-	cfg := &searchCommandConfig{
-		format:   "xml",
-		operator: search.OperatorAND,
-	}
-	if err := validateSearchConfig(cfg, false); err == nil {
-		t.Fatal("expected error for unknown format")
-	}
-}
-
-func TestValidateSearchConfigBadOperatorErrors(t *testing.T) {
-	cfg := &searchCommandConfig{
-		format:   search.OutputText,
-		operator: "XOR",
-	}
-	if err := validateSearchConfig(cfg, false); err == nil {
-		t.Fatal("expected error for unknown operator")
-	}
-}
-
-func TestValidateSearchConfigInvalidRelaxationErrors(t *testing.T) {
-	cfg := &searchCommandConfig{
-		format:     search.OutputText,
-		operator:   search.OperatorAND,
-		relaxation: "no-angle",
-	}
-	if err := validateSearchConfig(cfg, false); err == nil {
-		t.Fatal("expected error for bad relaxation format")
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Error(t, validateSearchConfig(tc.cfg, false))
+		})
 	}
 }
 
 // --- writeSearchMissingQueryError ---
 
-func TestWriteSearchMissingQueryErrorWritesToCommand(t *testing.T) {
+func TestWriteSearchMissingQueryError_WritesToCommand(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "search"}
 	cmd.SetOut(&buf)
@@ -84,20 +76,18 @@ type stubServerRunner struct{}
 
 func (s *stubServerRunner) Serve(_ context.Context) error { return nil }
 
-func TestWithIndexServerSetsField(t *testing.T) {
+func TestWithIndexServer_SetsField(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithIndexServer(&stubServerRunner{})
-	if runner.indexServer == nil {
-		t.Fatal("expected indexServer to be set")
-	}
+	assert.NotNil(t, runner.indexServer)
 }
 
-func TestWithIndexServerAcceptsNilServerRunner(t *testing.T) {
+func TestWithIndexServer_AcceptsRealServer(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
 		WithIndexServer(appserver.NewServer(appserver.ServerDeps{}))
-	if runner.indexServer == nil {
-		t.Fatal("expected indexServer to be set with real server")
-	}
+	assert.NotNil(t, runner.indexServer)
 }
 
 // --- CommandRunner.Run ---
@@ -109,24 +99,24 @@ func (s *stubSearcher) RunWithOptions(_ string, _ search.Options) error {
 	return nil
 }
 
-func TestCommandRunnerRunUnknownCommandReturnsError(t *testing.T) {
+func TestCommandRunnerRun_UnknownCommand_ReturnsError(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx", "unknown-xyz"}, &stubIndexCommand{}, nil, &stubSearcher{})
-	err := runner.Run()
-	if err == nil {
-		t.Fatal("expected error for unknown command, got nil")
-	}
+	require.Error(t, runner.Run())
 }
 
-func TestCommandRunnerRunKnownCommandSucceeds(t *testing.T) {
+func TestCommandRunnerRun_KnownCommand_Succeeds(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx", "sync"}, &stubIndexCommand{}, nil, nil)
-	if err := runner.Run(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, runner.Run())
 }
 
 // --- runSearchCommand ---
 
-func TestRunSearchCommandWithValidQuery(t *testing.T) {
+func TestRunSearchCommand_ValidQuery_CallsSearcher(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	searcher := &stubSearcher{}
 	runner := NewCommandRunner([]string{"idx", "search", "hello"}, nil, nil, searcher)
 	cfg := &searchCommandConfig{
@@ -134,15 +124,17 @@ func TestRunSearchCommandWithValidQuery(t *testing.T) {
 		operator: search.OperatorAND,
 	}
 	cmd := &cobra.Command{Use: "search"}
-	if err := runner.runSearchCommand(cmd, []string{"hello"}, cfg); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !searcher.called {
-		t.Error("expected searcher to be called")
-	}
+
+	// Act
+	err := runner.runSearchCommand(cmd, []string{"hello"}, cfg)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, searcher.called)
 }
 
-func TestRunSearchCommandEmptyQueryWritesError(t *testing.T) {
+func TestRunSearchCommand_EmptyQuery_ReturnsError(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx", "search"}, nil, nil, &stubSearcher{})
 	cfg := &searchCommandConfig{
 		format:   search.OutputText,
@@ -152,13 +144,11 @@ func TestRunSearchCommandEmptyQueryWritesError(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	err := runner.runSearchCommand(cmd, []string{}, cfg)
-	if err == nil {
-		t.Fatal("expected error for empty query")
-	}
+	require.Error(t, runner.runSearchCommand(cmd, []string{}, cfg))
 }
 
-func TestRunSearchCommandValidationErrorReturnsError(t *testing.T) {
+func TestRunSearchCommand_ValidationError_ReturnsError(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, &stubSearcher{})
 	cfg := &searchCommandConfig{
 		format:       search.OutputText,
@@ -166,45 +156,41 @@ func TestRunSearchCommandValidationErrorReturnsError(t *testing.T) {
 		contextLines: -1, // invalid
 	}
 	cmd := &cobra.Command{Use: "search"}
-	if err := runner.runSearchCommand(cmd, []string{"hello"}, cfg); err == nil {
-		t.Fatal("expected validation error for negative context lines")
-	}
+	require.Error(t, runner.runSearchCommand(cmd, []string{"hello"}, cfg))
 }
 
 // --- newVersionCommand ---
 
-func TestNewVersionCommandRunPrintsVersion(t *testing.T) {
+func TestNewVersionCommand_Run_PrintsVersion(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newVersionCommand()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.Run(cmd, []string{})
-	if buf.Len() == 0 {
-		t.Error("expected version output, got none")
-	}
+	assert.NotEmpty(t, buf.String(), "expected version output")
 }
 
 // --- newConfigShowCommand ---
 
-func TestNewConfigShowCommandRunEWithNoConfigFile(t *testing.T) {
+func TestNewConfigShowCommand_RunE_NoConfigFile_Succeeds(t *testing.T) {
+	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newConfigShowCommand()
-	if err := cmd.RunE(cmd, []string{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, cmd.RunE(cmd, []string{}))
 }
 
 // --- currentDirTilde home prefix branch ---
 
-func TestCurrentDirTildeWithPathOutsideHomeReturnsCwd(t *testing.T) {
+func TestCurrentDirTilde_WithPathOutsideHome_ReturnsCwd(t *testing.T) {
+	t.Parallel()
 	// Not inside home? Returns cwd unchanged. We can't easily control HOME here
 	// but we can verify it returns something meaningful.
 	result := currentDirTilde()
-	if result == "" {
-		t.Fatal("expected non-empty result")
-	}
+	require.NotEmpty(t, result)
 	// Should either start with ~ or be an absolute path
-	if !strings.HasPrefix(result, "~") && !strings.HasPrefix(result, "/") && result != "." {
-		t.Errorf("unexpected path format: %q", result)
-	}
+	hasTilde := strings.HasPrefix(result, "~")
+	hasSlash := strings.HasPrefix(result, "/")
+	isDot := result == "."
+	assert.True(t, hasTilde || hasSlash || isDot, "unexpected path format: %q", result)
 }

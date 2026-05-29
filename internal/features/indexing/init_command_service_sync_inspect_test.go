@@ -2,20 +2,26 @@ package indexing
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMergeInspectDocumentsSkipsNilStats(t *testing.T) {
+func TestMergeInspectDocuments_SkipsNilStats(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	target := NewInvertedIndex()
 	source := NewInvertedIndex()
 	// Manually insert nil docStats to trigger the nil skip branch
 	source.Documents["nilkey"] = nil
 	source.Documents["validkey"] = &DocStats{Name: "valid.go", Path: "valid.go", Length: 5}
+
+	// Act
 	mergeInspectDocuments(target, "/repo", source)
-	// Only "validkey" should be merged
-	if _, ok := target.Documents["/repo::validkey"]; !ok {
-		t.Fatal("expected /repo::validkey to be merged")
-	}
-	if _, ok := target.Documents["/repo::nilkey"]; ok {
-		t.Fatal("expected nil key to be skipped")
-	}
+
+	// Assert: only "validkey" should be merged
+	_, hasValid := target.Documents["/repo::validkey"]
+	require.True(t, hasValid, "expected /repo::validkey to be merged")
+	assert.NotContains(t, target.Documents, "/repo::nilkey", "expected nil key to be skipped")
 }

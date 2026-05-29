@@ -7,14 +7,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	appcli "idx/internal/app/cli"
 )
 
 func TestRunReturnsErrorForUnsupportedCommand(t *testing.T) {
+	t.Parallel()
 	err := run([]string{"idx", "unknown-command"}, &bytes.Buffer{})
-	if err == nil {
-		t.Fatal("expected unsupported command error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestMainCallsExitWithCodeOneWhenRunFails(t *testing.T) {
@@ -36,230 +38,205 @@ func TestMainCallsExitWithCodeOneWhenRunFails(t *testing.T) {
 
 	defer func() {
 		recovered := recover()
-		if recovered == nil {
-			t.Fatal("expected panic from exit hook, got nil")
-		}
-		if !exitCalled {
-			t.Fatal("expected exit hook to be called")
-		}
-		if exitCode != 1 {
-			t.Fatalf("expected exit code 1, got %d", exitCode)
-		}
+		require.NotNil(t, recovered, "expected panic from exit hook")
+		assert.True(t, exitCalled, "expected exit hook to be called")
+		assert.Equal(t, 1, exitCode)
 	}()
 
 	main()
 }
 
-func TestProjectNameFromDirUsesGitRootBaseName(t *testing.T) {
+func TestProjectNameFromDir_GitRoot_UsesBaseName(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	workspace := filepath.Join(t.TempDir(), "my-project")
 	nested := filepath.Join(workspace, "internal", "core")
-	if err := os.MkdirAll(filepath.Join(workspace, ".git"), 0o750); err != nil {
-		t.Fatalf("failed to create fake git root: %v", err)
-	}
-	if err := os.MkdirAll(nested, 0o750); err != nil {
-		t.Fatalf("failed to create nested path: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(workspace, ".git"), 0o750))
+	require.NoError(t, os.MkdirAll(nested, 0o750))
 
+	// Act
 	name := projectNameFromDir(nested)
-	if name != "my-project" {
-		t.Fatalf("expected project name %q, got %q", "my-project", name)
-	}
+
+	// Assert
+	assert.Equal(t, "my-project", name)
 }
 
-func TestSanitizePathSegmentReplacesUnsupportedChars(t *testing.T) {
+func TestSanitizePathSegment_UnsupportedChars_ReplacedWithUnderscore(t *testing.T) {
+	t.Parallel()
 	result := sanitizePathSegment("my project@2026")
-	if result != "my_project_2026" {
-		t.Fatalf("expected sanitized name %q, got %q", "my_project_2026", result)
-	}
+	assert.Equal(t, "my_project_2026", result)
 }
 
-func TestSanitizePathSegmentFallbackForEmptyName(t *testing.T) {
+func TestSanitizePathSegment_AllDots_FallsBackToUnknown(t *testing.T) {
+	t.Parallel()
 	result := sanitizePathSegment("...")
-	if result != "unknown-project" {
-		t.Fatalf("expected fallback name %q, got %q", "unknown-project", result)
-	}
+	assert.Equal(t, "unknown-project", result)
 }
 
-func TestNewLoggerWithValidIDXLogLevel(t *testing.T) {
+func TestSanitizePathSegment_SingleDot_FallsBackToUnknown(t *testing.T) {
+	t.Parallel()
+	result := sanitizePathSegment(".")
+	assert.Equal(t, "unknown-project", result)
+}
+
+func TestNewLogger_ValidIDXLogLevel_ReturnsLogger(t *testing.T) {
+	// Arrange
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("IDX_LOG_LEVEL", "debug")
 
+	// Act
 	logger, err := newLogger("")
-	if err != nil {
-		t.Fatalf("expected no error with valid log level, got %v", err)
-	}
-	if logger == nil {
-		t.Fatal("expected non-nil logger")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, logger)
 	defer logger.Sync() //nolint:errcheck
 }
 
-func TestNewLoggerWithInvalidIDXLogLevel(t *testing.T) {
+func TestNewLogger_InvalidIDXLogLevel_ReturnsError(t *testing.T) {
+	// Arrange
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("IDX_LOG_LEVEL", "not-a-level")
 
+	// Act + Assert
 	_, err := newLogger("")
-	if err == nil {
-		t.Fatal("expected error with invalid log level, got nil")
-	}
+	require.Error(t, err)
 }
 
-func TestLoggerOutputPathCreatesDirUnderHome(t *testing.T) {
+func TestLoggerOutputPath_CreatesDir_ReturnsLogPath(t *testing.T) {
+	// Arrange
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
 
+	// Act
 	path, err := loggerOutputPath()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, path)
+	assert.Equal(t, ".log", filepath.Ext(path))
+}
+
+func TestIsServerCommand_ReturnsTrue_ForServerRun(t *testing.T) {
+	t.Parallel()
+	assert.True(t, isServerCommand([]string{"idx", "server", "run"}))
+}
+
+func TestIsServerCommand_ReturnsFalse_ForVariousNonRunArgs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"server start", []string{"idx", "server", "start"}},
+		{"server stop", []string{"idx", "server", "stop"}},
+		{"server status", []string{"idx", "server", "status"}},
+		{"server only", []string{"idx", "server"}},
+		{"non-server subcommand", []string{"idx", "search", "query"}},
+		{"flags only", []string{"idx", "--quiet"}},
+		{"empty args", []string{"idx"}},
 	}
-	if path == "" {
-		t.Fatal("expected non-empty log path")
-	}
-	if filepath.Ext(path) != ".log" {
-		t.Fatalf("expected .log extension, got %q", path)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.False(t, isServerCommand(tc.args))
+		})
 	}
 }
 
-func TestIsServerCommandReturnsTrueForServerRun(t *testing.T) {
-	if !isServerCommand([]string{"idx", "server", "run"}) {
-		t.Error("expected true for 'idx server run'")
-	}
+func TestIsServerCommand_IgnoresFlagsBeforeServerRun(t *testing.T) {
+	t.Parallel()
+	assert.True(t, isServerCommand([]string{"idx", "--quiet", "server", "run"}))
 }
 
-func TestIsServerCommandReturnsFalseForServerStart(t *testing.T) {
-	if isServerCommand([]string{"idx", "server", "start"}) {
-		t.Error("expected false for 'idx server start'")
-	}
-}
+func TestMultiQuiet_SetQuietTrue_SuppressesOutput(t *testing.T) {
+	t.Parallel()
 
-func TestIsServerCommandReturnsFalseForServerStop(t *testing.T) {
-	if isServerCommand([]string{"idx", "server", "stop"}) {
-		t.Error("expected false for 'idx server stop'")
-	}
-}
-
-func TestIsServerCommandReturnsFalseForServerStatus(t *testing.T) {
-	if isServerCommand([]string{"idx", "server", "status"}) {
-		t.Error("expected false for 'idx server status'")
-	}
-}
-
-func TestIsServerCommandReturnsFalseForServerOnly(t *testing.T) {
-	if isServerCommand([]string{"idx", "server"}) {
-		t.Error("expected false for 'idx server' alone")
-	}
-}
-
-func TestIsServerCommandReturnsFalseForNonServerSubcommand(t *testing.T) {
-	if isServerCommand([]string{"idx", "search", "query"}) {
-		t.Error("expected false for 'idx search'")
-	}
-}
-
-func TestIsServerCommandReturnsFalseForFlagsOnly(t *testing.T) {
-	if isServerCommand([]string{"idx", "--quiet"}) {
-		t.Error("expected false when only flags are present")
-	}
-}
-
-func TestIsServerCommandReturnsFalseForEmptyArgs(t *testing.T) {
-	if isServerCommand([]string{"idx"}) {
-		t.Error("expected false for empty args")
-	}
-}
-
-func TestIsServerCommandIgnoresFlagsBeforeServerRun(t *testing.T) {
-	if !isServerCommand([]string{"idx", "--quiet", "server", "run"}) {
-		t.Error("expected true when 'server run' follows flags")
-	}
-}
-
-func TestMultiQuietSetQuietPropagates(t *testing.T) {
+	// Arrange
 	var buf bytes.Buffer
 	wa := appcli.NewLineWriter(&buf)
 	wb := appcli.NewLineWriter(&buf)
-
 	mq := multiQuiet{wa, wb}
-	mq.SetQuiet(true)
 
-	// After SetQuiet(true), writing to wa should be suppressed (no output to buf)
-	if err := wa.WriteLine("suppressed"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if buf.Len() != 0 {
-		t.Errorf("expected no output after SetQuiet(true), got %q", buf.String())
-	}
+	// Act
+	mq.SetQuiet(true)
+	err := wa.WriteLine("suppressed")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, buf.String(), "expected no output after SetQuiet(true)")
 }
 
-func TestEarlyLoadConfigLogLevelReturnsDefaultWhenFileAbsent(t *testing.T) {
+func TestEarlyLoadConfigLogLevel_NoConfigFile_ReturnsDefault(t *testing.T) {
+	t.Parallel()
 	level := earlyLoadConfigLogLevel(t.TempDir())
 	// No config file → defaults are returned; default log level is "error"
-	if level == "" {
-		t.Error("expected non-empty default log level, got empty string")
-	}
+	assert.NotEmpty(t, level)
 }
 
-func TestEarlyLoadConfigLogLevelReturnsLevelFromFile(t *testing.T) {
+func TestEarlyLoadConfigLogLevel_ConfigFile_ReturnsFileLevel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".idx.yml")
-	if err := os.WriteFile(configPath, []byte("log:\n  level: debug\n"), 0o600); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
+	require.NoError(t, os.WriteFile(configPath, []byte("log:\n  level: debug\n"), 0o600))
 
+	// Act
 	level := earlyLoadConfigLogLevel(dir)
-	if level != "debug" {
-		t.Errorf("expected %q, got %q", "debug", level)
-	}
+
+	// Assert
+	assert.Equal(t, "debug", level)
 }
 
-func TestGitRootFromFallsBackToStartDirWhenNoGitDir(t *testing.T) {
+func TestEarlyLoadConfigLogLevel_MalformedYAML_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".idx.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte("not: valid: yaml: {{{"), 0o600))
+
+	// Act
+	level := earlyLoadConfigLogLevel(dir)
+
+	// Assert
+	assert.Empty(t, level)
+}
+
+func TestGitRootFrom_NoGitDir_FallsBackToStartDir(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	got := gitRootFrom(dir)
-	if got != dir {
-		t.Errorf("expected fallback to start dir %q, got %q", dir, got)
-	}
+	assert.Equal(t, dir, got)
 }
 
-func TestIsPathSafeCharAcceptsUppercase(t *testing.T) {
-	for ch := byte('A'); ch <= 'Z'; ch++ {
-		if !isPathSafeChar(ch) {
-			t.Errorf("expected uppercase %q to be safe", ch)
-		}
+func TestIsPathSafeChar_AcceptsAlphanumericAndDash(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		ch   byte
+		want bool
+	}{
+		{"uppercase A", 'A', true},
+		{"uppercase Z", 'Z', true},
+		{"lowercase a", 'a', true},
+		{"lowercase z", 'z', true},
+		{"digit 0", '0', true},
+		{"digit 9", '9', true},
+		{"space", ' ', false},
+		{"at sign", '@', false},
 	}
-}
-
-func TestIsPathSafeCharAcceptsDigits(t *testing.T) {
-	for ch := byte('0'); ch <= '9'; ch++ {
-		if !isPathSafeChar(ch) {
-			t.Errorf("expected digit %q to be safe", ch)
-		}
-	}
-}
-
-func TestIsPathSafeCharRejectsSpace(t *testing.T) {
-	if isPathSafeChar(' ') {
-		t.Error("expected space to be unsafe")
-	}
-}
-
-func TestSanitizePathSegmentFallbackForDotName(t *testing.T) {
-	result := sanitizePathSegment(".")
-	if result != "unknown-project" {
-		t.Fatalf("expected 'unknown-project' for '.', got %q", result)
-	}
-}
-
-func TestEarlyLoadConfigLogLevelReturnsEmptyForMalformedYAML(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".idx.yml")
-	if err := os.WriteFile(configPath, []byte("not: valid: yaml: {{{"), 0o600); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-	level := earlyLoadConfigLogLevel(dir)
-	if level != "" {
-		t.Errorf("expected empty level for malformed YAML, got %q", level)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, isPathSafeChar(tc.ch))
+		})
 	}
 }
 
@@ -287,9 +264,7 @@ func TestMainContinuesWhenLoggerFails(t *testing.T) {
 
 	defer func() {
 		recover() //nolint:errcheck
-		if exitCode != 1 {
-			t.Errorf("expected exit code 1, got %d", exitCode)
-		}
+		assert.Equal(t, 1, exitCode)
 	}()
 
 	main()

@@ -6,73 +6,85 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/read"
 )
 
-func TestOSFileStreamerOpenFileReadsContent(t *testing.T) {
+func TestOSFileStreamer_OpenFile_ReadsContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hello.txt")
-	if err := os.WriteFile(path, []byte("hello\nworld\n"), 0600); err != nil {
-		t.Fatalf("expected file write to succeed, got %v", err)
-	}
-
+	require.NoError(t, os.WriteFile(path, []byte("hello\nworld\n"), 0600))
 	streamer := read.NewOSFileStreamer()
+
+	// Act
 	rc, err := streamer.OpenFile(path)
-	if err != nil {
-		t.Fatalf("expected open to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	defer rc.Close()
-
 	content, err := io.ReadAll(rc)
-	if err != nil {
-		t.Fatalf("expected read to succeed, got %v", err)
-	}
 
-	if string(content) != "hello\nworld\n" {
-		t.Fatalf("unexpected content %q", string(content))
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "hello\nworld\n", string(content))
 }
 
-func TestOSFileStreamerOpenFileReturnsErrorForMissingFile(t *testing.T) {
+func TestOSFileStreamer_OpenFile_ReturnsErrorForMissingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	streamer := read.NewOSFileStreamer()
+
+	// Act
 	_, err := streamer.OpenFile(filepath.Join(t.TempDir(), "missing.txt"))
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestOSFileStreamerIsDirReturnsTrueForDirectory(t *testing.T) {
+func TestOSFileStreamer_IsDir_ReturnsTrueForDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	streamer := read.NewOSFileStreamer()
+
+	// Act
 	isDir, err := streamer.IsDir(t.TempDir())
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !isDir {
-		t.Fatal("expected true for directory, got false")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, isDir)
 }
 
-func TestOSFileStreamerIsDirReturnsFalseForFile(t *testing.T) {
+func TestOSFileStreamer_IsDir_ReturnsFalseForFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "file.txt")
-	if err := os.WriteFile(path, []byte("x"), 0600); err != nil {
-		t.Fatalf("expected file write to succeed, got %v", err)
-	}
-
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0600))
 	streamer := read.NewOSFileStreamer()
+
+	// Act
 	isDir, err := streamer.IsDir(path)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if isDir {
-		t.Fatal("expected false for file, got true")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.False(t, isDir)
 }
 
-func TestOSFileStreamerIsDirReturnsErrorForMissingPath(t *testing.T) {
+func TestOSFileStreamer_IsDir_ReturnsErrorForMissingPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	streamer := read.NewOSFileStreamer()
+
+	// Act
 	_, err := streamer.IsDir(filepath.Join(t.TempDir(), "ghost"))
-	if err == nil {
-		t.Fatal("expected error for missing path, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }

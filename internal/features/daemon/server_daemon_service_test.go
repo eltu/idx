@@ -59,10 +59,12 @@ func socketAliveAfterSpawn() func(string) bool {
 }
 
 func TestServerDaemonService_Start_SpawnsAndSavesState(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
@@ -70,16 +72,22 @@ func TestServerDaemonService_Start_SpawnsAndSavesState(t *testing.T) {
 	repo.EXPECT().SaveState(projectPath, gomock.Any()).Return(nil)
 
 	svc, buf := newTestService(t, repo, spawner, func(_ int) bool { return false }, socketAliveAfterSpawn())
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "1234")
 }
 
 func TestServerDaemonService_Start_IdempotentWhenSocketAlive(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	makeInitializedProject(t, projectPath)
 
@@ -87,16 +95,22 @@ func TestServerDaemonService_Start_IdempotentWhenSocketAlive(t *testing.T) {
 		func(_ int) bool { return true },
 		func(_ string) bool { return true }, // socket is alive from the first check
 	)
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "already running")
 }
 
 func TestServerDaemonService_Start_KillsStaleProcessBeforeSpawning(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	makeInitializedProject(t, projectPath)
 
@@ -111,16 +125,22 @@ func TestServerDaemonService_Start_KillsStaleProcessBeforeSpawning(t *testing.T)
 		func(_ int) bool { return true }, // stale PID appears alive via kill -0
 		socketAliveAfterSpawn(),          // socket dead initially, ready after spawn
 	)
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "1234")
 }
 
 func TestServerDaemonService_Start_ErrorsWhenSocketNeverReady(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
@@ -130,16 +150,22 @@ func TestServerDaemonService_Start_ErrorsWhenSocketNeverReady(t *testing.T) {
 		func(_ int) bool { return false },
 		func(_ string) bool { return false }, // socket never becomes ready
 	)
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "did not become ready")
+	assert.ErrorContains(t, err, "did not become ready")
 }
 
 func TestServerDaemonService_Start_KillsOrphanOnStateSaveFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
@@ -150,31 +176,43 @@ func TestServerDaemonService_Start_KillsOrphanOnStateSaveFailure(t *testing.T) {
 		func(_ int) bool { return false },
 		socketAliveAfterSpawn(),
 	)
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.Error(t, err)
 }
 
 func TestServerDaemonService_Start_ReturnsErrNotInitializedWhenNoIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir() // no .idx/index.idx
 
 	svc, _ := newTestService(t, repo, spawner,
 		func(_ int) bool { return false },
 		func(_ string) bool { return false },
 	)
+
+	// Act
 	err := svc.Start(projectPath)
+
+	// Assert
 	require.Error(t, err)
 	assert.ErrorIs(t, err, daemon.ErrNotInitialized)
 }
 
 func TestServerDaemonService_Stop_SendsSIGTERMAndRemovesState(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	state := &daemon.ServerState{PID: 1, ProjectPath: projectPath}
 	repo.EXPECT().ReadState(projectPath).Return(state, nil)
@@ -184,16 +222,22 @@ func TestServerDaemonService_Stop_SendsSIGTERMAndRemovesState(t *testing.T) {
 		func(_ int) bool { return true },
 		func(_ string) bool { return true }, // socket alive → stop sends SIGTERM
 	)
+
+	// Act
 	err := svc.Stop(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "stopped")
 }
 
 func TestServerDaemonService_Stop_NoopWhenSocketDead(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
 
@@ -201,16 +245,22 @@ func TestServerDaemonService_Stop_NoopWhenSocketDead(t *testing.T) {
 		func(_ int) bool { return false },
 		func(_ string) bool { return false }, // socket dead
 	)
+
+	// Act
 	err := svc.Stop(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "not running")
 }
 
 func TestServerDaemonService_Status_ShowsRunningDetails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	state := &daemon.ServerState{
 		PID:        5678,
@@ -223,16 +273,22 @@ func TestServerDaemonService_Status_ShowsRunningDetails(t *testing.T) {
 		func(_ int) bool { return true },
 		func(_ string) bool { return true },
 	)
+
+	// Act
 	err := svc.Status(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "5678")
 }
 
 func TestServerDaemonService_Status_ShowsNotRunning(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
 
@@ -240,48 +296,66 @@ func TestServerDaemonService_Status_ShowsNotRunning(t *testing.T) {
 		func(_ int) bool { return false },
 		func(_ string) bool { return false },
 	)
+
+	// Act
 	err := svc.Status(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "not running")
 }
 
 func TestServerDaemonService_IsProjectMonitored_TrueWhenSocketAlive(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 
 	svc, _ := newTestService(t, repo, spawner,
 		func(_ int) bool { return true },
 		func(_ string) bool { return true },
 	)
+
+	// Act
 	monitored, err := svc.IsProjectMonitored(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.True(t, monitored)
 }
 
 func TestServerDaemonService_IsProjectMonitored_FalseWhenSocketDead(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 
 	svc, _ := newTestService(t, repo, spawner,
 		func(_ int) bool { return false },
 		func(_ string) bool { return false },
 	)
+
+	// Act
 	monitored, err := svc.IsProjectMonitored(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.False(t, monitored)
 }
 
 func TestServerDaemonService_ProjectStatus_ReturnsDetailsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-
 	projectPath := t.TempDir()
 	startedAt := time.Now().Add(-time.Minute)
 	state := &daemon.ServerState{PID: 42, StartedAt: startedAt}
@@ -291,7 +365,11 @@ func TestServerDaemonService_ProjectStatus_ReturnsDetailsWhenRunning(t *testing.
 		func(_ int) bool { return true },
 		func(_ string) bool { return true },
 	)
+
+	// Act
 	status, err := svc.ProjectStatus(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	require.NotNil(t, status)
 	assert.True(t, status.Enabled)

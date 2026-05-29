@@ -8,134 +8,157 @@ import (
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"idx/internal/shared/filesystem"
 )
 
-func TestTrackEventDirectoriesAddsPathForTrackedEvent(t *testing.T) {
+func TestTrackEventDirectories_AddsPathForTrackedEvent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	subdir := filepath.Join(root, "pkg")
-	if err := os.Mkdir(subdir, 0755); err != nil {
-		t.Fatalf("failed to create subdir: %v", err)
-	}
-
+	require.NoError(t, os.Mkdir(subdir, 0755))
 	service := newWatchService(root)
 	pending := make(map[string]struct{})
+
+	// Act
 	service.trackEventDirectories(fsnotify.Event{Op: fsnotify.Write, Name: filepath.Join(subdir, "file.go")}, root, neverMatcher{}, pending)
 
-	if _, ok := pending[subdir]; !ok {
-		t.Fatal("expected subdir to be added to pending directories")
-	}
+	// Assert
+	_, ok := pending[subdir]
+	assert.True(t, ok, "expected subdir to be added to pending")
 }
 
-func TestTrackEventDirectoriesSkipsNonTrackedOp(t *testing.T) {
+func TestTrackEventDirectories_SkipsNonTrackedOp(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	service := newWatchService(root)
 	pending := make(map[string]struct{})
 
+	// Act
 	service.trackEventDirectories(fsnotify.Event{Op: fsnotify.Chmod, Name: filepath.Join(root, "file.go")}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected no entries for non-tracked op")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventFilesAddsRelativePathForExistingFile(t *testing.T) {
+func TestTrackEventFiles_AddsRelativePathForExistingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	file := filepath.Join(root, "main.go")
-	if err := os.WriteFile(file, []byte("package main"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-
+	require.NoError(t, os.WriteFile(file, []byte("package main"), 0644))
 	service := newWatchService(root)
 	pending := make(map[string]struct{})
+
+	// Act
 	service.trackEventFiles(fsnotify.Event{Op: fsnotify.Write, Name: file}, root, neverMatcher{}, pending)
 
-	if _, ok := pending["main.go"]; !ok {
-		t.Fatalf("expected main.go in pending files, got %v", pending)
-	}
+	// Assert
+	_, ok := pending["main.go"]
+	assert.True(t, ok, "expected main.go in pending files")
 }
 
-func TestTrackEventFilesSkipsNonTrackedOp(t *testing.T) {
+func TestTrackEventFiles_SkipsNonTrackedOp(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	service := newWatchService(root)
 	pending := make(map[string]struct{})
 
+	// Act
 	service.trackEventFiles(fsnotify.Event{Op: fsnotify.Chmod, Name: filepath.Join(root, "file.go")}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected no entries for non-tracked op")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestWriteUpdatedFilesWithFiles(t *testing.T) {
+func TestWriteUpdatedFiles_WithFiles(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	service := newWatchService(t.TempDir())
 	service.output = out
 
-	pending := map[string]struct{}{"internal/service.go": {}, "cmd/main.go": {}}
-	if err := service.writeUpdatedFiles(pending); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output lines from writeUpdatedFiles")
-	}
+	// Act
+	require.NoError(t, service.writeUpdatedFiles(map[string]struct{}{"internal/service.go": {}, "cmd/main.go": {}}))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestWriteUpdatedFilesWithEmpty(t *testing.T) {
+func TestWriteUpdatedFiles_WithEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	service := newWatchService(t.TempDir())
 	service.output = out
 
-	if err := service.writeUpdatedFiles(map[string]struct{}{}); err != nil {
-		t.Fatalf("expected no error for empty pending files, got %v", err)
-	}
-	if len(out.lines) != 1 || out.lines[0] != "   files: none" {
-		t.Fatalf("expected 'files: none' output, got %v", out.lines)
-	}
+	// Act
+	require.NoError(t, service.writeUpdatedFiles(map[string]struct{}{}))
+
+	// Assert
+	require.Len(t, out.lines, 1)
+	assert.Equal(t, "   files: none", out.lines[0])
 }
 
-func TestFlushWatchedBatchWithEmptyDirectoriesIsNoop(t *testing.T) {
+func TestFlushWatchedBatch_EmptyDirectories_IsNoop(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	service := newWatchService(t.TempDir())
 	service.output = out
 
+	// Act
 	err := service.flushWatchedBatch(map[string]struct{}{}, map[string]struct{}{}, t.TempDir(), neverMatcher{}, false)
-	if err != nil {
-		t.Fatalf("expected no error for empty batch, got %v", err)
-	}
-	if len(out.lines) != 0 {
-		t.Fatalf("expected no output for empty batch, got %v", out.lines)
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, out.lines)
 }
 
-func TestEnsureRootIndexCreatesIndexWhenAbsent(t *testing.T) {
+func TestEnsureRootIndex_CreatesIndexWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	out := &internalWatchOutput{}
 	service := newWatchService(root)
 	service.output = out
 
-	if err := service.ensureRootIndex(root, neverMatcher{}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output lines when root index is created")
-	}
+	// Act
+	require.NoError(t, service.ensureRootIndex(root, neverMatcher{}))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestEnsureRootIndexSkipsWhenIndexExists(t *testing.T) {
+func TestEnsureRootIndex_SkipsWhenIndexExists(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	out := &internalWatchOutput{}
-
 	tree := &internalWatchExistsProjectTree{root: root}
 	service := newWatchService(root)
 	service.projectTree = tree
 	service.output = out
 
-	if err := service.ensureRootIndex(root, neverMatcher{}); err != nil {
-		t.Fatalf("expected no error when index already exists, got %v", err)
-	}
-	if len(out.lines) != 0 {
-		t.Fatalf("expected no output when index already exists, got %v", out.lines)
-	}
+	// Act
+	require.NoError(t, service.ensureRootIndex(root, neverMatcher{}))
+
+	// Assert
+	assert.Empty(t, out.lines)
 }
 
 type internalWatchExistsProjectTree struct{ root string }
@@ -149,7 +172,10 @@ func (t *internalWatchExistsProjectTree) Exists(_ string) (bool, error)      { r
 func (t *internalWatchExistsProjectTree) WriteFile(_ string, _ []byte) error { return nil }
 func (t *internalWatchExistsProjectTree) RemoveAll(_ string) error           { return nil }
 
-func TestSyncAllDirectoriesBeforeWatchSyncsEligibleAndRemovesStale(t *testing.T) {
+func TestSyncAllDirectoriesBeforeWatch_SyncsEligibleAndRemovesStale(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := filepath.Join(string(filepath.Separator), "repo")
 	sourceDir := filepath.Join(root, "src")
 	ignoredDir := filepath.Join(root, "vendor")
@@ -160,9 +186,17 @@ func TestSyncAllDirectoriesBeforeWatchSyncsEligibleAndRemovesStale(t *testing.T)
 	tree.existsMap[indexFilePath(root)] = true
 	tree.existsMap[indexFilePath(sourceDir)] = false
 	tree.existsMap[indexFilePath(ignoredDir)] = true
-	tree.readDirMap[root] = []filesystem.DirectoryEntry{{Name: "src", Path: sourceDir, IsDir: true}, {Name: "vendor", Path: ignoredDir, IsDir: true}, {Name: "main.go", Path: rootFile, IsDir: false, Size: int64(len("package main")), ModTimeUnixNano: 1}}
-	tree.readDirMap[sourceDir] = []filesystem.DirectoryEntry{{Name: "service.go", Path: sourceFile, IsDir: false, Size: int64(len("package service")), ModTimeUnixNano: 2}}
-	tree.readDirMap[ignoredDir] = []filesystem.DirectoryEntry{{Name: "legacy.go", Path: filepath.Join(ignoredDir, "legacy.go"), IsDir: false}}
+	tree.readDirMap[root] = []filesystem.DirectoryEntry{
+		{Name: "src", Path: sourceDir, IsDir: true},
+		{Name: "vendor", Path: ignoredDir, IsDir: true},
+		{Name: "main.go", Path: rootFile, IsDir: false, Size: int64(len("package main")), ModTimeUnixNano: 1},
+	}
+	tree.readDirMap[sourceDir] = []filesystem.DirectoryEntry{
+		{Name: "service.go", Path: sourceFile, IsDir: false, Size: int64(len("package service")), ModTimeUnixNano: 2},
+	}
+	tree.readDirMap[ignoredDir] = []filesystem.DirectoryEntry{
+		{Name: "legacy.go", Path: filepath.Join(ignoredDir, "legacy.go"), IsDir: false},
+	}
 
 	matcher := watchStartupMatcher{ignoredPrefixes: []string{"vendor"}}
 	indexRepo := &watchStartupIndexRepo{}
@@ -180,21 +214,14 @@ func TestSyncAllDirectoriesBeforeWatchSyncsEligibleAndRemovesStale(t *testing.T)
 		initProgress:   disabledInitProgress{},
 	}
 
-	if err := service.syncAllDirectoriesBeforeWatch(root, matcher); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !containsPath(tree.removed, filepath.Join(ignoredDir, ".idx")) {
-		t.Fatalf("expected stale ignored directory index to be removed, removed=%v", tree.removed)
-	}
-	if !containsPath(indexRepo.savedDirectories, root) {
-		t.Fatalf("expected root directory to be synchronized, got %v", indexRepo.savedDirectories)
-	}
-	if !containsPath(indexRepo.savedDirectories, sourceDir) {
-		t.Fatalf("expected source directory to be synchronized, got %v", indexRepo.savedDirectories)
-	}
-	if containsPath(indexRepo.savedDirectories, ignoredDir) {
-		t.Fatalf("expected ignored directory to be skipped, got %v", indexRepo.savedDirectories)
-	}
+	// Act
+	require.NoError(t, service.syncAllDirectoriesBeforeWatch(root, matcher))
+
+	// Assert
+	assert.True(t, containsPath(tree.removed, filepath.Join(ignoredDir, ".idx")), "expected stale ignored directory index to be removed")
+	assert.True(t, containsPath(indexRepo.savedDirectories, root), "expected root directory to be synchronized")
+	assert.True(t, containsPath(indexRepo.savedDirectories, sourceDir), "expected source directory to be synchronized")
+	assert.False(t, containsPath(indexRepo.savedDirectories, ignoredDir), "expected ignored directory to be skipped")
 }
 
 type watchStartupMatcher struct{ ignoredPrefixes []string }

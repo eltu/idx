@@ -4,160 +4,130 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestOSProjectTreeCurrentDirAndFindGitRoot(t *testing.T) {
+// TestOSProjectTree_CurrentDir_ReturnsWorkingDirectory uses os.Chdir — not parallel-safe.
+func TestOSProjectTree_CurrentDirAndFindGitRoot_LocatesRoot(t *testing.T) {
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
 
+	// Arrange
 	root := t.TempDir()
-	gitPath := filepath.Join(root, ".git")
-	if err := os.WriteFile(gitPath, []byte(""), 0600); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
-
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte(""), 0600))
 	nested := filepath.Join(root, "a", "b")
-	if err := os.MkdirAll(nested, 0750); err != nil {
-		t.Fatalf("expected nested directory creation to succeed, got %v", err)
-	}
-
-	if err := os.Chdir(nested); err != nil {
-		t.Fatalf("expected chdir to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(nested, 0750))
+	require.NoError(t, os.Chdir(nested))
 
 	tree := NewOSProjectTree()
+
+	// Act
 	cwd, err := tree.CurrentDir()
-	if err != nil {
-		t.Fatalf("expected CurrentDir to succeed, got %v", err)
-	}
+	require.NoError(t, err)
+
+	// Assert — resolve symlinks so macOS /var → /private/var differences are handled
 	resolvedExpected, err := filepath.EvalSymlinks(nested)
-	if err != nil {
-		t.Fatalf("expected expected-path symlink resolution to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	resolvedCurrent, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		t.Fatalf("expected current-path symlink resolution to succeed, got %v", err)
-	}
-	if resolvedCurrent != resolvedExpected {
-		t.Fatalf("expected cwd %q, got %q", resolvedExpected, resolvedCurrent)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, resolvedExpected, resolvedCurrent)
 
 	gitRoot, err := tree.FindGitRoot(nested)
-	if err != nil {
-		t.Fatalf("expected FindGitRoot to succeed, got %v", err)
-	}
-	if gitRoot != root {
-		t.Fatalf("expected root %q, got %q", root, gitRoot)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, root, gitRoot)
 }
 
-func TestOSProjectTreeFindGitRootReturnsErrorOutsideGitProject(t *testing.T) {
+func TestOSProjectTree_FindGitRoot_ReturnsErrorOutsideGitProject(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := NewOSProjectTree()
+
+	// Act
 	_, err := tree.FindGitRoot(t.TempDir())
-	if err == nil {
-		t.Fatal("expected error when directory is outside git project, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestOSProjectTreeReadDirExistsRemoveAllAndWriteFile(t *testing.T) {
+func TestOSProjectTree_WriteExistsReadDirRemoveAll_LifecycleOperations(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := NewOSProjectTree()
 	root := t.TempDir()
 	filePath := filepath.Join(root, "deep", "file.txt")
 
-	if err := tree.WriteFile(filePath, []byte("content")); err != nil {
-		t.Fatalf("expected write to succeed, got %v", err)
-	}
+	// Act — write
+	require.NoError(t, tree.WriteFile(filePath, []byte("content")))
 
+	// Assert — exists
 	exists, err := tree.Exists(filePath)
-	if err != nil {
-		t.Fatalf("expected exists to succeed, got %v", err)
-	}
-	if !exists {
-		t.Fatal("expected file to exist")
-	}
+	require.NoError(t, err)
+	assert.True(t, exists)
 
+	// Assert — readdir
 	entries, err := tree.ReadDir(filepath.Join(root, "deep"))
-	if err != nil {
-		t.Fatalf("expected readdir to succeed, got %v", err)
-	}
-	if len(entries) != 1 || entries[0].Name != "file.txt" || entries[0].IsDir {
-		t.Fatalf("unexpected read dir entries: %#v", entries)
-	}
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "file.txt", entries[0].Name)
+	assert.False(t, entries[0].IsDir)
+	assert.NotZero(t, entries[0].Size)
+	assert.NotZero(t, entries[0].ModTimeUnixNano)
 
-	if entries[0].Size == 0 {
-		t.Fatal("expected file size metadata to be populated")
-	}
-	if entries[0].ModTimeUnixNano == 0 {
-		t.Fatal("expected file modtime metadata to be populated")
-	}
+	// Act — remove all
+	require.NoError(t, tree.RemoveAll(filepath.Join(root, "deep")))
 
-	if err := tree.RemoveAll(filepath.Join(root, "deep")); err != nil {
-		t.Fatalf("expected remove all to succeed, got %v", err)
-	}
-
+	// Assert — file gone
 	exists, err = tree.Exists(filePath)
-	if err != nil {
-		t.Fatalf("expected exists after remove to succeed, got %v", err)
-	}
-	if exists {
-		t.Fatal("expected file to be removed")
-	}
+	require.NoError(t, err)
+	assert.False(t, exists)
 }
 
-func TestOSProjectTreeErrorBranches(t *testing.T) {
+func TestOSProjectTree_ErrorBranches_ReturnsErrorForInvalidPaths(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := NewOSProjectTree()
 
-	if _, err := tree.ReadDir(filepath.Join(t.TempDir(), "missing")); err == nil {
-		t.Fatal("expected ReadDir error for missing path")
-	}
+	// Assert — ReadDir missing path
+	_, err := tree.ReadDir(filepath.Join(t.TempDir(), "missing"))
+	require.Error(t, err)
 
-	if _, err := tree.Exists("\x00invalid"); err == nil {
-		t.Fatal("expected Exists error for invalid path")
-	}
+	// Assert — Exists invalid path
+	_, err = tree.Exists("\x00invalid")
+	require.Error(t, err)
 
-	if err := tree.RemoveAll("\x00invalid"); err == nil {
-		t.Fatal("expected RemoveAll error for invalid path")
-	}
+	// Assert — RemoveAll invalid path
+	require.Error(t, tree.RemoveAll("\x00invalid"))
 
-	if err := tree.WriteFile("\x00invalid", []byte("x")); err == nil {
-		t.Fatal("expected WriteFile error for invalid path")
-	}
+	// Assert — WriteFile invalid path
+	require.Error(t, tree.WriteFile("\x00invalid", []byte("x")))
 }
 
-func TestOSProjectTreeReadDirMarksSymlinkEntries(t *testing.T) {
+func TestOSProjectTree_ReadDir_MarksSymlinkEntries(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := NewOSProjectTree()
 	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "target.txt"), []byte("content"), 0600))
+	require.NoError(t, os.Symlink("target.txt", filepath.Join(root, "link.txt")))
 
-	targetFile := filepath.Join(root, "target.txt")
-	if err := os.WriteFile(targetFile, []byte("content"), 0600); err != nil {
-		t.Fatalf("expected target file creation to succeed, got %v", err)
-	}
-
-	symlinkPath := filepath.Join(root, "link.txt")
-	if err := os.Symlink("target.txt", symlinkPath); err != nil {
-		t.Fatalf("expected symlink creation to succeed, got %v", err)
-	}
-
+	// Act
 	entries, err := tree.ReadDir(root)
-	if err != nil {
-		t.Fatalf("expected readdir to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 
-	found := false
+	// Assert
+	var found bool
 	for _, entry := range entries {
-		if entry.Name != "link.txt" {
-			continue
-		}
-		found = true
-		if !entry.IsSymlink {
-			t.Fatal("expected symlink entry to be marked as IsSymlink=true")
+		if entry.Name == "link.txt" {
+			found = true
+			assert.True(t, entry.IsSymlink, "expected symlink entry IsSymlink=true")
 		}
 	}
-
-	if !found {
-		t.Fatal("expected link.txt to be present in directory entries")
-	}
+	assert.True(t, found, "expected link.txt in directory entries")
 }

@@ -7,233 +7,208 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"idx/internal/shared/filesystem"
 )
 
-func TestShouldTrackFileEventCreate(t *testing.T) {
-	if !shouldTrackFileEvent(fsnotify.Create) {
-		t.Fatal("expected Create to be tracked")
+func TestShouldTrackFileEvent_TrackedOperations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		op      fsnotify.Op
+		tracked bool
+	}{
+		{"Create", fsnotify.Create, true},
+		{"Write", fsnotify.Write, true},
+		{"Rename", fsnotify.Rename, true},
+		{"Remove", fsnotify.Remove, true},
+		{"Chmod", fsnotify.Chmod, false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.tracked, shouldTrackFileEvent(tc.op))
+		})
 	}
 }
 
-func TestShouldTrackFileEventWrite(t *testing.T) {
-	if !shouldTrackFileEvent(fsnotify.Write) {
-		t.Fatal("expected Write to be tracked")
-	}
+func TestHasSystemPathSegment_DetectsGitAndIdx(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, hasSystemPathSegment("/repo/.git/refs/HEAD"), "expected .git to be detected")
+	assert.True(t, hasSystemPathSegment("/repo/.idx/index.gob"), "expected .idx to be detected")
+	assert.False(t, hasSystemPathSegment("/repo/internal/core/service.go"), "expected normal path not to be detected")
 }
 
-func TestShouldTrackFileEventRename(t *testing.T) {
-	if !shouldTrackFileEvent(fsnotify.Rename) {
-		t.Fatal("expected Rename to be tracked")
-	}
+func TestIsWithinRoot_PathRelationships(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, isWithinRoot("/repo", "/repo/internal/core"), "child should be within root")
+	assert.True(t, isWithinRoot("/repo", "/repo"), "root itself should be within root")
+	assert.False(t, isWithinRoot("/repo", "/other"), "sibling should not be within root")
+	assert.False(t, isWithinRoot("/repo/internal", "/repo"), "parent should not be within child root")
 }
 
-func TestShouldTrackFileEventRemove(t *testing.T) {
-	if !shouldTrackFileEvent(fsnotify.Remove) {
-		t.Fatal("expected Remove to be tracked")
-	}
+func TestShouldSkipSystemDirectory_GitAndIdxSkipped(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, shouldSkipSystemDirectory("/repo/.git"), "expected .git to be skipped")
+	assert.True(t, shouldSkipSystemDirectory("/repo/.idx"), "expected .idx to be skipped")
+	assert.False(t, shouldSkipSystemDirectory("/repo/internal"), "expected normal directory not to be skipped")
 }
 
-func TestShouldTrackFileEventChmodIgnored(t *testing.T) {
-	if shouldTrackFileEvent(fsnotify.Chmod) {
-		t.Fatal("expected Chmod to not be tracked")
-	}
-}
+func TestSortedDirectoryBatch_ReturnsSorted(t *testing.T) {
+	t.Parallel()
 
-func TestHasSystemPathSegmentDetectsGit(t *testing.T) {
-	if !hasSystemPathSegment("/repo/.git/refs/HEAD") {
-		t.Fatal("expected .git path segment to be detected")
-	}
-}
+	// Arrange
+	pending := map[string]struct{}{"/repo/z": {}, "/repo/a": {}, "/repo/m": {}}
 
-func TestHasSystemPathSegmentDetectsIdx(t *testing.T) {
-	if !hasSystemPathSegment("/repo/.idx/index.gob") {
-		t.Fatal("expected .idx path segment to be detected")
-	}
-}
-
-func TestHasSystemPathSegmentReturnsFalseForNormal(t *testing.T) {
-	if hasSystemPathSegment("/repo/internal/core/service.go") {
-		t.Fatal("expected normal path to not be detected as system")
-	}
-}
-
-func TestIsWithinRootReturnsTrueForChild(t *testing.T) {
-	if !isWithinRoot("/repo", "/repo/internal/core") {
-		t.Fatal("expected child path to be within root")
-	}
-}
-
-func TestIsWithinRootReturnsTrueForSelf(t *testing.T) {
-	if !isWithinRoot("/repo", "/repo") {
-		t.Fatal("expected root itself to be within root")
-	}
-}
-
-func TestIsWithinRootReturnsFalseForSibling(t *testing.T) {
-	if isWithinRoot("/repo", "/other") {
-		t.Fatal("expected sibling path to not be within root")
-	}
-}
-
-func TestIsWithinRootReturnsFalseForParent(t *testing.T) {
-	if isWithinRoot("/repo/internal", "/repo") {
-		t.Fatal("expected parent path to not be within child root")
-	}
-}
-
-func TestShouldSkipSystemDirectoryGit(t *testing.T) {
-	if !shouldSkipSystemDirectory("/repo/.git") {
-		t.Fatal("expected .git directory to be skipped")
-	}
-}
-
-func TestShouldSkipSystemDirectoryIdx(t *testing.T) {
-	if !shouldSkipSystemDirectory("/repo/.idx") {
-		t.Fatal("expected .idx directory to be skipped")
-	}
-}
-
-func TestShouldSkipSystemDirectoryNormalDir(t *testing.T) {
-	if shouldSkipSystemDirectory("/repo/internal") {
-		t.Fatal("expected normal directory to not be skipped")
-	}
-}
-
-func TestSortedDirectoryBatchReturnsSorted(t *testing.T) {
-	pending := map[string]struct{}{
-		"/repo/z": {},
-		"/repo/a": {},
-		"/repo/m": {},
-	}
-
+	// Act
 	result := sortedDirectoryBatch(pending)
-	if len(result) != 3 {
-		t.Fatalf("expected 3 entries, got %d", len(result))
-	}
 
-	if result[0] != "/repo/a" || result[1] != "/repo/m" || result[2] != "/repo/z" {
-		t.Fatalf("expected sorted order, got %v", result)
-	}
+	// Assert
+	require.Len(t, result, 3)
+	assert.Equal(t, "/repo/a", result[0])
+	assert.Equal(t, "/repo/m", result[1])
+	assert.Equal(t, "/repo/z", result[2])
 }
 
-func TestSortedDirectoryBatchEmptyReturnsEmpty(t *testing.T) {
-	result := sortedDirectoryBatch(map[string]struct{}{})
-	if len(result) != 0 {
-		t.Fatalf("expected empty result, got %v", result)
-	}
+func TestSortedDirectoryBatch_EmptyInput_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, sortedDirectoryBatch(map[string]struct{}{}))
 }
 
-func TestSortedFileBatchReturnsSorted(t *testing.T) {
+func TestSortedFileBatch_ReturnsSorted(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	pending := map[string]struct{}{
 		"cmd/main.go":      {},
 		"internal/core.go": {},
 		"a/b.go":           {},
 	}
 
+	// Act
 	result := sortedFileBatch(pending)
-	if len(result) != 3 {
-		t.Fatalf("expected 3 entries, got %d", len(result))
-	}
 
-	if result[0] != "a/b.go" {
-		t.Fatalf("expected 'a/b.go' first, got %q", result[0])
-	}
+	// Assert
+	require.Len(t, result, 3)
+	assert.Equal(t, "a/b.go", result[0])
 }
 
-func TestSortedFileBatchEmptyReturnsEmpty(t *testing.T) {
-	result := sortedFileBatch(map[string]struct{}{})
-	if len(result) != 0 {
-		t.Fatalf("expected empty result, got %v", result)
-	}
+func TestSortedFileBatch_EmptyInput_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, sortedFileBatch(map[string]struct{}{}))
 }
 
-func TestResetDebounceTimerCreatesNewTimerWhenNil(t *testing.T) {
-	debounce := 50 * time.Millisecond
-	timer, ch := resetDebounceTimer(nil, debounce)
-	if timer == nil {
-		t.Fatal("expected non-nil timer")
-	}
-	if ch == nil {
-		t.Fatal("expected non-nil channel")
-	}
+func TestResetDebounceTimer_CreatesNewTimerWhenNil(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	timer, ch := resetDebounceTimer(nil, 50*time.Millisecond)
+
+	// Assert
+	require.NotNil(t, timer)
+	require.NotNil(t, ch)
 	timer.Stop()
 }
 
-func TestResetDebounceTimerResetsExistingTimer(t *testing.T) {
-	debounce := 50 * time.Millisecond
-	firstTimer, _ := resetDebounceTimer(nil, debounce)
-	secondTimer, ch := resetDebounceTimer(firstTimer, debounce)
-	if secondTimer == nil || ch == nil {
-		t.Fatal("expected non-nil timer and channel after reset")
-	}
+func TestResetDebounceTimer_ResetsExistingTimer(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	firstTimer, _ := resetDebounceTimer(nil, 50*time.Millisecond)
+
+	// Act
+	secondTimer, ch := resetDebounceTimer(firstTimer, 50*time.Millisecond)
+
+	// Assert
+	require.NotNil(t, secondTimer)
+	require.NotNil(t, ch)
 	secondTimer.Stop()
 }
 
-func TestIsIgnoredPathReturnsFalseForRoot(t *testing.T) {
+func TestIsIgnoredPath_ReturnsFalseForRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
+
+	// Act
 	ignored, err := isIgnoredPath(root, root, true, neverMatcher{})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if ignored {
-		t.Fatal("expected root path to not be ignored")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.False(t, ignored)
 }
 
-func TestIsIgnoredPathDelegatesToMatcher(t *testing.T) {
+func TestIsIgnoredPath_DelegatesToMatcher(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	child := filepath.Join(root, "vendor")
+
+	// Act
 	ignored, err := isIgnoredPath(root, child, true, alwaysMatcher{})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !ignored {
-		t.Fatal("expected child path to be ignored by alwaysMatcher")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, ignored)
 }
 
-func TestEventDirectoryForExistingFile(t *testing.T) {
+func TestEventDirectory_ForExistingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	file := filepath.Join(root, "file.go")
-	if err := os.WriteFile(file, []byte("package main"), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
+	require.NoError(t, os.WriteFile(file, []byte("package main"), 0644))
 
+	// Act
 	dir, ok := eventDirectory(root, file)
-	if !ok {
-		t.Fatal("expected eventDirectory to succeed for existing file")
-	}
-	if dir != root {
-		t.Fatalf("expected directory %q, got %q", root, dir)
-	}
+
+	// Assert
+	require.True(t, ok)
+	assert.Equal(t, root, dir)
 }
 
-func TestEventDirectoryForExistingDir(t *testing.T) {
+func TestEventDirectory_ForExistingDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	child := filepath.Join(root, "subdir")
-	if err := os.Mkdir(child, 0755); err != nil {
-		t.Fatalf("failed to create subdir: %v", err)
-	}
+	require.NoError(t, os.Mkdir(child, 0755))
 
+	// Act
 	dir, ok := eventDirectory(root, child)
-	if !ok {
-		t.Fatal("expected eventDirectory to succeed for existing directory")
-	}
-	if dir != child {
-		t.Fatalf("expected directory %q, got %q", child, dir)
-	}
+
+	// Assert
+	require.True(t, ok)
+	assert.Equal(t, child, dir)
 }
 
-func TestEventDirectoryOutsideRootReturnsFalse(t *testing.T) {
+func TestEventDirectory_OutsideRoot_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	outside := filepath.Join(filepath.Dir(root), "outside")
 
+	// Act
 	_, ok := eventDirectory(root, outside)
-	if ok {
-		t.Fatal("expected eventDirectory to return false for path outside root")
-	}
+
+	// Assert
+	assert.False(t, ok)
 }
 
 // neverMatcher is a filesystem.IgnoreMatcher that never matches.

@@ -3,16 +3,17 @@ package skills_test
 import (
 	"bytes"
 	"errors"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"idx/internal/features/skills"
 	"idx/internal/features/skills/mocks"
 )
 
-func newTestService(t *testing.T) (*mocks.MockSkillsInstaller, *bytes.Buffer, *skills.SkillsInstallService) {
+func newSkillsTestService(t *testing.T) (*mocks.MockSkillsInstaller, *bytes.Buffer, *skills.SkillsInstallService) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	installer := mocks.NewMockSkillsInstaller(ctrl)
@@ -21,60 +22,75 @@ func newTestService(t *testing.T) (*mocks.MockSkillsInstaller, *bytes.Buffer, *s
 	return installer, out, svc
 }
 
-func TestInstallSucceedsForValidEditors(t *testing.T) {
+func TestSkillsInstallService_Install_SupportedEditors(t *testing.T) {
+	t.Parallel()
+
 	for _, editor := range skills.SupportedEditors {
+		editor := editor
 		t.Run(editor, func(t *testing.T) {
-			installer, _, svc := newTestService(t)
+			t.Parallel()
+
+			// Arrange
+			installer, _, svc := newSkillsTestService(t)
 			installer.EXPECT().Install(editor).Return(nil)
 
-			if err := svc.Install(editor); err != nil {
-				t.Fatalf("expected success for editor %q, got %v", editor, err)
-			}
+			// Act & Assert
+			require.NoError(t, svc.Install(editor))
 		})
 	}
 }
 
-func TestInstallRejectsUnknownEditor(t *testing.T) {
-	installer, _, svc := newTestService(t)
+func TestSkillsInstallService_Install_RejectsUnknownEditor(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _, svc := newSkillsTestService(t)
 	installer.EXPECT().Install(gomock.Any()).Times(0)
 
+	// Act
 	err := svc.Install("vim")
-	if err == nil {
-		t.Fatal("expected error for unknown editor, got nil")
-	}
-	if !strings.Contains(err.Error(), "vim") {
-		t.Fatalf("expected error to mention %q, got %q", "vim", err.Error())
-	}
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "vim")
 }
 
-func TestInstallRejectsEmptyEditor(t *testing.T) {
-	installer, _, svc := newTestService(t)
+func TestSkillsInstallService_Install_RejectsEmptyEditor(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _, svc := newSkillsTestService(t)
 	installer.EXPECT().Install(gomock.Any()).Times(0)
 
-	if err := svc.Install(""); err == nil {
-		t.Fatal("expected error for empty editor, got nil")
-	}
+	// Act & Assert
+	require.Error(t, svc.Install(""))
 }
 
-func TestInstallPropagatesInstallerError(t *testing.T) {
-	installer, _, svc := newTestService(t)
+func TestSkillsInstallService_Install_PropagatesInstallerError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _, svc := newSkillsTestService(t)
 	installErr := errors.New("disk full")
 	installer.EXPECT().Install("claude").Return(installErr)
 
+	// Act
 	err := svc.Install("claude")
-	if !errors.Is(err, installErr) {
-		t.Fatalf("expected wrapped installer error, got %v", err)
-	}
+
+	// Assert
+	require.ErrorIs(t, err, installErr)
 }
 
-func TestInstallOutputContainsEditorName(t *testing.T) {
-	installer, out, svc := newTestService(t)
+func TestSkillsInstallService_Install_OutputContainsEditorName(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, out, svc := newSkillsTestService(t)
 	installer.EXPECT().Install("copilot").Return(nil)
 
-	if err := svc.Install("copilot"); err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
-	if !strings.Contains(out.String(), "copilot") {
-		t.Fatalf("expected output to mention editor, got %q", out.String())
-	}
+	// Act
+	require.NoError(t, svc.Install("copilot"))
+
+	// Assert
+	assert.Contains(t, out.String(), "copilot")
 }

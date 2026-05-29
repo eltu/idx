@@ -3,13 +3,17 @@ package storage
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexFilePathBuildsStandardPath(t *testing.T) {
+func TestIndexFilePath_BuildsStandardPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	directoryPath := filepath.Join("repo", "pkg")
 	expected := filepath.Join(directoryPath, ".idx", "index.idx")
 
-	if indexFilePath(directoryPath) != expected {
-		t.Fatalf("expected %q, got %q", expected, indexFilePath(directoryPath))
-	}
+	// Act & Assert
+	assert.Equal(t, expected, indexFilePath(directoryPath))
 }

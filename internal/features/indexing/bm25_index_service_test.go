@@ -4,45 +4,51 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 )
 
-func TestBM25IndexServiceBuildIndexBuildsDocumentsTermsAndPathMetadata(t *testing.T) {
+func TestBM25IndexService_BuildIndex_BuildsDocumentsTermsAndPathMetadata(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := indexing.NewBM25IndexService()
 	docs := []indexing.IndexDocument{
 		{Name: "a.txt", Path: filepath.Join("repo", "a.txt"), Content: "Go go idx"},
 		{Name: "b.txt", Path: filepath.Join("repo", "sub", "b.txt"), Content: "idx search"},
 	}
 
+	// Act
 	index, err := service.BuildIndex(docs)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if index.DocumentCount != 2 {
-		t.Fatalf("expected 2 documents, got %d", index.DocumentCount)
-	}
-	if index.Terms["go"] == nil || index.Terms["go"].Docs["a.txt"].TF != 2 {
-		t.Fatal("expected go term frequency in a.txt")
-	}
-	if index.Terms["idx"] == nil || len(index.Terms["idx"].Docs) != 2 {
-		t.Fatal("expected idx term in both docs")
-	}
-	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] || !index.PathTerms["sub"]["b.txt"] || !index.PathTerms["b.txt"]["b.txt"] {
-		t.Fatal("expected path metadata segment tokens to be indexed")
-	}
-	if !index.ExtensionTerms["txt"]["a.txt"] || !index.ExtensionTerms["txt"]["b.txt"] {
-		t.Fatal("expected extension metadata tokens to be indexed")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 2, index.DocumentCount)
+	require.NotNil(t, index.Terms["go"])
+	assert.Equal(t, 2, index.Terms["go"].Docs["a.txt"].TF)
+	require.NotNil(t, index.Terms["idx"])
+	assert.Len(t, index.Terms["idx"].Docs, 2)
+	assert.True(t, index.PathTerms["repo"]["a.txt"])
+	assert.True(t, index.PathTerms["a.txt"]["a.txt"])
+	assert.True(t, index.PathTerms["sub"]["b.txt"])
+	assert.True(t, index.PathTerms["b.txt"]["b.txt"])
+	assert.True(t, index.ExtensionTerms["txt"]["a.txt"])
+	assert.True(t, index.ExtensionTerms["txt"]["b.txt"])
 }
 
-func TestBM25IndexServiceBuildIndexWithEmptyDocuments(t *testing.T) {
+func TestBM25IndexService_BuildIndex_WithEmptyDocuments_ReturnsEmptyIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := indexing.NewBM25IndexService()
+
+	// Act
 	index, err := service.BuildIndex([]indexing.IndexDocument{})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if index.DocumentCount != 0 || len(index.Terms) != 0 {
-		t.Fatalf("expected empty index, got %+v", index)
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 0, index.DocumentCount)
+	assert.Empty(t, index.Terms)
 }

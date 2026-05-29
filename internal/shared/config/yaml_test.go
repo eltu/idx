@@ -6,53 +6,63 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/shared/config"
 )
 
-func TestYAMLRepositoryFilePathReturnEmptyWhenNoFile(t *testing.T) {
+func TestYAMLRepository_FilePath_ReturnsEmptyWhenFileAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 
+	// Act
 	got := repo.FilePath(dir)
-	if got != "" {
-		t.Fatalf("expected empty path when .idx.yml absent, got %q", got)
-	}
+
+	// Assert
+	assert.Empty(t, got)
 }
 
-func TestYAMLRepositoryFilePathReturnsAbsolutePathWhenFileExists(t *testing.T) {
+func TestYAMLRepository_FilePath_ReturnsAbsolutePathWhenFileExists(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, "")
 
+	// Act
 	got := repo.FilePath(dir)
-	expected := filepath.Join(dir, ".idx.yml")
-	if got != expected {
-		t.Fatalf("expected path %q, got %q", expected, got)
-	}
+
+	// Assert
+	assert.Equal(t, filepath.Join(dir, ".idx.yml"), got)
 }
 
-func TestYAMLRepositoryLoadReturnsDefaultsWhenFileAbsent(t *testing.T) {
+func TestYAMLRepository_Load_ReturnsDefaultsWhenFileAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
-
-	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error when file absent, got %v", err)
-	}
-	if len(overrides) != 0 {
-		t.Fatalf("expected no overrides when file absent, got %v", overrides)
-	}
-
 	def := config.DefaultIdxConfig()
-	if cfg.Search.Format != def.Search.Format {
-		t.Fatalf("expected default format %q, got %q", def.Search.Format, cfg.Search.Format)
-	}
-	if cfg.BM25.K1 != def.BM25.K1 {
-		t.Fatalf("expected default bm25.k1 %v, got %v", def.BM25.K1, cfg.BM25.K1)
-	}
+
+	// Act
+	cfg, overrides, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, overrides)
+	assert.Equal(t, def.Search.Format, cfg.Search.Format)
+	assert.Equal(t, def.BM25.K1, cfg.BM25.K1)
 }
 
-func TestYAMLRepositoryLoadParsesExplicitValues(t *testing.T) {
+func TestYAMLRepository_Load_ParsesExplicitValues(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -64,26 +74,21 @@ bm25:
   k1: 1.2
 `)
 
+	// Act
 	cfg, _, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if cfg.Search.Format != "json" {
-		t.Fatalf("expected search.format json, got %q", cfg.Search.Format)
-	}
-	if cfg.Search.Size != 20 {
-		t.Fatalf("expected search.size 20, got %d", cfg.Search.Size)
-	}
-	if cfg.Search.Operator != "OR" {
-		t.Fatalf("expected search.operator OR, got %q", cfg.Search.Operator)
-	}
-	if cfg.BM25.K1 != 1.2 {
-		t.Fatalf("expected bm25.k1 1.2, got %v", cfg.BM25.K1)
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "json", cfg.Search.Format)
+	assert.Equal(t, 20, cfg.Search.Size)
+	assert.Equal(t, "OR", cfg.Search.Operator)
+	assert.Equal(t, 1.2, cfg.BM25.K1)
 }
 
-func TestYAMLRepositoryLoadTracksExactOverrides(t *testing.T) {
+func TestYAMLRepository_Load_TracksExplicitOverrides(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -94,49 +99,43 @@ bm25:
   k1: 1.2
 `)
 
+	// Act
 	_, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	overrideSet := make(map[string]bool)
-	for _, k := range overrides {
-		overrideSet[k] = true
-	}
-
+	// Assert
+	require.NoError(t, err)
+	overrideSet := overrideMap(overrides)
 	for _, expected := range []string{"search.format", "search.size", "bm25.k1"} {
-		if !overrideSet[expected] {
-			t.Errorf("expected override %q to be tracked, got overrides: %v", expected, overrides)
-		}
+		assert.True(t, overrideSet[expected], "expected override %q to be tracked", expected)
 	}
-	if overrideSet["search.operator"] {
-		t.Errorf("expected search.operator not tracked (not in file), but it was")
-	}
+	assert.False(t, overrideSet["search.operator"], "search.operator should not be tracked when not in file")
 }
 
-func TestYAMLRepositoryLoadKeepsDefaultsForUnsetKeys(t *testing.T) {
+func TestYAMLRepository_Load_KeepsDefaultsForUnsetKeys(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
 search:
   format: json
 `)
-
-	cfg, _, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
 	def := config.DefaultIdxConfig()
-	if cfg.Search.Operator != def.Search.Operator {
-		t.Fatalf("expected default operator %q for unset key, got %q", def.Search.Operator, cfg.Search.Operator)
-	}
-	if cfg.BM25.B != def.BM25.B {
-		t.Fatalf("expected default bm25.b %v for unset key, got %v", def.BM25.B, cfg.BM25.B)
-	}
+
+	// Act
+	cfg, _, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, def.Search.Operator, cfg.Search.Operator)
+	assert.Equal(t, def.BM25.B, cfg.BM25.B)
 }
 
-func TestYAMLRepositoryLoadParsesDurationStrings(t *testing.T) {
+func TestYAMLRepository_Load_ParsesDurationStrings(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -146,31 +145,22 @@ watch:
   debounce: 250ms
 `)
 
+	// Act
 	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error parsing durations, got %v", err)
-	}
 
-	if cfg.Search.CacheTTL != 2*time.Minute {
-		t.Fatalf("expected search.cache_ttl 2m, got %v", cfg.Search.CacheTTL)
-	}
-	if cfg.Watch.Debounce != 250*time.Millisecond {
-		t.Fatalf("expected watch.debounce 250ms, got %v", cfg.Watch.Debounce)
-	}
-
-	overrideSet := make(map[string]bool)
-	for _, k := range overrides {
-		overrideSet[k] = true
-	}
-	if !overrideSet["search.cache_ttl"] {
-		t.Error("expected search.cache_ttl to be tracked as override")
-	}
-	if !overrideSet["watch.debounce"] {
-		t.Error("expected watch.debounce to be tracked as override")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, cfg.Search.CacheTTL)
+	assert.Equal(t, 250*time.Millisecond, cfg.Watch.Debounce)
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["search.cache_ttl"])
+	assert.True(t, overrideSet["watch.debounce"])
 }
 
-func TestYAMLRepositoryLoadReturnsErrorForInvalidDuration(t *testing.T) {
+func TestYAMLRepository_Load_ReturnsErrorForInvalidDuration(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -178,27 +168,32 @@ watch:
   debounce: "not-a-duration"
 `)
 
+	// Act
 	_, _, err := repo.Load(dir)
-	if err == nil {
-		t.Fatal("expected error for invalid duration string, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestYAMLRepositoryLoadReturnsErrorForInvalidYAML(t *testing.T) {
+func TestYAMLRepository_Load_ReturnsErrorForInvalidYAML(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".idx.yml"), []byte(":\tinvalid: yaml::\n"), 0o600))
 
-	if err := os.WriteFile(filepath.Join(dir, ".idx.yml"), []byte(":\tinvalid: yaml::\n"), 0o600); err != nil {
-		t.Fatalf("failed to write bad config: %v", err)
-	}
-
+	// Act
 	_, _, err := repo.Load(dir)
-	if err == nil {
-		t.Fatal("expected error for invalid YAML, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestYAMLRepositoryLoadParsesIgnorePatterns(t *testing.T) {
+func TestYAMLRepository_Load_ParsesIgnorePatterns(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -208,28 +203,21 @@ index:
     - "*.pb.go"
 `)
 
+	// Act
 	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(cfg.Index.Ignore) != 2 {
-		t.Fatalf("expected 2 ignore patterns, got %d: %v", len(cfg.Index.Ignore), cfg.Index.Ignore)
-	}
-	if cfg.Index.Ignore[0] != "vendor/" {
-		t.Fatalf("expected first pattern vendor/, got %q", cfg.Index.Ignore[0])
-	}
-
-	overrideSet := make(map[string]bool)
-	for _, k := range overrides {
-		overrideSet[k] = true
-	}
-	if !overrideSet["index.ignore"] {
-		t.Error("expected index.ignore to be tracked as override")
-	}
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, cfg.Index.Ignore, 2)
+	assert.Equal(t, "vendor/", cfg.Index.Ignore[0])
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["index.ignore"])
 }
 
-func TestYAMLRepositoryLoadParsesLogLevel(t *testing.T) {
+func TestYAMLRepository_Load_ParsesLogLevel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -237,47 +225,36 @@ log:
   level: debug
 `)
 
+	// Act
 	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if cfg.Log.Level != "debug" {
-		t.Fatalf("expected log.level debug, got %q", cfg.Log.Level)
-	}
-
-	overrideSet := make(map[string]bool)
-	for _, k := range overrides {
-		overrideSet[k] = true
-	}
-	if !overrideSet["log.level"] {
-		t.Error("expected log.level to be tracked as override")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "debug", cfg.Log.Level)
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["log.level"])
 }
 
-func TestYAMLRepositoryLoadEmptyFileReturnsDefaults(t *testing.T) {
+func TestYAMLRepository_Load_EmptyFileReturnsDefaults(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, "")
-
-	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error for empty file, got %v", err)
-	}
-	if len(overrides) != 0 {
-		t.Fatalf("expected no overrides for empty file, got %v", overrides)
-	}
-
 	def := config.DefaultIdxConfig()
-	if cfg.Search.Format != def.Search.Format {
-		t.Fatalf("expected default format for empty file, got %q", cfg.Search.Format)
-	}
+
+	// Act
+	cfg, overrides, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, overrides)
+	assert.Equal(t, def.Search.Format, cfg.Search.Format)
 }
 
 func writeYAMLConfig(t *testing.T, dir, content string) {
 	t.Helper()
 	path := filepath.Join(dir, ".idx.yml")
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("failed to write config file: %v", err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }

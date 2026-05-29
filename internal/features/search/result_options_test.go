@@ -3,283 +3,320 @@ package search
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- normalizedSearchOptions ---
 
-func TestNormalizedSearchOptionsDefaultFormat(t *testing.T) {
-	opts := normalizedSearchOptions(Options{})
-	if opts.Format != OutputText {
-		t.Errorf("expected default format %q, got %q", OutputText, opts.Format)
-	}
-}
+func TestNormalizedSearchOptions_NormalizesBehavior(t *testing.T) {
+	t.Parallel()
 
-func TestNormalizedSearchOptionsNegativeContextClampsToZero(t *testing.T) {
-	opts := normalizedSearchOptions(Options{Context: -5})
-	if opts.Context != 0 {
-		t.Errorf("expected context 0, got %d", opts.Context)
+	tests := []struct {
+		name  string
+		input Options
+		check func(t *testing.T, got Options)
+	}{
+		{
+			name:  "DefaultFormat_ReturnsText",
+			input: Options{},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, OutputText, got.Format)
+			},
+		},
+		{
+			name:  "NegativeContext_ClampsToZero",
+			input: Options{Context: -5},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, 0, got.Context)
+			},
+		},
+		{
+			name:  "NegativeFrom_ClampsToZero",
+			input: Options{From: -3},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, 0, got.From)
+			},
+		},
+		{
+			name:  "NegativeSize_ClampsToZero",
+			input: Options{Size: -1},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, 0, got.Size)
+			},
+		},
+		{
+			name:  "PrettyJSONWithTextFormat_ClearedToFalse",
+			input: Options{Format: OutputText, PrettyJSON: true},
+			check: func(t *testing.T, got Options) {
+				assert.False(t, got.PrettyJSON)
+			},
+		},
+		{
+			name:  "PrettyJSONWithJSONFormat_Preserved",
+			input: Options{Format: OutputJSON, PrettyJSON: true},
+			check: func(t *testing.T, got Options) {
+				assert.True(t, got.PrettyJSON)
+			},
+		},
+		{
+			name:  "DefaultOperator_ReturnsAND",
+			input: Options{},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, OperatorAND, got.Operator)
+			},
+		},
+		{
+			name:  "NegativeRelaxationMin_ClampsToZero",
+			input: Options{RelaxationMinExclusive: -2},
+			check: func(t *testing.T, got Options) {
+				assert.Equal(t, 0, got.RelaxationMinExclusive)
+			},
+		},
 	}
-}
 
-func TestNormalizedSearchOptionsNegativeFromClampsToZero(t *testing.T) {
-	opts := normalizedSearchOptions(Options{From: -3})
-	if opts.From != 0 {
-		t.Errorf("expected from 0, got %d", opts.From)
-	}
-}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestNormalizedSearchOptionsNegativeSizeClampsToZero(t *testing.T) {
-	opts := normalizedSearchOptions(Options{Size: -1})
-	if opts.Size != 0 {
-		t.Errorf("expected size 0, got %d", opts.Size)
-	}
-}
+			// Act
+			got := normalizedSearchOptions(tc.input)
 
-func TestNormalizedSearchOptionsClearsPrettyJSONForTextFormat(t *testing.T) {
-	opts := normalizedSearchOptions(Options{Format: OutputText, PrettyJSON: true})
-	if opts.PrettyJSON {
-		t.Error("expected PrettyJSON false for text format")
-	}
-}
-
-func TestNormalizedSearchOptionsKeepsPrettyJSONForJSONFormat(t *testing.T) {
-	opts := normalizedSearchOptions(Options{Format: OutputJSON, PrettyJSON: true})
-	if !opts.PrettyJSON {
-		t.Error("expected PrettyJSON true for JSON format")
-	}
-}
-
-func TestNormalizedSearchOptionsDefaultOperator(t *testing.T) {
-	opts := normalizedSearchOptions(Options{})
-	if opts.Operator != OperatorAND {
-		t.Errorf("expected AND operator, got %q", opts.Operator)
-	}
-}
-
-func TestNormalizedSearchOptionsNegativeRelaxationMinClampsToZero(t *testing.T) {
-	opts := normalizedSearchOptions(Options{RelaxationMinExclusive: -2})
-	if opts.RelaxationMinExclusive != 0 {
-		t.Errorf("expected 0, got %d", opts.RelaxationMinExclusive)
+			// Assert
+			tc.check(t, got)
+		})
 	}
 }
 
 // --- normalizeExtensionValue ---
 
-func TestNormalizeExtensionValueStripsLeadingDot(t *testing.T) {
-	got := normalizeExtensionValue(".go")
-	if got != "go" {
-		t.Errorf("expected %q, got %q", "go", got)
-	}
-}
+func TestNormalizeExtensionValue_Normalizations(t *testing.T) {
+	t.Parallel()
 
-func TestNormalizeExtensionValueLowercases(t *testing.T) {
-	got := normalizeExtensionValue("GO")
-	if got != "go" {
-		t.Errorf("expected %q, got %q", "go", got)
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "StripLeadingDot", input: ".go", want: "go"},
+		{name: "Lowercase", input: "GO", want: "go"},
+		{name: "EmptyReturnsEmpty", input: "  ", want: ""},
 	}
-}
 
-func TestNormalizeExtensionValueEmptyReturnsEmpty(t *testing.T) {
-	got := normalizeExtensionValue("  ")
-	if got != "" {
-		t.Errorf("expected empty, got %q", got)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, normalizeExtensionValue(tc.input))
+		})
 	}
 }
 
 // --- normalizedExtensionQueries ---
 
-func TestNormalizedExtensionQueriesDeduplicates(t *testing.T) {
+func TestNormalizedExtensionQueries_Deduplicates(t *testing.T) {
+	t.Parallel()
+
 	got := normalizedExtensionQueries([]string{"go", ".go", "GO"}, "")
-	if len(got) != 1 || got[0] != "go" {
-		t.Errorf("expected [go], got %v", got)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "go", got[0])
 }
 
-func TestNormalizedExtensionQueriesSkipsEmpty(t *testing.T) {
-	got := normalizedExtensionQueries([]string{"", "  "}, "")
-	if len(got) != 0 {
-		t.Errorf("expected empty slice, got %v", got)
-	}
+func TestNormalizedExtensionQueries_SkipsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, normalizedExtensionQueries([]string{"", "  "}, ""))
 }
 
-func TestNormalizedExtensionQueriesUsesFallback(t *testing.T) {
+func TestNormalizedExtensionQueries_UsesFallback(t *testing.T) {
+	t.Parallel()
+
 	got := normalizedExtensionQueries(nil, "ts")
-	if len(got) != 1 || got[0] != "ts" {
-		t.Errorf("expected [ts], got %v", got)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "ts", got[0])
 }
 
 // --- normalizedFilterQueries ---
 
-func TestNormalizedFilterQueriesDeduplicates(t *testing.T) {
+func TestNormalizedFilterQueries_Deduplicates(t *testing.T) {
+	t.Parallel()
+
 	got := normalizedFilterQueries([]string{"a", "a", "b"}, "")
-	if len(got) != 2 {
-		t.Errorf("expected 2 unique queries, got %v", got)
-	}
+	assert.Len(t, got, 2)
 }
 
-func TestNormalizedFilterQueriesTrimsSpace(t *testing.T) {
+func TestNormalizedFilterQueries_TrimsSpace(t *testing.T) {
+	t.Parallel()
+
 	got := normalizedFilterQueries([]string{"  a  "}, "")
-	if len(got) != 1 || got[0] != "a" {
-		t.Errorf("expected [a], got %v", got)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "a", got[0])
 }
 
-func TestNormalizedFilterQueriesSkipsEmptyStrings(t *testing.T) {
-	got := normalizedFilterQueries([]string{" ", ""}, "")
-	if len(got) != 0 {
-		t.Errorf("expected empty, got %v", got)
-	}
+func TestNormalizedFilterQueries_SkipsEmptyStrings(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, normalizedFilterQueries([]string{" ", ""}, ""))
 }
 
-func TestNormalizedFilterQueriesUsesFallbackWhenEmpty(t *testing.T) {
+func TestNormalizedFilterQueries_UsesFallbackWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	got := normalizedFilterQueries(nil, "fallback")
-	if len(got) != 1 || got[0] != "fallback" {
-		t.Errorf("expected [fallback], got %v", got)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "fallback", got[0])
 }
 
 // --- paginatedResults ---
 
-func TestPaginatedResultsFromBeyondLengthReturnsEmpty(t *testing.T) {
+func TestPaginatedResults_FromBeyondLength_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	results := []searchResult{{directoryPath: "/a", fileName: "a.go"}}
-	got := paginatedResults(results, 10, 5)
-	if len(got) != 0 {
-		t.Errorf("expected empty, got %d results", len(got))
-	}
+	assert.Empty(t, paginatedResults(results, 10, 5))
 }
 
-func TestPaginatedResultsNegativeFromClampsToZero(t *testing.T) {
+func TestPaginatedResults_NegativeFrom_ClampsToZero(t *testing.T) {
+	t.Parallel()
+
 	results := []searchResult{{directoryPath: "/a", fileName: "a.go"}}
-	got := paginatedResults(results, -1, 0)
-	if len(got) != 1 {
-		t.Errorf("expected 1 result, got %d", len(got))
-	}
+	assert.Len(t, paginatedResults(results, -1, 0), 1)
 }
 
-func TestPaginatedResultsLimitsResults(t *testing.T) {
+func TestPaginatedResults_LimitsResults(t *testing.T) {
+	t.Parallel()
+
 	results := []searchResult{
 		{directoryPath: "/a", fileName: "a.go"},
 		{directoryPath: "/b", fileName: "b.go"},
 		{directoryPath: "/c", fileName: "c.go"},
 	}
-	got := paginatedResults(results, 0, 2)
-	if len(got) != 2 {
-		t.Errorf("expected 2, got %d", len(got))
-	}
+	assert.Len(t, paginatedResults(results, 0, 2), 2)
 }
 
-func TestPaginatedResultsZeroSizeReturnsAll(t *testing.T) {
+func TestPaginatedResults_ZeroSize_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	results := []searchResult{
 		{directoryPath: "/a", fileName: "a.go"},
 		{directoryPath: "/b", fileName: "b.go"},
 	}
-	got := paginatedResults(results, 0, 0)
-	if len(got) != 2 {
-		t.Errorf("expected 2, got %d", len(got))
-	}
+	assert.Len(t, paginatedResults(results, 0, 0), 2)
 }
 
 // --- filesOnlyResults ---
 
-func TestFilesOnlyResultsDeduplicatesSameFileDifferentScores(t *testing.T) {
+func TestFilesOnlyResults_DeduplicatesSameFileDifferentScores(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	results := []searchResult{
 		{directoryPath: "/a", fileName: "foo.go", score: 1.0, matchedLines: []matchedLine{{lineNumber: 1}}},
 		{directoryPath: "/a", fileName: "foo.go", score: 2.0, matchedLines: []matchedLine{{lineNumber: 2}}},
 	}
+
+	// Act
 	got := filesOnlyResults(results)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 unique file, got %d", len(got))
-	}
-	if got[0].score != 2.0 {
-		t.Errorf("expected higher score 2.0 to win, got %v", got[0].score)
-	}
+
+	// Assert
+	require.Len(t, got, 1)
+	assert.Equal(t, 2.0, got[0].score, "expected higher score to win")
 }
 
-func TestFilesOnlyResultsRemovesMatchedLines(t *testing.T) {
-	results := []searchResult{
-		{directoryPath: "/a", fileName: "bar.go", score: 1.0, matchedLines: []matchedLine{{lineNumber: 5}}},
-	}
+func TestFilesOnlyResults_RemovesMatchedLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	results := []searchResult{{directoryPath: "/a", fileName: "bar.go", score: 1.0, matchedLines: []matchedLine{{lineNumber: 5}}}}
+
+	// Act
 	got := filesOnlyResults(results)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(got))
-	}
-	if len(got[0].matchedLines) != 0 {
-		t.Error("expected matched lines to be stripped in files-only mode")
-	}
+
+	// Assert
+	require.Len(t, got, 1)
+	assert.Empty(t, got[0].matchedLines)
 }
 
-func TestFilesOnlyResultsLowerScoreIsNotUpgraded(t *testing.T) {
+func TestFilesOnlyResults_LowerScoreIsNotUpgraded(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	results := []searchResult{
 		{directoryPath: "/a", fileName: "foo.go", score: 3.0},
 		{directoryPath: "/a", fileName: "foo.go", score: 1.0},
 	}
+
+	// Act
 	got := filesOnlyResults(results)
-	if len(got) != 1 || got[0].score != 3.0 {
-		t.Errorf("expected score 3.0 to be kept, got %v", got)
-	}
+
+	// Assert
+	require.Len(t, got, 1)
+	assert.Equal(t, 3.0, got[0].score)
 }
 
 // --- matchesOnlyResults ---
 
-func TestMatchesOnlyResultsDropsResultsWithNoMatchedLines(t *testing.T) {
-	results := []searchResult{
-		{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{
-			{lineNumber: 1, isMatch: false},
-		}},
-	}
-	got := matchesOnlyResults(results)
-	if len(got) != 0 {
-		t.Errorf("expected empty (no actual matches), got %d", len(got))
-	}
+func TestMatchesOnlyResults_DropsResultsWithNoMatchedLines(t *testing.T) {
+	t.Parallel()
+
+	results := []searchResult{{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{{lineNumber: 1, isMatch: false}}}}
+	assert.Empty(t, matchesOnlyResults(results))
 }
 
-func TestMatchesOnlyResultsKeepsStaleEntries(t *testing.T) {
-	results := []searchResult{
-		{directoryPath: "/a", fileName: "stale.go", stale: true},
-	}
-	got := matchesOnlyResults(results)
-	if len(got) != 1 {
-		t.Errorf("expected stale entry to be kept, got %d", len(got))
-	}
+func TestMatchesOnlyResults_KeepsStaleEntries(t *testing.T) {
+	t.Parallel()
+
+	results := []searchResult{{directoryPath: "/a", fileName: "stale.go", stale: true}}
+	assert.Len(t, matchesOnlyResults(results), 1)
 }
 
-func TestMatchesOnlyResultsFiltersNonMatchLines(t *testing.T) {
-	results := []searchResult{
-		{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{
-			{lineNumber: 1, isMatch: false},
-			{lineNumber: 2, isMatch: true},
-		}},
-	}
+func TestMatchesOnlyResults_FiltersNonMatchLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	results := []searchResult{{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{
+		{lineNumber: 1, isMatch: false},
+		{lineNumber: 2, isMatch: true},
+	}}}
+
+	// Act
 	got := matchesOnlyResults(results)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(got))
-	}
-	if len(got[0].matchedLines) != 1 || !got[0].matchedLines[0].isMatch {
-		t.Errorf("expected only matched line retained, got %+v", got[0].matchedLines)
-	}
+
+	// Assert
+	require.Len(t, got, 1)
+	require.Len(t, got[0].matchedLines, 1)
+	assert.True(t, got[0].matchedLines[0].isMatch)
 }
 
 // --- encodeOutputJSON ---
 
-func TestEncodeOutputJSONCompact(t *testing.T) {
+func TestEncodeOutputJSON_Compact_NoNewlines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	payload := map[string]any{"count": 0, "results": []any{}}
+
+	// Act
 	got, err := encodeOutputJSON(payload, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if strings.Contains(string(got), "\n") {
-		t.Error("expected compact JSON (no newlines)")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.False(t, strings.Contains(string(got), "\n"), "expected compact JSON (no newlines)")
 }
 
-func TestEncodeOutputJSONPretty(t *testing.T) {
+func TestEncodeOutputJSON_Pretty_ContainsNewlines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	payload := map[string]any{"count": 0, "results": []any{}}
+
+	// Act
 	got, err := encodeOutputJSON(payload, true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(string(got), "\n") {
-		t.Error("expected indented JSON (with newlines)")
-	}
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, string(got), "\n")
 }

@@ -1,41 +1,58 @@
 package indexing
 
-import "testing"
+import (
+	"testing"
 
-func TestTruncateStatusColumnFitsWithinMaxWidth(t *testing.T) {
+	"github.com/stretchr/testify/assert"
+)
+
+func TestTruncateStatusColumn_ShortValue_FitsWithinMaxWidth(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := truncateStatusColumn("short", 10)
-	if got != "short" {
-		t.Fatalf("expected 'short', got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "short", got)
 }
 
-func TestTruncateStatusColumnTruncatesWithEllipsis(t *testing.T) {
+func TestTruncateStatusColumn_LongValue_TruncatesWithEllipsis(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := truncateStatusColumn("very long value here", 10)
-	if len(got) != 10 {
-		t.Fatalf("expected length 10, got %d (%q)", len(got), got)
-	}
-	if got[len(got)-3:] != "..." {
-		t.Fatalf("expected trailing '...', got %q", got)
-	}
+
+	// Assert
+	assert.Len(t, got, 10)
+	assert.Equal(t, "...", got[len(got)-3:])
 }
 
-func TestTruncateStatusColumnMaxWidthLessThanFourTruncatesHard(t *testing.T) {
+func TestTruncateStatusColumn_MaxWidthLessThanFour_TruncatesHard(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := truncateStatusColumn("hello", 3)
-	if got != "hel" {
-		t.Fatalf("expected 'hel' for maxWidth=3, got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "hel", got)
 }
 
-func TestTruncateStatusColumnMaxWidthZeroTruncatesHard(t *testing.T) {
+func TestTruncateStatusColumn_MaxWidthZero_TruncatesHard(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := truncateStatusColumn("hello", 0)
-	if got != "" {
-		t.Fatalf("expected empty for maxWidth=0, got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "", got)
 }
 
-func TestTruncateStatusColumnExactLengthNoTruncation(t *testing.T) {
+func TestTruncateStatusColumn_ExactLength_NoTruncation(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	got := truncateStatusColumn("hello", 5)
-	if got != "hello" {
-		t.Fatalf("expected 'hello' for exact fit, got %q", got)
-	}
+
+	// Assert
+	assert.Equal(t, "hello", got)
 }

@@ -3,127 +3,148 @@ package search
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestInitCacheStartsEmpty(t *testing.T) {
+func TestInitCache_StartsEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	cache := initCache()
 
-	if cache.entries == nil {
-		t.Fatal("expected initialized cache entries map, got nil")
-	}
-	if len(cache.entries) != 0 {
-		t.Fatalf("expected empty cache, got %d entries", len(cache.entries))
-	}
+	// Assert
+	require.NotNil(t, cache.entries)
+	assert.Empty(t, cache.entries)
 }
 
-func TestCacheSetAndGetHit(t *testing.T) {
+func TestCache_SetAndGet_ReturnsStoredResult(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 	key := "k1"
 	results := []searchResult{{directoryPath: "/repo", fileName: "a.go", score: 1.0}}
 
+	// Act
 	cache.setInCache(key, results)
-
 	got, ok := cache.getFromCache(key)
-	if !ok {
-		t.Fatal("expected cache hit, got miss")
-	}
-	if len(got) != 1 || got[0].fileName != "a.go" {
-		t.Fatalf("unexpected cached results: %+v", got)
-	}
+
+	// Assert
+	require.True(t, ok, "expected cache hit")
+	require.Len(t, got, 1)
+	assert.Equal(t, "a.go", got[0].fileName)
 }
 
-func TestCacheGetMiss(t *testing.T) {
+func TestCache_Get_ReturnsMissForMissingKey(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 
+	// Act
 	got, ok := cache.getFromCache("missing")
-	if ok {
-		t.Fatalf("expected cache miss, got hit with %+v", got)
-	}
-	if got != nil {
-		t.Fatalf("expected nil result on miss, got %+v", got)
-	}
+
+	// Assert
+	assert.False(t, ok)
+	assert.Nil(t, got)
 }
 
-func TestCacheGetExpiredDeletesEntry(t *testing.T) {
+func TestCache_Get_DeletesExpiredEntry(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 	cache.entries["expired"] = cacheEntry{
 		results:   []searchResult{{fileName: "old.go"}},
 		expiresAt: time.Now().Add(-1 * time.Second),
 	}
 
+	// Act
 	_, ok := cache.getFromCache("expired")
-	if ok {
-		t.Fatal("expected expired cache miss")
-	}
-	if _, exists := cache.entries["expired"]; exists {
-		t.Fatal("expected expired entry to be deleted")
-	}
+
+	// Assert
+	assert.False(t, ok, "expected expired cache miss")
+	_, exists := cache.entries["expired"]
+	assert.False(t, exists, "expected expired entry to be deleted")
 }
 
-func TestCacheSetInCacheAssignsFutureTTL(t *testing.T) {
+func TestCache_SetInCache_AssignsFutureTTL(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 	key := "ttl"
-
 	before := time.Now()
+
+	// Act
 	cache.setInCache(key, []searchResult{{fileName: "ttl.go"}})
 	after := time.Now()
 
+	// Assert
 	entry, exists := cache.entries[key]
-	if !exists {
-		t.Fatal("expected cache entry to exist")
-	}
-	if !entry.expiresAt.After(after) {
-		t.Fatalf("expected future expiration, got %v", entry.expiresAt)
-	}
-
-	minExpected := before.Add(time.Minute - 200*time.Millisecond)
-	if entry.expiresAt.Before(minExpected) {
-		t.Fatalf("expected expiration close to now+TTL, got %v", entry.expiresAt)
-	}
+	require.True(t, exists)
+	assert.True(t, entry.expiresAt.After(after), "expected future expiration")
+	assert.True(t, entry.expiresAt.After(before.Add(time.Minute-200*time.Millisecond)),
+		"expected expiration close to now+TTL, got %v", entry.expiresAt)
 }
 
-func TestCacheRenewTTLExtendsExpiration(t *testing.T) {
+func TestCache_RenewTTL_ExtendsExpiration(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 	key := "renew"
 	cache.entries[key] = cacheEntry{
 		results:   []searchResult{{fileName: "renew.go"}},
 		expiresAt: time.Now().Add(100 * time.Millisecond),
 	}
-
 	oldExpiry := cache.entries[key].expiresAt
-	time.Sleep(20 * time.Millisecond)
+
+	// Act
 	cache.renewCacheTTL(key)
 
+	// Assert
 	newExpiry := cache.entries[key].expiresAt
-	if !newExpiry.After(oldExpiry) {
-		t.Fatalf("expected renewed expiry after old expiry, old=%v new=%v", oldExpiry, newExpiry)
-	}
+	assert.True(t, newExpiry.After(oldExpiry), "expected renewed expiry after old expiry, old=%v new=%v", oldExpiry, newExpiry)
 }
 
-func TestCacheRenewTTLNoopForMissingKey(t *testing.T) {
+func TestCache_RenewTTL_NoopForMissingKey(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	cache := initCache()
 
+	// Act
 	cache.renewCacheTTL("missing")
 
-	if len(cache.entries) != 0 {
-		t.Fatalf("expected cache to remain empty, got %d entries", len(cache.entries))
-	}
+	// Assert
+	assert.Empty(t, cache.entries)
 }
 
-func TestGetCacheEntriesReturnsCopy(t *testing.T) {
-	cache := initCache()
-	cache.entries["k"] = cacheEntry{results: []searchResult{{fileName: "x.go"}}, expiresAt: time.Now().Add(time.Minute)}
+func TestCache_GetCacheEntries_ReturnsCopy(t *testing.T) {
+	t.Parallel()
 
+	// Arrange
+	cache := initCache()
+	cache.entries["k"] = cacheEntry{
+		results:   []searchResult{{fileName: "x.go"}},
+		expiresAt: time.Now().Add(time.Minute),
+	}
+
+	// Act
 	entries := cache.GetCacheEntries()
 	entries["k"] = cacheEntry{results: []searchResult{{fileName: "changed.go"}}, expiresAt: time.Now().Add(time.Minute)}
 
-	original := cache.entries["k"]
-	if original.results[0].fileName != "x.go" {
-		t.Fatalf("expected original cache unchanged, got %+v", original)
-	}
+	// Assert — original cache must be unaffected
+	assert.Equal(t, "x.go", cache.entries["k"].results[0].fileName)
 }
 
-func TestCacheKeyForIgnoresPaginationOnly(t *testing.T) {
+func TestCacheKeyFor_IgnoresPaginationOnly(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	base := Options{
 		Format:      OutputJSON,
 		Context:     2,
@@ -133,28 +154,30 @@ func TestCacheKeyForIgnoresPaginationOnly(t *testing.T) {
 		From:        0,
 		Size:        10,
 	}
-
 	page2 := base
 	page2.From = 20
 	page2.Size = 5
 
+	// Act
 	k1 := cacheKeyFor("module idx", base)
 	k2 := cacheKeyFor("module idx", page2)
 
-	if k1 != k2 {
-		t.Fatalf("expected same key when only pagination changes, got %q vs %q", k1, k2)
-	}
+	// Assert
+	assert.Equal(t, k1, k2, "expected same key when only pagination changes")
 }
 
-func TestCacheKeyForChangesWhenFunctionalOptionsChange(t *testing.T) {
+func TestCacheKeyFor_ChangesWhenFunctionalOptionsChange(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	base := Options{Format: OutputText, Context: 0, PathQueries: []string{"internal"}}
 	changed := base
 	changed.Context = 1
 
+	// Act
 	k1 := cacheKeyFor("module idx", base)
 	k2 := cacheKeyFor("module idx", changed)
 
-	if k1 == k2 {
-		t.Fatalf("expected different keys when functional options change, got %q", k1)
-	}
+	// Assert
+	assert.NotEqual(t, k1, k2)
 }

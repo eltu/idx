@@ -7,121 +7,139 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 )
 
-func TestBinaryIndexRepositorySaveAndLoadIndex(t *testing.T) {
+func TestBinaryIndexRepository_SaveAndLoad_RoundTripsIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
 	dir := t.TempDir()
-
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("a.txt", filepath.Join(dir, "a.txt"), 2)
 	index.AddTerm("go", "a.txt", 2, []int{0, 3})
 	index.CalculateAverageDocLen()
 	index.CalculateIDF()
 
-	if err := repo.SaveIndex(dir, index); err != nil {
-		t.Fatalf("expected save to succeed, got %v", err)
-	}
-
+	// Act
+	require.NoError(t, repo.SaveIndex(dir, index))
 	loaded, err := repo.LoadIndex(dir)
-	if err != nil {
-		t.Fatalf("expected load to succeed, got %v", err)
-	}
 
-	if loaded.DocumentCount != 1 {
-		t.Fatalf("expected document count 1, got %d", loaded.DocumentCount)
-	}
-	if loaded.Terms["go"] == nil || loaded.Terms["go"].Docs["a.txt"] == nil {
-		t.Fatal("expected term stats to be present after load")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 1, loaded.DocumentCount)
+	require.NotNil(t, loaded.Terms["go"])
+	assert.NotNil(t, loaded.Terms["go"].Docs["a.txt"])
 }
 
-func TestBinaryIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) {
+func TestBinaryIndexRepository_LoadIndex_ReturnsErrorForMissingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
+
+	// Act
 	_, err := repo.LoadIndex(t.TempDir())
-	if err == nil {
-		t.Fatal("expected error for missing index file, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositoryLoadIndexReturnsErrorForInvalidBinaryPayload(t *testing.T) {
+func TestBinaryIndexRepository_LoadIndex_ReturnsErrorForInvalidBinaryPayload(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	indexPath := filepath.Join(dir, ".idx", "index.idx")
-	if err := os.MkdirAll(filepath.Dir(indexPath), 0750); err != nil {
-		t.Fatalf("expected index directory creation to succeed, got %v", err)
-	}
-	if err := os.WriteFile(indexPath, []byte("not-gob"), 0600); err != nil {
-		t.Fatalf("expected invalid payload write to succeed, got %v", err)
-	}
-
+	require.NoError(t, os.MkdirAll(filepath.Dir(indexPath), 0750))
+	require.NoError(t, os.WriteFile(indexPath, []byte("not-gob"), 0600))
 	repo := NewBinaryIndexRepository()
+
+	// Act
 	_, err := repo.LoadIndex(dir)
-	if err == nil {
-		t.Fatal("expected parse error for invalid binary payload")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositorySaveIndexReturnsErrorForInvalidDirectory(t *testing.T) {
+func TestBinaryIndexRepository_SaveIndex_ReturnsErrorForInvalidDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
-	index := indexing.NewInvertedIndex()
 
-	err := repo.SaveIndex("\x00invalid", index)
-	if err == nil {
-		t.Fatal("expected save error for invalid directory path")
-	}
+	// Act
+	err := repo.SaveIndex("\x00invalid", indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenEncodingNilIndex(t *testing.T) {
+func TestBinaryIndexRepository_SaveIndex_ReturnsErrorWhenEncodingNilIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
-	dir := t.TempDir()
 
-	err := repo.SaveIndex(dir, nil)
-	if err == nil {
-		t.Fatal("expected serialize error for nil index")
-	}
+	// Act
+	err := repo.SaveIndex(t.TempDir(), nil)
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
-	var repo *BinaryIndexRepository
-	index := indexing.NewInvertedIndex()
+func TestBinaryIndexRepository_SaveIndex_ReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	t.Parallel()
 
-	err := repo.SaveIndex(t.TempDir(), index)
-	if err == nil {
-		t.Fatal("expected save error for nil repository receiver")
-	}
+	// Arrange
+	var repo *BinaryIndexRepository
+
+	// Act
+	err := repo.SaveIndex(t.TempDir(), indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositoryLoadIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+func TestBinaryIndexRepository_LoadIndex_ReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	var repo *BinaryIndexRepository
 
+	// Act
 	_, err := repo.LoadIndex(t.TempDir())
-	if err == nil {
-		t.Fatal("expected load error for nil repository receiver")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositorySaveIndexReturnsErrorWhenTempFileCannotBeCreated(t *testing.T) {
+func TestBinaryIndexRepository_SaveIndex_ReturnsErrorWhenTempFileCannotBeCreated(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
 	root := t.TempDir()
 	indexDir := filepath.Join(root, ".idx")
-	if err := os.MkdirAll(indexDir, 0750); err != nil {
-		t.Fatalf("expected index dir creation, got %v", err)
-	}
-
-	if err := os.Chmod(indexDir, 0500); err != nil {
-		t.Fatalf("expected chmod to read/execute only, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(indexDir, 0750))
+	require.NoError(t, os.Chmod(indexDir, 0500))
 	t.Cleanup(func() { _ = os.Chmod(indexDir, 0750) })
 
-	index := indexing.NewInvertedIndex()
-	err := repo.SaveIndex(root, index)
-	if err == nil {
-		t.Fatal("expected temp file creation error when directory is not writable")
-	}
+	// Act
+	err := repo.SaveIndex(root, indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
+func TestBinaryIndexRepository_ConcurrentSaveAndLoad_NoCorrption(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := NewBinaryIndexRepository()
 	dir := t.TempDir()
 
@@ -130,23 +148,20 @@ func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
 	seed.AddTerm("seed", "seed.txt", 1, []int{0})
 	seed.CalculateAverageDocLen()
 	seed.CalculateIDF()
-	if err := repo.SaveIndex(dir, seed); err != nil {
-		t.Fatalf("expected seed save to succeed, got %v", err)
-	}
+	require.NoError(t, repo.SaveIndex(dir, seed))
 
 	const iterations = 120
 	errorsCh := make(chan error, iterations*2)
-
 	var workers sync.WaitGroup
 	workers.Add(2)
 
 	go func() {
 		defer workers.Done()
-		for index := 0; index < iterations; index++ {
+		for i := 0; i < iterations; i++ {
 			current := indexing.NewInvertedIndex()
-			name := fmt.Sprintf("doc-%03d.txt", index)
+			name := fmt.Sprintf("doc-%03d.txt", i)
 			current.AddDocument(name, filepath.Join(dir, name), 2)
-			current.AddTerm("needle", name, 1, []int{index})
+			current.AddTerm("needle", name, 1, []int{i})
 			current.CalculateAverageDocLen()
 			current.CalculateIDF()
 			if err := repo.SaveIndex(dir, current); err != nil {
@@ -158,15 +173,14 @@ func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
 
 	go func() {
 		defer workers.Done()
-		for index := 0; index < iterations; index++ {
+		for i := 0; i < iterations; i++ {
 			loaded, err := repo.LoadIndex(dir)
 			if err != nil {
 				errorsCh <- err
 				return
 			}
-
 			if loaded.DocumentCount < 1 {
-				errorsCh <- fmt.Errorf("expected at least one document in loaded index, got %d", loaded.DocumentCount)
+				errorsCh <- fmt.Errorf("expected at least 1 document, got %d", loaded.DocumentCount)
 				return
 			}
 		}
@@ -175,6 +189,6 @@ func TestBinaryIndexRepositoryConcurrentSaveAndLoad(t *testing.T) {
 	workers.Wait()
 	close(errorsCh)
 	for err := range errorsCh {
-		t.Fatalf("expected concurrent save/load without corruption, got %v", err)
+		require.NoError(t, err, "concurrent save/load must not corrupt data")
 	}
 }

@@ -5,30 +5,26 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/features/indexing/storage"
 	"idx/internal/shared/filesystem"
 )
 
-func TestInitSkipsSymlinkPointingToDirectory(t *testing.T) {
-	rootDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+func TestInit_SkipsSymlinkPointingToDirectory(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
 
-	if err := os.MkdirAll(filepath.Join(rootDir, ".claude", "target"), 0o750); err != nil {
-		t.Fatalf("expected target directory creation to succeed, got %v", err)
-	}
+	// Arrange
+	rootDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".claude", "target"), 0o750))
 
 	symlinkPath := filepath.Join(rootDir, ".claude", "skills")
-	if err := os.Symlink(filepath.Join(rootDir, ".claude", "target"), symlinkPath); err != nil {
-		t.Fatalf("expected symlink creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.Symlink(filepath.Join(rootDir, ".claude", "target"), symlinkPath))
 
 	rootFile := filepath.Join(rootDir, "README.txt")
-	if err := os.WriteFile(rootFile, []byte("hello"), 0o600); err != nil {
-		t.Fatalf("expected root file creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.WriteFile(rootFile, []byte("hello"), 0o600))
 
 	projectTree := filesystem.NewOSProjectTree()
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -43,16 +39,13 @@ func TestInitSkipsSymlinkPointingToDirectory(t *testing.T) {
 	})
 
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+	require.NoError(t, os.Chdir(rootDir))
 
-	if err := os.Chdir(rootDir); err != nil {
-		t.Fatalf("expected chdir to test root to succeed, got %v", err)
-	}
+	// Act
+	err = service.Run()
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed when directory symlink is present, got %v", err)
-	}
+	// Assert
+	require.NoError(t, err, "expected init to succeed when directory symlink is present")
 }

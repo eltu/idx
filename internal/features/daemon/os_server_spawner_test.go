@@ -11,8 +11,10 @@ import (
 )
 
 func TestOSServerSpawner_SpawnServerProcess_SetsDaemonEnvAndDir(t *testing.T) {
-	projectPath := t.TempDir()
+	t.Parallel()
 
+	// Arrange
+	projectPath := t.TempDir()
 	var capturedCmd *exec.Cmd
 	spawner := daemon.NewOSServerSpawnerWithDeps(
 		func() (string, error) { return "/usr/bin/idx", nil },
@@ -25,10 +27,12 @@ func TestOSServerSpawner_SpawnServerProcess_SetsDaemonEnvAndDir(t *testing.T) {
 		},
 	)
 
+	// Act
 	pid, err := spawner.SpawnServerProcess(projectPath)
+
+	// Assert
 	require.NoError(t, err)
 	assert.Positive(t, pid)
-
 	assert.Equal(t, []string{"/usr/bin/idx", "server", "run"}, capturedCmd.Args)
 	assert.Equal(t, projectPath, capturedCmd.Dir)
 
@@ -41,13 +45,19 @@ func TestOSServerSpawner_SpawnServerProcess_SetsDaemonEnvAndDir(t *testing.T) {
 	assert.True(t, hasDaemonEnv, "expected IDX_SERVER_DAEMON=1 in environment")
 }
 
-func TestOSServerSpawner_SpawnServerProcess_ErrorOnBadExecutable(t *testing.T) {
+func TestOSServerSpawner_SpawnServerProcess_ReturnsErrorOnBadExecutable(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	spawner := daemon.NewOSServerSpawnerWithDeps(
 		func() (string, error) { return "", assert.AnError },
 		exec.Command,
 	)
 
+	// Act
 	_, err := spawner.SpawnServerProcess(t.TempDir())
+
+	// Assert
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to resolve executable path")
+	assert.ErrorContains(t, err, "failed to resolve executable path")
 }

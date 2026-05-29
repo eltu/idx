@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	featsearch "idx/internal/features/search"
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
@@ -27,16 +30,12 @@ func fakeJSONRPCServer(t *testing.T, respond func(method string, params []byte) 
 	t.Helper()
 	// Use os.MkdirTemp under /tmp to keep paths short (macOS 104-char AF_UNIX limit).
 	dir, err := os.MkdirTemp("/tmp", "idx")
-	if err != nil {
-		t.Fatalf("mkdirtemp: %v", err)
-	}
+	require.NoError(t, err, "mkdirtemp")
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	sockPath := fmt.Sprintf("%s/t.sock", dir)
 
 	ln, listenErr := net.Listen("unix", sockPath)
-	if listenErr != nil {
-		t.Fatalf("listen: %v", listenErr)
-	}
+	require.NoError(t, listenErr, "listen")
 	t.Cleanup(func() { ln.Close() })
 
 	go func() {
@@ -69,180 +68,195 @@ func serveOneRequest(conn net.Conn, respond func(method string, params []byte) a
 
 // --- SocketClient ---
 
-func TestNewSocketClientStoresPath(t *testing.T) {
+func TestNewSocketClient_StoresPath(t *testing.T) {
+	t.Parallel()
 	c := NewSocketClient("/tmp/test.sock")
-	if c == nil {
-		t.Fatal("expected non-nil client")
-	}
-	if c.socketPath != "/tmp/test.sock" {
-		t.Errorf("unexpected socket path: %q", c.socketPath)
-	}
+	require.NotNil(t, c)
+	assert.Equal(t, "/tmp/test.sock", c.socketPath)
 }
 
-func TestSocketClientCallServerNotReachableReturnsError(t *testing.T) {
+func TestSocketClientCall_ServerNotReachable_ReturnsError(t *testing.T) {
+	t.Parallel()
 	c := NewSocketClient("/tmp/nonexistent-idx-test.sock")
 	var resp any
 	err := c.Call("test", struct{}{}, &resp)
-	if err == nil {
-		t.Fatal("expected error when server not running")
-	}
-	if !strings.Contains(err.Error(), errNoServerMsg) {
-		t.Errorf("expected server-not-running message, got: %q", err.Error())
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), errNoServerMsg)
 }
 
-func TestSocketClientCallSuccess(t *testing.T) {
+func TestSocketClientCall_Success_ReturnsResponse(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.CommandResponse{Success: true, Output: "done"}
 	})
 
+	// Act
 	c := NewSocketClient(sock)
 	var resp idxipc.CommandResponse
-	if err := c.Call(idxipc.MethodInit, struct{}{}, &resp); err != nil {
-		t.Fatalf("Call: %v", err)
-	}
-	if !resp.Success || resp.Output != "done" {
-		t.Errorf("unexpected response: %+v", resp)
-	}
+	err := c.Call(idxipc.MethodInit, struct{}{}, &resp)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, resp.Success)
+	assert.Equal(t, "done", resp.Output)
 }
 
-func TestServerNotRunningErrorContainsHints(t *testing.T) {
+func TestSocketClientCall_RPCError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	sock := fakeJSONRPCServerWithRPCError(t, sharedjsonrpc.ErrInternalError, "internal error")
+	c := NewSocketClient(sock)
+	var resp idxipc.CommandResponse
+	err := c.Call(idxipc.MethodInit, struct{}{}, &resp)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "RPC error")
+}
+
+func TestServerNotRunningError_ContainsHints(t *testing.T) {
+	t.Parallel()
 	err := serverNotRunningError()
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	msg := err.Error()
-	if !strings.Contains(msg, errNoServerStartMsg) {
-		t.Errorf("expected start hint in error, got: %q", msg)
-	}
+	require.NotNil(t, err)
+	assert.Contains(t, err.Error(), errNoServerStartMsg)
 }
 
 // --- RemoteIndexCommand ---
 
-func TestRemoteIndexCommandRunSendsInit(t *testing.T) {
+func TestRemoteIndexCommand_Run_SendsInit(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	var calledMethod string
 	sock := fakeJSONRPCServer(t, func(method string, _ []byte) any {
 		calledMethod = method
 		return idxipc.CommandResponse{Success: true, Output: "indexed"}
 	})
-
 	out := &fakeOutput{}
+
+	// Act
 	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out)
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if calledMethod != idxipc.MethodInit {
-		t.Errorf("expected %q, got %q", idxipc.MethodInit, calledMethod)
-	}
-	if len(out.lines) == 0 || out.lines[0] != "indexed" {
-		t.Errorf("expected output %q, got %v", "indexed", out.lines)
-	}
+	err := cmd.Run()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, idxipc.MethodInit, calledMethod)
+	require.Len(t, out.lines, 1)
+	assert.Equal(t, "indexed", out.lines[0])
 }
 
-func TestRemoteIndexCommandSyncSendsSync(t *testing.T) {
+func TestRemoteIndexCommand_Sync_SendsSync(t *testing.T) {
+	t.Parallel()
 	var calledMethod string
 	sock := fakeJSONRPCServer(t, func(method string, _ []byte) any {
 		calledMethod = method
 		return idxipc.CommandResponse{Success: true}
 	})
-
 	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{})
-	if err := cmd.Sync(); err != nil {
-		t.Fatalf("Sync: %v", err)
-	}
-	if calledMethod != idxipc.MethodSync {
-		t.Errorf("expected %q, got %q", idxipc.MethodSync, calledMethod)
-	}
+	require.NoError(t, cmd.Sync())
+	assert.Equal(t, idxipc.MethodSync, calledMethod)
 }
 
-func TestRemoteIndexCommandStatusSendsStatus(t *testing.T) {
+func TestRemoteIndexCommand_Status_SendsStatus(t *testing.T) {
+	t.Parallel()
 	var calledMethod string
 	sock := fakeJSONRPCServer(t, func(method string, _ []byte) any {
 		calledMethod = method
 		return idxipc.CommandResponse{Success: true}
 	})
-
 	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{})
-	if err := cmd.Status(); err != nil {
-		t.Fatalf("Status: %v", err)
+	require.NoError(t, cmd.Status())
+	assert.Equal(t, idxipc.MethodStatus, calledMethod)
+}
+
+func TestRemoteIndexCommand_UnsupportedMethods_WriteMessage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		call func(cmd *RemoteIndexCommand) error
+	}{
+		{"Inspect", func(cmd *RemoteIndexCommand) error { return cmd.Inspect("") }},
+		{"Watch", func(cmd *RemoteIndexCommand) error { return cmd.Watch(false, 0) }},
 	}
-	if calledMethod != idxipc.MethodStatus {
-		t.Errorf("expected %q, got %q", idxipc.MethodStatus, calledMethod)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := &fakeOutput{}
+			cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out)
+			require.NoError(t, tc.call(cmd))
+			assert.NotEmpty(t, out.lines, "expected unsupported message")
+		})
 	}
 }
 
-func TestRemoteIndexCommandInspectWritesUnsupportedMessage(t *testing.T) {
-	out := &fakeOutput{}
-	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out)
-	if err := cmd.Inspect(""); err != nil {
-		t.Fatalf("Inspect: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Error("expected unsupported message, got none")
-	}
-}
-
-func TestRemoteIndexCommandWatchWritesUnsupportedMessage(t *testing.T) {
-	out := &fakeOutput{}
-	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out)
-	if err := cmd.Watch(false, 0); err != nil {
-		t.Fatalf("Watch: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Error("expected unsupported message, got none")
-	}
-}
-
-func TestRemoteIndexCommandSendCommandEmptyOutputIsOK(t *testing.T) {
+func TestRemoteIndexCommand_Run_EmptyOutput_IsOK(t *testing.T) {
+	t.Parallel()
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.CommandResponse{Success: true, Output: ""}
 	})
-
 	out := &fakeOutput{}
 	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out)
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if len(out.lines) != 0 {
-		t.Errorf("expected no output for empty response, got %v", out.lines)
-	}
+	require.NoError(t, cmd.Run())
+	assert.Empty(t, out.lines)
+}
+
+func TestRemoteIndexCommand_Run_UnreachableServer_ReturnsError(t *testing.T) {
+	t.Parallel()
+	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/nonexistent-idx-remote-99.sock"), &fakeOutput{})
+	require.Error(t, cmd.Run())
 }
 
 // --- RemoteReader ---
 
-func TestRemoteReaderRunWithOptionsWritesLines(t *testing.T) {
+func TestRemoteReader_RunWithOptions_WritesLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.ReadResponse{Lines: []string{"line1", "line2"}}
 	})
-
 	out := &fakeOutput{}
+
+	// Act
 	r := NewRemoteReader(NewSocketClient(sock), out)
-	if err := r.RunWithOptions("/some/file.go", 0, 0); err != nil {
-		t.Fatalf("RunWithOptions: %v", err)
-	}
-	if len(out.lines) != 2 || out.lines[0] != "line1" {
-		t.Errorf("unexpected output: %v", out.lines)
-	}
+	err := r.RunWithOptions("/some/file.go", 0, 0)
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, out.lines, 2)
+	assert.Equal(t, "line1", out.lines[0])
 }
 
-func TestRemoteReaderRunWithOptionsEmptyLinesIsOK(t *testing.T) {
+func TestRemoteReader_RunWithOptions_EmptyLines_IsOK(t *testing.T) {
+	t.Parallel()
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.ReadResponse{Lines: []string{}}
 	})
-
 	out := &fakeOutput{}
 	r := NewRemoteReader(NewSocketClient(sock), out)
-	if err := r.RunWithOptions("/some/file.go", 0, 0); err != nil {
-		t.Fatalf("RunWithOptions: %v", err)
-	}
-	if len(out.lines) != 0 {
-		t.Errorf("expected no output for empty lines, got %v", out.lines)
-	}
+	require.NoError(t, r.RunWithOptions("/some/file.go", 0, 0))
+	assert.Empty(t, out.lines)
+}
+
+func TestRemoteReader_RunWithOptions_WriterError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		return idxipc.ReadResponse{Lines: []string{"line1"}}
+	})
+	r := NewRemoteReader(NewSocketClient(sock), &errorOutput{})
+	require.Error(t, r.RunWithOptions("/file.go", 0, 0))
+}
+
+func TestRemoteReader_RunWithOptions_CallError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	r := NewRemoteReader(NewSocketClient("/tmp/nonexistent-idx-reader-99.sock"), &fakeOutput{})
+	require.Error(t, r.RunWithOptions("/file.go", 0, 0))
 }
 
 // --- searchRequestFromOptions ---
 
-func TestSearchRequestFromOptionsMapsAllFields(t *testing.T) {
+func TestSearchRequestFromOptions_MapsAllFields(t *testing.T) {
+	t.Parallel()
 	opts := featsearch.Options{
 		Size:             5,
 		Operator:         "OR",
@@ -257,61 +271,48 @@ func TestSearchRequestFromOptionsMapsAllFields(t *testing.T) {
 		PathQueries:      []string{"internal"},
 	}
 	req := searchRequestFromOptions("hello", opts)
-	if req.Query != "hello" {
-		t.Errorf("Query: want %q, got %q", "hello", req.Query)
-	}
-	if req.Size != 5 || req.Operator != "OR" || req.Format != "json" {
-		t.Errorf("unexpected req: %+v", req)
-	}
-	if !req.FilesOnly || !req.AgentCompact || !req.Explain {
-		t.Errorf("boolean flags not set: %+v", req)
-	}
-	if req.From != 3 || req.PopularityWeight != 0.7 {
-		t.Errorf("numeric fields off: %+v", req)
-	}
+	assert.Equal(t, "hello", req.Query)
+	assert.Equal(t, 5, req.Size)
+	assert.Equal(t, "OR", req.Operator)
+	assert.Equal(t, "json", req.Format)
+	assert.True(t, req.FilesOnly)
+	assert.True(t, req.AgentCompact)
+	assert.True(t, req.Explain)
+	assert.Equal(t, 3, req.From)
+	assert.Equal(t, 0.7, req.PopularityWeight)
 }
 
 // --- writeSearchResultsJSON ---
 
-func TestWriteSearchResultsJSONWritesCompact(t *testing.T) {
+func TestWriteSearchResultsJSON_Compact_WritesResult(t *testing.T) {
+	t.Parallel()
 	resp := idxipc.SearchResponse{Count: 1, Results: []idxipc.SearchResult{{File: "x.go", Name: "x.go", Path: "/x.go"}}}
 	out := &fakeOutput{}
-	if err := writeSearchResultsJSON(resp, false, out); err != nil {
-		t.Fatalf("writeSearchResultsJSON: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
-	if !strings.Contains(out.lines[0], "x.go") {
-		t.Errorf("unexpected output: %q", out.lines[0])
-	}
+	require.NoError(t, writeSearchResultsJSON(resp, false, out))
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "x.go")
 }
 
-func TestWriteSearchResultsJSONWritesPretty(t *testing.T) {
+func TestWriteSearchResultsJSON_Pretty_WritesResult(t *testing.T) {
+	t.Parallel()
 	resp := idxipc.SearchResponse{Count: 0, Results: []idxipc.SearchResult{}}
 	out := &fakeOutput{}
-	if err := writeSearchResultsJSON(resp, true, out); err != nil {
-		t.Fatalf("writeSearchResultsJSON: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
+	require.NoError(t, writeSearchResultsJSON(resp, true, out))
+	assert.NotEmpty(t, out.lines)
 }
 
 // --- writeSearchResultsText ---
 
-func TestWriteSearchResultsTextNoResults(t *testing.T) {
+func TestWriteSearchResultsText_NoResults_WritesNoResultsMessage(t *testing.T) {
+	t.Parallel()
 	out := &fakeOutput{}
-	opts := featsearch.Options{}
-	if err := writeSearchResultsText(idxipc.SearchResponse{}, opts, out); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 || !strings.Contains(out.lines[0], "No results") {
-		t.Errorf("expected no-results message, got %v", out.lines)
-	}
+	require.NoError(t, writeSearchResultsText(idxipc.SearchResponse{}, featsearch.Options{}, out))
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "No results")
 }
 
-func TestWriteSearchResultsTextWithResults(t *testing.T) {
+func TestWriteSearchResultsText_WithResults_WritesOutput(t *testing.T) {
+	t.Parallel()
 	resp := idxipc.SearchResponse{
 		Count: 1,
 		Results: []idxipc.SearchResult{
@@ -321,29 +322,34 @@ func TestWriteSearchResultsTextWithResults(t *testing.T) {
 		},
 	}
 	out := &fakeOutput{}
-	if err := writeSearchResultsText(resp, featsearch.Options{}, out); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	require.NoError(t, writeSearchResultsText(resp, featsearch.Options{}, out))
+	assert.NotEmpty(t, out.lines)
+}
+
+func TestWriteSearchResultsText_PathWriteError_Propagates(t *testing.T) {
+	t.Parallel()
+	resp := idxipc.SearchResponse{
+		Count: 1,
+		Results: []idxipc.SearchResult{
+			{Path: "/src/main.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "hello", Match: true}}},
+		},
 	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output, got none")
-	}
+	require.Error(t, writeSearchResultsText(resp, featsearch.Options{}, &errorOutput{}))
 }
 
 // --- writeTextResult ---
 
-func TestWriteTextResultFilesOnly(t *testing.T) {
+func TestWriteTextResult_FilesOnly_WritesPathOnly(t *testing.T) {
+	t.Parallel()
 	r := idxipc.SearchResult{Path: "/src/main.go"}
 	out := &fakeOutput{}
-	opts := featsearch.Options{FilesOnly: true}
-	if err := writeTextResult(r, opts, out); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) != 1 || out.lines[0] != "/src/main.go" {
-		t.Errorf("expected path only, got %v", out.lines)
-	}
+	require.NoError(t, writeTextResult(r, featsearch.Options{FilesOnly: true}, out))
+	require.Len(t, out.lines, 1)
+	assert.Equal(t, "/src/main.go", out.lines[0])
 }
 
-func TestWriteTextResultWithMatchesOnly(t *testing.T) {
+func TestWriteTextResult_MatchesOnly_FiltersContextLines(t *testing.T) {
+	t.Parallel()
 	r := idxipc.SearchResult{
 		Path: "/src/foo.go",
 		Matches: []idxipc.MatchedLine{
@@ -352,17 +358,13 @@ func TestWriteTextResultWithMatchesOnly(t *testing.T) {
 		},
 	}
 	out := &fakeOutput{}
-	opts := featsearch.Options{MatchesOnly: true}
-	if err := writeTextResult(r, opts, out); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, writeTextResult(r, featsearch.Options{MatchesOnly: true}, out))
 	// path line + only matched lines
-	if len(out.lines) != 2 {
-		t.Errorf("expected 2 lines (path + match), got %d: %v", len(out.lines), out.lines)
-	}
+	assert.Len(t, out.lines, 2)
 }
 
-func TestWriteTextResultAllMatches(t *testing.T) {
+func TestWriteTextResult_AllMatches_WritesAll(t *testing.T) {
+	t.Parallel()
 	r := idxipc.SearchResult{
 		Path: "/src/bar.go",
 		Matches: []idxipc.MatchedLine{
@@ -371,50 +373,52 @@ func TestWriteTextResultAllMatches(t *testing.T) {
 		},
 	}
 	out := &fakeOutput{}
-	if err := writeTextResult(r, featsearch.Options{}, out); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, writeTextResult(r, featsearch.Options{}, out))
 	// path + 2 match lines
-	if len(out.lines) != 3 {
-		t.Errorf("expected 3 lines, got %d: %v", len(out.lines), out.lines)
+	assert.Len(t, out.lines, 3)
+}
+
+func TestWriteTextResult_MatchLineWriteError_Propagates(t *testing.T) {
+	t.Parallel()
+	r := idxipc.SearchResult{
+		Path:    "/src/foo.go",
+		Matches: []idxipc.MatchedLine{{Line: 1, Content: "match line", Match: true}},
 	}
+	// maxWrites=1: path write succeeds, match line write fails.
+	require.Error(t, writeTextResult(r, featsearch.Options{}, &writeAfterNOutput{maxWrites: 1}))
 }
 
 // --- RemoteSearcher ---
 
-func TestRemoteSearcherRunWithOptionsJSON(t *testing.T) {
+func TestRemoteSearcher_RunWithOptions_JSON_WritesOutput(t *testing.T) {
+	t.Parallel()
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.SearchResponse{Count: 1, Results: []idxipc.SearchResult{{File: "a.go", Name: "a.go", Path: "/a.go", Matches: []idxipc.MatchedLine{}}}}
 	})
-
 	out := &fakeOutput{}
 	s := NewRemoteSearcher(NewSocketClient(sock), out)
-	opts := featsearch.Options{Format: featsearch.OutputJSON}
-	if err := s.RunWithOptions("query", opts); err != nil {
-		t.Fatalf("RunWithOptions: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Error("expected JSON output, got none")
-	}
+	require.NoError(t, s.RunWithOptions("query", featsearch.Options{Format: featsearch.OutputJSON}))
+	assert.NotEmpty(t, out.lines)
 }
 
-func TestRemoteSearcherRunWithOptionsText(t *testing.T) {
+func TestRemoteSearcher_RunWithOptions_Text_WritesOutput(t *testing.T) {
+	t.Parallel()
 	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
 		return idxipc.SearchResponse{Count: 0, Results: []idxipc.SearchResult{}}
 	})
-
 	out := &fakeOutput{}
 	s := NewRemoteSearcher(NewSocketClient(sock), out)
-	opts := featsearch.Options{Format: featsearch.OutputText}
-	if err := s.RunWithOptions("query", opts); err != nil {
-		t.Fatalf("RunWithOptions: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Error("expected text output, got none")
-	}
+	require.NoError(t, s.RunWithOptions("query", featsearch.Options{Format: featsearch.OutputText}))
+	assert.NotEmpty(t, out.lines)
 }
 
-// --- Call with RPC error ---
+func TestRemoteSearcher_RunWithOptions_CallError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	s := NewRemoteSearcher(NewSocketClient("/tmp/nonexistent-idx-searcher-99.sock"), &fakeOutput{})
+	require.Error(t, s.RunWithOptions("query", featsearch.Options{}))
+}
+
+// --- helper server/outputs for error cases ---
 
 // serveOneRPCError responds with a JSON-RPC error object instead of a result.
 func serveOneRPCError(conn net.Conn, code int, message string) {
@@ -436,16 +440,12 @@ func serveOneRPCError(conn net.Conn, code int, message string) {
 func fakeJSONRPCServerWithRPCError(t *testing.T, code int, message string) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "idx")
-	if err != nil {
-		t.Fatalf("mkdirtemp: %v", err)
-	}
+	require.NoError(t, err, "mkdirtemp")
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	sockPath := fmt.Sprintf("%s/t.sock", dir)
 
 	ln, listenErr := net.Listen("unix", sockPath)
-	if listenErr != nil {
-		t.Fatalf("listen: %v", listenErr)
-	}
+	require.NoError(t, listenErr, "listen")
 	t.Cleanup(func() { ln.Close() })
 
 	go func() {
@@ -461,57 +461,10 @@ func fakeJSONRPCServerWithRPCError(t *testing.T, code int, message string) strin
 	return sockPath
 }
 
-func TestSocketClientCallRPCErrorReturnsError(t *testing.T) {
-	sock := fakeJSONRPCServerWithRPCError(t, sharedjsonrpc.ErrInternalError, "internal error")
-	c := NewSocketClient(sock)
-	var resp idxipc.CommandResponse
-	err := c.Call(idxipc.MethodInit, struct{}{}, &resp)
-	if err == nil {
-		t.Fatal("expected error for RPC error response")
-	}
-	if !strings.Contains(err.Error(), "RPC error") {
-		t.Errorf("expected 'RPC error' in error message, got: %q", err.Error())
-	}
-}
-
-// --- sendCommand error path ---
-
-func TestRemoteIndexCommandRunWithUnreachableServerReturnsError(t *testing.T) {
-	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/nonexistent-idx-remote-99.sock"), &fakeOutput{})
-	if err := cmd.Run(); err == nil {
-		t.Fatal("expected error for unreachable server")
-	}
-}
-
-// --- RemoteReader writer error ---
-
+// errorOutput always returns an error from WriteLine.
 type errorOutput struct{}
 
 func (w *errorOutput) WriteLine(_ string) error { return fmt.Errorf("write failed") }
-
-func TestRemoteReaderRunWithOptionsWriterErrorReturnsError(t *testing.T) {
-	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
-		return idxipc.ReadResponse{Lines: []string{"line1"}}
-	})
-	r := NewRemoteReader(NewSocketClient(sock), &errorOutput{})
-	if err := r.RunWithOptions("/file.go", 0, 0); err == nil {
-		t.Fatal("expected error from failing writer")
-	}
-}
-
-func TestRemoteReaderRunWithOptionsCallErrorReturnsError(t *testing.T) {
-	r := NewRemoteReader(NewSocketClient("/tmp/nonexistent-idx-reader-99.sock"), &fakeOutput{})
-	if err := r.RunWithOptions("/file.go", 0, 0); err == nil {
-		t.Fatal("expected error for unreachable server")
-	}
-}
-
-func TestRemoteSearcherRunWithOptionsCallErrorReturnsError(t *testing.T) {
-	s := NewRemoteSearcher(NewSocketClient("/tmp/nonexistent-idx-searcher-99.sock"), &fakeOutput{})
-	if err := s.RunWithOptions("query", featsearch.Options{}); err == nil {
-		t.Fatal("expected error for unreachable server")
-	}
-}
 
 // writeAfterNOutput succeeds for the first maxWrites calls then returns an error.
 type writeAfterNOutput struct {
@@ -527,25 +480,5 @@ func (w *writeAfterNOutput) WriteLine(_ string) error {
 	return nil
 }
 
-func TestWriteSearchResultsTextPathWriteErrorPropagates(t *testing.T) {
-	resp := idxipc.SearchResponse{
-		Count: 1,
-		Results: []idxipc.SearchResult{
-			{Path: "/src/main.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "hello", Match: true}}},
-		},
-	}
-	if err := writeSearchResultsText(resp, featsearch.Options{}, &errorOutput{}); err == nil {
-		t.Fatal("expected error when path write fails")
-	}
-}
-
-func TestWriteTextResultMatchLineWriteError(t *testing.T) {
-	r := idxipc.SearchResult{
-		Path:    "/src/foo.go",
-		Matches: []idxipc.MatchedLine{{Line: 1, Content: "match line", Match: true}},
-	}
-	// maxWrites=1: path write succeeds, match line write fails.
-	if err := writeTextResult(r, featsearch.Options{}, &writeAfterNOutput{maxWrites: 1}); err == nil {
-		t.Fatal("expected error when match line write fails")
-	}
-}
+// Ensure strings is used (referenced in TestSocketClientCall_ServerNotReachable_ReturnsError).
+var _ = strings.Contains

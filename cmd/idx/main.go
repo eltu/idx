@@ -27,6 +27,8 @@ import (
 	idxipc "idx/internal/shared/ipc"
 )
 
+const unknownProject = "unknown-project"
+
 var exitProcess = os.Exit
 
 type multiQuiet struct {
@@ -153,7 +155,7 @@ func gitRootFrom(startDir string) string {
 
 func sanitizePathSegment(name string) string {
 	if name == "" || name == "." || name == string(filepath.Separator) {
-		return "unknown-project"
+		return unknownProject
 	}
 
 	b := strings.Builder{}
@@ -170,7 +172,7 @@ func sanitizePathSegment(name string) string {
 
 	clean := strings.Trim(b.String(), "._-")
 	if clean == "" {
-		return "unknown-project"
+		return unknownProject
 	}
 
 	return clean

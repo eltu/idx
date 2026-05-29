@@ -3,11 +3,16 @@ package search
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 )
 
-func TestWildcardMatchPatterns(t *testing.T) {
-	testCases := []struct {
+func TestWildcardMatch_Patterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
 		name     string
 		pattern  string
 		value    string
@@ -23,57 +28,64 @@ func TestWildcardMatchPatterns(t *testing.T) {
 		{name: "anchored suffix fail", pattern: "mod*le", value: "modulex", expected: false},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			matched := wildcardMatch(testCase.pattern, testCase.value)
-			if matched != testCase.expected {
-				t.Fatalf("wildcardMatch(%q, %q) = %v, expected %v", testCase.pattern, testCase.value, matched, testCase.expected)
-			}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			matched := wildcardMatch(tc.pattern, tc.value)
+
+			// Assert
+			assert.Equal(t, tc.expected, matched, "wildcardMatch(%q, %q)", tc.pattern, tc.value)
 		})
 	}
 }
 
-func TestMatchedMetadataPatternDocumentsIntersectsPatternTerms(t *testing.T) {
+func TestMatchedMetadataPatternDocuments_IntersectsPatternTerms(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := map[string]map[string]bool{
 		"internal": {"doc1": true, "doc2": true},
 		"core":     {"doc1": true},
 		"services": {"doc2": true},
 	}
 
+	// Act
 	matched := matchedMetadataPatternDocuments(index, "internal core")
-	if len(matched) != 1 || !matched["doc1"] {
-		t.Fatalf("expected only doc1 for pattern intersection, got %v", matched)
-	}
-
 	none := matchedMetadataPatternDocuments(index, "internal unknown")
-	if len(none) != 0 {
-		t.Fatalf("expected no matches for missing term, got %v", none)
-	}
+
+	// Assert
+	require.Len(t, matched, 1)
+	assert.True(t, matched["doc1"])
+	assert.Empty(t, none)
 }
 
-func TestIntersectMetadataPatternsUsesUnionAcrossPatterns(t *testing.T) {
+func TestIntersectMetadataPatterns_UsesUnionAcrossPatterns(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	current := map[string]struct{}{"doc1": {}, "doc2": {}, "doc3": {}}
 	index := map[string]map[string]bool{
 		"internal": {"doc1": true},
 		"docs":     {"doc2": true},
 	}
 
+	// Act
 	filtered := intersectMetadataPatterns(current, index, []string{"internal", "docs"})
-	if len(filtered) != 2 {
-		t.Fatalf("expected two documents after union/intersection, got %v", filtered)
-	}
-	if _, ok := filtered["doc1"]; !ok {
-		t.Fatalf("expected doc1 to remain, got %v", filtered)
-	}
-	if _, ok := filtered["doc2"]; !ok {
-		t.Fatalf("expected doc2 to remain, got %v", filtered)
-	}
-	if _, ok := filtered["doc3"]; ok {
-		t.Fatalf("expected doc3 to be removed, got %v", filtered)
-	}
+
+	// Assert
+	assert.Len(t, filtered, 2)
+	assert.Contains(t, filtered, "doc1")
+	assert.Contains(t, filtered, "doc2")
+	assert.NotContains(t, filtered, "doc3")
 }
 
-func TestApplyMetadataFilterFallsBackToDocumentPathMatch(t *testing.T) {
+func TestApplyMetadataFilter_FallsBackToDocumentPathMatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	current := map[string]struct{}{"doc1": {}, "doc2": {}}
 	termIndex := map[string]map[string]bool{}
 	documents := map[string]*indexing.DocStats{
@@ -81,16 +93,18 @@ func TestApplyMetadataFilterFallsBackToDocumentPathMatch(t *testing.T) {
 		"doc2": {Path: "docs/readme.md"},
 	}
 
+	// Act
 	matched := applyMetadataFilter(current, termIndex, documents, []string{"internal core"}, pathMetadataValue)
-	if len(matched) != 1 {
-		t.Fatalf("expected one fallback match, got %v", matched)
-	}
-	if _, ok := matched["doc1"]; !ok {
-		t.Fatalf("expected doc1 fallback match, got %v", matched)
-	}
+
+	// Assert
+	require.Len(t, matched, 1)
+	assert.Contains(t, matched, "doc1")
 }
 
-func TestMetadataMatchedDocumentsFiltersByExtension(t *testing.T) {
+func TestMetadataMatchedDocuments_FiltersByExtension(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := indexing.NewInvertedIndex()
 	index.Documents["main.go"] = &indexing.DocStats{Name: "main.go", Path: "cmd/main.go", Length: 3}
 	index.Documents["README.md"] = &indexing.DocStats{Name: "README.md", Path: "README.md", Length: 3}
@@ -99,39 +113,41 @@ func TestMetadataMatchedDocumentsFiltersByExtension(t *testing.T) {
 	index.AddExtensionTerms("main.go", "go")
 	index.AddExtensionTerms("README.md", "md")
 
+	// Act
 	matched := metadataMatchedDocuments(index, Options{ExtensionQuery: "go"})
-	if len(matched) != 1 {
-		t.Fatalf("expected one .go document, got %v", matched)
-	}
-	if _, ok := matched["main.go"]; !ok {
-		t.Fatalf("expected main.go to match extension filter, got %v", matched)
-	}
+
+	// Assert
+	require.Len(t, matched, 1)
+	assert.Contains(t, matched, "main.go")
 }
 
-func TestApplyMetadataFilterFallsBackToExtensionMatch(t *testing.T) {
-	// Empty termIndex forces the fallback path, exercising extensionMetadataValue.
+func TestApplyMetadataFilter_FallsBackToExtensionMatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — empty termIndex forces the fallback path, exercising extensionMetadataValue
 	current := map[string]struct{}{"app.go": {}, "readme.md": {}}
-	termIndex := map[string]map[string]bool{} // no indexed terms
+	termIndex := map[string]map[string]bool{}
 	documents := map[string]*indexing.DocStats{
 		"app.go":    {Path: "cmd/app.go"},
 		"readme.md": {Path: "README.md"},
 	}
 
+	// Act
 	matched := applyMetadataFilter(current, termIndex, documents, []string{"go"}, extensionMetadataValue)
-	if len(matched) != 1 {
-		t.Fatalf("expected one fallback extension match, got %v", matched)
-	}
-	if _, ok := matched["app.go"]; !ok {
-		t.Fatalf("expected app.go to match .go extension via fallback, got %v", matched)
-	}
+
+	// Assert
+	require.Len(t, matched, 1)
+	assert.Contains(t, matched, "app.go")
 }
 
-func TestEffectiveExtensionPatternsNormalizesDotAndCase(t *testing.T) {
+func TestEffectiveExtensionPatterns_NormalizesDotAndCase(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	patterns := effectiveExtensionPatterns([]string{".GO", " md "}, "")
-	if len(patterns) != 2 {
-		t.Fatalf("expected 2 normalized patterns, got %v", patterns)
-	}
-	if patterns[0] != "go" || patterns[1] != "md" {
-		t.Fatalf("expected normalized extensions [go md], got %v", patterns)
-	}
+
+	// Assert
+	require.Len(t, patterns, 2)
+	assert.Equal(t, "go", patterns[0])
+	assert.Equal(t, "md", patterns[1])
 }

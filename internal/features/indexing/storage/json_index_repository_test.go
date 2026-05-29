@@ -6,62 +6,129 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/shared/filesystem"
 )
 
-func TestJSONIndexRepositorySaveAndLoadIndex(t *testing.T) {
+func TestJSONIndexRepository_SaveAndLoad_RoundTripsIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := filesystem.NewOSProjectTree()
 	repo := NewJSONIndexRepository(tree)
 	dir := t.TempDir()
-
 	index := indexing.NewInvertedIndex()
 	index.AddDocument("readme.md", filepath.Join(dir, "readme.md"), 3)
 	index.AddTerm("idx", "readme.md", 1, []int{7})
 	index.CalculateAverageDocLen()
 	index.CalculateIDF()
 
-	if err := repo.SaveIndex(dir, index); err != nil {
-		t.Fatalf("expected save to succeed, got %v", err)
-	}
-
+	// Act
+	require.NoError(t, repo.SaveIndex(dir, index))
 	loaded, err := repo.LoadIndex(dir)
-	if err != nil {
-		t.Fatalf("expected load to succeed, got %v", err)
-	}
 
-	if loaded.DocumentCount != 1 {
-		t.Fatalf("expected document count 1, got %d", loaded.DocumentCount)
-	}
-	if loaded.Documents["readme.md"] == nil {
-		t.Fatal("expected document metadata in loaded index")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 1, loaded.DocumentCount)
+	assert.NotNil(t, loaded.Documents["readme.md"])
 }
 
-func TestJSONIndexRepositoryLoadIndexReturnsErrorForMissingFile(t *testing.T) {
-	tree := filesystem.NewOSProjectTree()
-	repo := NewJSONIndexRepository(tree)
+func TestJSONIndexRepository_LoadIndex_ReturnsErrorForMissingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
+
+	// Act
 	_, err := repo.LoadIndex(t.TempDir())
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestJSONIndexRepositoryLoadIndexReturnsErrorForInvalidJSON(t *testing.T) {
+func TestJSONIndexRepository_LoadIndex_ReturnsErrorForInvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	dir := t.TempDir()
 	indexPath := filepath.Join(dir, ".idx", "index.idx")
-	if err := os.MkdirAll(filepath.Dir(indexPath), 0750); err != nil {
-		t.Fatalf("expected index directory creation to succeed, got %v", err)
-	}
-	if err := os.WriteFile(indexPath, []byte("{invalid-json"), 0600); err != nil {
-		t.Fatalf("expected invalid JSON write to succeed, got %v", err)
-	}
-
+	require.NoError(t, os.MkdirAll(filepath.Dir(indexPath), 0750))
+	require.NoError(t, os.WriteFile(indexPath, []byte("{invalid-json"), 0600))
 	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
+
+	// Act
 	_, err := repo.LoadIndex(dir)
-	if err == nil {
-		t.Fatal("expected parse error for invalid JSON payload")
-	}
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestJSONIndexRepository_SaveIndex_ReturnsErrorWhenWriteFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := NewJSONIndexRepository(failingWriteTree{})
+
+	// Act
+	err := repo.SaveIndex(t.TempDir(), indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestJSONIndexRepository_SaveIndex_ReturnsErrorForNilIndex(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
+
+	// Act
+	err := repo.SaveIndex(t.TempDir(), nil)
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestJSONIndexRepository_SaveIndex_ReturnsErrorWhenProjectTreeIsNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := NewJSONIndexRepository(nil)
+
+	// Act
+	err := repo.SaveIndex(t.TempDir(), indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestJSONIndexRepository_SaveIndex_ReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var repo *JSONIndexRepository
+
+	// Act
+	err := repo.SaveIndex(t.TempDir(), indexing.NewInvertedIndex())
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestJSONIndexRepository_LoadIndex_ReturnsErrorWhenRepositoryIsNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var repo *JSONIndexRepository
+
+	// Act
+	_, err := repo.LoadIndex(t.TempDir())
+
+	// Assert
+	require.Error(t, err)
 }
 
 type failingWriteTree struct{}
@@ -72,49 +139,3 @@ func (failingWriteTree) ReadDir(string) ([]filesystem.DirectoryEntry, error) { r
 func (failingWriteTree) Exists(string) (bool, error)                         { return false, nil }
 func (failingWriteTree) RemoveAll(string) error                              { return nil }
 func (failingWriteTree) WriteFile(string, []byte) error                      { return errors.New("write failed") }
-
-func TestJSONIndexRepositorySaveIndexReturnsErrorWhenWriteFails(t *testing.T) {
-	repo := NewJSONIndexRepository(failingWriteTree{})
-	index := indexing.NewInvertedIndex()
-	if err := repo.SaveIndex(t.TempDir(), index); err == nil {
-		t.Fatal("expected save error when projectTree write fails")
-	}
-}
-
-func TestJSONIndexRepositorySaveIndexReturnsErrorForNilIndex(t *testing.T) {
-	repo := NewJSONIndexRepository(filesystem.NewOSProjectTree())
-
-	err := repo.SaveIndex(t.TempDir(), nil)
-	if err == nil {
-		t.Fatal("expected save error for nil index")
-	}
-}
-
-func TestJSONIndexRepositorySaveIndexReturnsErrorWhenProjectTreeIsNil(t *testing.T) {
-	repo := NewJSONIndexRepository(nil)
-	index := indexing.NewInvertedIndex()
-
-	err := repo.SaveIndex(t.TempDir(), index)
-	if err == nil {
-		t.Fatal("expected save error for nil projectTree")
-	}
-}
-
-func TestJSONIndexRepositorySaveIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
-	var repo *JSONIndexRepository
-	index := indexing.NewInvertedIndex()
-
-	err := repo.SaveIndex(t.TempDir(), index)
-	if err == nil {
-		t.Fatal("expected save error for nil repository receiver")
-	}
-}
-
-func TestJSONIndexRepositoryLoadIndexReturnsErrorWhenRepositoryIsNil(t *testing.T) {
-	var repo *JSONIndexRepository
-
-	_, err := repo.LoadIndex(t.TempDir())
-	if err == nil {
-		t.Fatal("expected load error for nil repository receiver")
-	}
-}

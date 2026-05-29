@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
@@ -19,9 +22,8 @@ import (
 func dispatchToServer(t *testing.T, s *indexServer, method string, params any) *sharedjsonrpc.Message {
 	t.Helper()
 	paramsJSON, err := json.Marshal(params)
-	if err != nil {
-		t.Fatalf("json.Marshal params: %v", err)
-	}
+	require.NoError(t, err, "json.Marshal params")
+
 	id := json.RawMessage(`1`)
 	msg := sharedjsonrpc.Message{
 		JSONRPC: sharedjsonrpc.Version,
@@ -34,9 +36,7 @@ func dispatchToServer(t *testing.T, s *indexServer, method string, params any) *
 	defer clientConn.Close()
 
 	var buf bytes.Buffer
-	if err := sharedjsonrpc.WriteMessage(&buf, msg); err != nil {
-		t.Fatalf("WriteMessage: %v", err)
-	}
+	require.NoError(t, sharedjsonrpc.WriteMessage(&buf, msg), "WriteMessage")
 
 	done := make(chan struct{})
 	go func() {
@@ -44,150 +44,149 @@ func dispatchToServer(t *testing.T, s *indexServer, method string, params any) *
 		s.handleConn(context.Background(), serverConn)
 	}()
 
-	if _, err := clientConn.Write(buf.Bytes()); err != nil {
-		t.Fatalf("pipe write: %v", err)
-	}
+	_, err = clientConn.Write(buf.Bytes())
+	require.NoError(t, err, "pipe write")
 
 	resp, readErr := sharedjsonrpc.ReadMessage(bufio.NewReader(clientConn))
 	clientConn.Close()
 	<-done
 
-	if readErr != nil {
-		t.Fatalf("ReadMessage: %v", readErr)
-	}
+	require.NoError(t, readErr, "ReadMessage")
 	return resp
+}
+
+// waitForSocket polls until the socket file appears or the deadline is exceeded.
+func waitForSocket(t *testing.T, sockPath string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(sockPath); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("socket %q did not appear within deadline", sockPath)
 }
 
 // --- handleSearch ---
 
-func TestHandleSearchBadParamsTypeReturnsRPCError(t *testing.T) {
+func TestHandleSearch_BadParamsType_ReturnsRPCError(t *testing.T) {
+	t.Parallel()
 	// Send a JSON number as params — valid JSON but cannot unmarshal into SearchRequest struct.
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodSearch, 42)
-	if resp == nil || resp.Error == nil {
-		t.Errorf("expected RPC error for wrong params type, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Error, "expected RPC error for wrong params type")
 }
 
-func TestHandleSearchNilDepsReturnsRPCError(t *testing.T) {
+func TestHandleSearch_NilDeps_ReturnsRPCError(t *testing.T) {
+	t.Parallel()
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodSearch, idxipc.SearchRequest{Query: "hello"})
-	if resp == nil || resp.Error == nil {
-		t.Errorf("expected RPC error with nil deps, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Error, "expected RPC error with nil deps")
 }
 
 // --- handleRead ---
 
-func TestHandleReadBadParamsTypeReturnsRPCError(t *testing.T) {
+func TestHandleRead_BadParamsType_ReturnsRPCError(t *testing.T) {
+	t.Parallel()
 	// Send a JSON number as params — valid JSON but cannot unmarshal into ReadRequest.
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodRead, 42)
-	if resp == nil || resp.Error == nil {
-		t.Errorf("expected RPC error for wrong params type, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Error, "expected RPC error for wrong params type")
 }
 
-func TestHandleReadNilProjectTreeReturnsEmptyLines(t *testing.T) {
+func TestHandleRead_NilProjectTree_ReturnsEmptyLines(t *testing.T) {
+	t.Parallel()
 	// handleRead swallows errors and returns ReadResponse{Lines:[]}
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodRead, idxipc.ReadRequest{FilePath: "/nonexistent/file.go"})
-	if resp == nil || resp.Error != nil {
-		t.Errorf("expected success response with empty lines, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success response with empty lines")
 }
 
-func TestHandleReadRealFileReturnsLines(t *testing.T) {
+func TestHandleRead_RealFile_ReturnsLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	f, err := os.CreateTemp("", "idx-test-*.txt")
-	if err != nil {
-		t.Fatalf("create temp file: %v", err)
-	}
+	require.NoError(t, err, "create temp file")
 	defer os.Remove(f.Name())
-	if _, err := f.WriteString("line one\nline two\n"); err != nil {
-		t.Fatalf("write temp file: %v", err)
-	}
+	_, err = f.WriteString("line one\nline two\n")
+	require.NoError(t, err, "write temp file")
 	f.Close()
 
 	s := NewServer(ServerDeps{
 		ProjectTree: sharedfs.NewOSProjectTree(),
 	}).(*indexServer)
 
+	// Act + Assert
 	resp := dispatchToServer(t, s, idxipc.MethodRead, idxipc.ReadRequest{FilePath: f.Name()})
-	if resp == nil {
-		t.Fatal("expected response, got nil")
-	}
+	assert.NotNil(t, resp)
 	// May succeed (if file is within a git project root) or return empty (if path check fails).
 	// Either way, no panic and a valid response.
 }
 
 // --- handleInit / handleSync / handleStatus ---
 
-func TestHandleInitNilDepsReturnsCommandResponseSuccessFalse(t *testing.T) {
+func TestHandleInit_NilDeps_ReturnsCommandResponseSuccessFalse(t *testing.T) {
+	t.Parallel()
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodInit, struct{}{})
-	if resp == nil || resp.Error != nil {
-		t.Errorf("expected success CommandResponse (not RPC error), got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success CommandResponse (not RPC error)")
 }
 
-func TestHandleSyncNilDepsReturnsCommandResponse(t *testing.T) {
+func TestHandleSync_NilDeps_ReturnsCommandResponse(t *testing.T) {
+	t.Parallel()
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodSync, struct{}{})
-	if resp == nil || resp.Error != nil {
-		t.Errorf("expected success CommandResponse, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success CommandResponse")
 }
 
-func TestHandleStatusNilDepsReturnsCommandResponse(t *testing.T) {
+func TestHandleStatus_NilDeps_ReturnsCommandResponse(t *testing.T) {
+	t.Parallel()
 	s := NewServer(ServerDeps{}).(*indexServer)
 	resp := dispatchToServer(t, s, idxipc.MethodStatus, struct{}{})
-	if resp == nil || resp.Error != nil {
-		t.Errorf("expected success CommandResponse, got: %+v", resp)
-	}
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success CommandResponse")
 }
 
 // --- initDepsWithCapture ---
 
-func TestInitDepsWithCaptureWiresOutput(t *testing.T) {
+func TestInitDepsWithCapture_WiresOutput(t *testing.T) {
+	t.Parallel()
 	deps := ServerDeps{}
 	capture := &captureWriter{}
 	result := initDepsWithCapture(deps, capture)
-	if result.Output != capture {
-		t.Error("expected capture to be wired as Output")
-	}
+	assert.Equal(t, capture, result.Output)
 }
 
 // --- Serve ---
 
-func TestServeBindsSocketAndReturnsOnContextCancel(t *testing.T) {
+func TestServe_BindsSocket_ReturnsOnContextCancel(t *testing.T) {
+	// Arrange
 	dir, err := os.MkdirTemp("/tmp", "idx")
-	if err != nil {
-		t.Fatalf("mkdirtemp: %v", err)
-	}
+	require.NoError(t, err, "mkdirtemp")
 	defer os.RemoveAll(dir)
 
 	sockPath := dir + "/s.sock"
 	srv := NewServer(ServerDeps{SocketPath: sockPath})
 
 	ctx, cancel := context.WithCancel(context.Background())
-
 	done := make(chan error, 1)
 	go func() {
 		done <- srv.Serve(ctx)
 	}()
 
-	// Wait for socket to appear before canceling
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, statErr := os.Stat(sockPath); statErr == nil {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-
+	// Act: wait for socket to appear before canceling
+	waitForSocket(t, sockPath)
 	cancel()
+
+	// Assert
 	err = <-done
-	if err != nil {
-		t.Errorf("expected Serve to return nil after cancel, got: %v", err)
-	}
+	assert.NoError(t, err, "expected Serve to return nil after cancel")
 }

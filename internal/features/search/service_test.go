@@ -5,12 +5,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/features/read"
 	search "idx/internal/features/search"
 )
 
-func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
+func TestSearchCommandService_Run_RanksResultsByBM25Score(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	out := &capturingTextOutput{}
@@ -24,22 +30,20 @@ func TestSearchCommandServiceRunRanksResultsByBM25Score(t *testing.T) {
 	}}
 	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	if err := service.Run("go search"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.Run("go search"))
 
-	if len(repo.loaded) != 1 || repo.loaded[0] != rootDir {
-		t.Fatalf("expected load for %q, got %v", rootDir, repo.loaded)
-	}
-	if len(out.lines) != 8 {
-		t.Fatalf("expected 8 output lines, got %d: %v", len(out.lines), out.lines)
-	}
-	if stripANSICodes(out.lines[1]) != "./guide.md" {
-		t.Fatalf("expected best result file header first, got %q", out.lines[1])
-	}
+	// Assert
+	require.Len(t, repo.loaded, 1)
+	assert.Equal(t, rootDir, repo.loaded[0])
+	require.Len(t, out.lines, 8)
+	assert.Equal(t, "./guide.md", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
+func TestSearchCommandService_Run_RequiresAllTermsInDocument(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	out := &capturingTextOutput{}
@@ -53,15 +57,17 @@ func TestSearchCommandServiceRunRequiresAllTermsInDocument(t *testing.T) {
 	}}
 	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	if err := service.Run("module idx"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if stripANSICodes(out.lines[1]) != "./go.mod" {
-		t.Fatalf("expected only full match result, got %q", out.lines[1])
-	}
+	// Act
+	require.NoError(t, service.Run("module idx"))
+
+	// Assert
+	assert.Equal(t, "./go.mod", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
+func TestSearchCommandService_Run_WritesNoResultsMessage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	out := &capturingTextOutput{}
@@ -71,39 +77,53 @@ func TestSearchCommandServiceRunWritesNoResultsMessage(t *testing.T) {
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}, repo)
 
-	if err := service.Run("python"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if out.lines[0] != "No results found." {
-		t.Fatalf("unexpected output message %q", out.lines[0])
-	}
+	// Act
+	require.NoError(t, service.Run("python"))
+
+	// Assert
+	assert.Equal(t, "No results found.", out.lines[0])
 }
 
-func TestSearchCommandServiceRunReturnsLoadError(t *testing.T) {
+func TestSearchCommandService_Run_ReturnsLoadError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	repo := &fakeSearchIndexRepository{loadErr: errors.New("boom")}
 	service := newSearchCommandServiceForFunctionalTests(tree, &capturingTextOutput{}, fakeSearchFileReader{files: map[string]string{}}, repo)
 
-	if err := service.Run("go"); err == nil {
-		t.Fatal("expected an error, got nil")
-	}
+	// Act
+	err := service.Run("go")
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestSearchCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+func TestSearchCommandService_Run_ReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := search.NewSearchCommandService(nil, nil, nil, nil)
 
-	if err := service.Run("module"); err == nil {
-		t.Fatal("expected dependency validation error, got nil")
-	}
+	// Act & Assert
+	require.Error(t, service.Run("module"))
 }
 
-func TestSearchCommandServiceSetCacheEnabledWithNilPointerDoesNotPanic(t *testing.T) {
+func TestSearchCommandService_SetCacheEnabled_WithNilPointerDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	var service *search.SearchCommandService
+
+	// Act & Assert — must not panic
 	service.SetCacheEnabled(false)
 }
 
-func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
+func TestSearchCommandService_Run_BoostsDocumentsWithNearbyTerms(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	out := &capturingTextOutput{}
@@ -113,15 +133,17 @@ func TestSearchCommandServiceRunBoostsDocumentsWithNearbyTerms(t *testing.T) {
 		filepath.Join(rootDir, "far.txt"):  "module\nidx",
 	}}, repo)
 
-	if err := service.Run("module idx"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if stripANSICodes(out.lines[1]) != "./near.txt" {
-		t.Fatalf("expected nearby terms file first, got %q", out.lines[1])
-	}
+	// Act
+	require.NoError(t, service.Run("module idx"))
+
+	// Assert
+	assert.Equal(t, "./near.txt", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
+func TestSearchCommandService_Run_WritesPathsRelativeToProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal", "core")
 	tree := searchTreeWithIndexes(rootDir, []string{filepath.Join("internal", "core")})
@@ -135,15 +157,17 @@ func TestSearchCommandServiceRunWritesPathsRelativeToProjectRoot(t *testing.T) {
 		filepath.Join(childDir, "go.mod"): "module idx",
 	}}, repo)
 
-	if err := service.Run("module idx"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if stripANSICodes(out.lines[1]) != "internal/core/go.mod" {
-		t.Fatalf("expected project-relative path output, got %q", out.lines[1])
-	}
+	// Act
+	require.NoError(t, service.Run("module idx"))
+
+	// Assert
+	assert.Equal(t, "internal/core/go.mod", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
+func TestSearchCommandService_Run_SearchesAllProjectIndices(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "docs")
 	tree := searchTreeWithIndexes(rootDir, []string{"docs"})
@@ -157,30 +181,11 @@ func TestSearchCommandServiceRunSearchesAllProjectIndices(t *testing.T) {
 		filepath.Join(childDir, "guide.md"): "module idx",
 	}}, repo)
 
-	if err := service.Run("module idx"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if stripANSICodes(out.lines[1]) != "docs/guide.md" {
-		t.Fatalf("expected child directory file header, got %q", out.lines[1])
-	}
-}
+	// Act
+	require.NoError(t, service.Run("module idx"))
 
-func TestSearchCommandServiceRunWithExplainShowsScoreInTextOutput(t *testing.T) {
-	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := searchTreeWithIndexes(rootDir, nil)
-	out := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{
-		filepath.Join(rootDir, "go.mod"): "module idx",
-	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
-
-	if err := service.RunWithOptions("module idx", search.Options{Explain: true}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if stripANSICodes(out.lines[1]) != "./go.mod (score: 1.0000)" {
-		t.Fatalf("expected score when explain is enabled, got %q", out.lines[1])
-	}
+	// Assert
+	assert.Equal(t, "docs/guide.md", stripANSICodes(out.lines[1]))
 }
 
 type fakeReadLogRepo struct{}
@@ -188,7 +193,10 @@ type fakeReadLogRepo struct{}
 func (r fakeReadLogRepo) RecordRead(_, _ string) error              { return nil }
 func (r fakeReadLogRepo) LoadAll(_ string) ([]read.LogEntry, error) { return nil, nil }
 
-func TestSearchCommandServiceWithReadLogSearchStillWorks(t *testing.T) {
+func TestSearchCommandService_WithReadLog_StillWorksCorrectly(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
 	out := &capturingTextOutput{}
@@ -199,10 +207,9 @@ func TestSearchCommandServiceWithReadLogSearchStillWorks(t *testing.T) {
 		WithReadLog(fakeReadLogRepo{})
 	service.SetCacheEnabled(false)
 
-	if err := service.Run("module idx"); err != nil {
-		t.Fatalf("expected no error with read log wired, got %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected output lines")
-	}
+	// Act
+	require.NoError(t, service.Run("module idx"))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
 }

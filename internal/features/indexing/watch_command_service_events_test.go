@@ -7,208 +7,243 @@ import (
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestWatchFileLabelEmptyFilesReturnsStructuralChange(t *testing.T) {
-	label := watchFileLabel(nil)
-	if !strings.Contains(label, "structural change") {
-		t.Fatalf("expected 'structural change', got %q", label)
-	}
+func TestWatchFileLabel_EmptyFiles_ReturnsStructuralChange(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, watchFileLabel(nil), "structural change")
 }
 
-func TestWatchFileLabelWithFilesReturnsCount(t *testing.T) {
-	label := watchFileLabel([]string{"a.go", "b.go"})
-	if !strings.Contains(label, "2 file(s)") {
-		t.Fatalf("expected '2 file(s)', got %q", label)
-	}
+func TestWatchFileLabel_WithFiles_ReturnsCount(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, watchFileLabel([]string{"a.go", "b.go"}), "2 file(s)")
 }
 
-func TestTruncatedFileListUnderLimitReturnsAll(t *testing.T) {
+func TestTruncatedFileList_UnderLimit_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	files := []string{"a.go", "b.go", "c.go"}
+
+	// Act
 	listed, truncated := truncatedFileList(files)
-	if len(listed) != 3 || truncated != 0 {
-		t.Fatalf("expected 3 listed and 0 truncated, got %d and %d", len(listed), truncated)
-	}
+
+	// Assert
+	assert.Len(t, listed, 3)
+	assert.Equal(t, 0, truncated)
 }
 
-func TestTruncatedFileListOverLimitTruncates(t *testing.T) {
+func TestTruncatedFileList_OverLimit_Truncates(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	files := make([]string, watchMaxFilesListed+3)
 	for i := range files {
 		files[i] = "file.go"
 	}
+
+	// Act
 	listed, truncated := truncatedFileList(files)
-	if len(listed) != watchMaxFilesListed {
-		t.Fatalf("expected %d listed, got %d", watchMaxFilesListed, len(listed))
-	}
-	if truncated != 3 {
-		t.Fatalf("expected 3 truncated, got %d", truncated)
-	}
+
+	// Assert
+	assert.Len(t, listed, watchMaxFilesListed)
+	assert.Equal(t, 3, truncated)
 }
 
-func TestWatchEntryPrefixLastEntryNoTruncation(t *testing.T) {
-	prefix := watchEntryPrefix(2, 2, 0)
-	if !strings.Contains(prefix, "└─") {
-		t.Fatalf("expected └─ for last entry with no truncation, got %q", prefix)
-	}
+func TestWatchEntryPrefix_LastEntryNoTruncation_ReturnsCornerBranch(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, watchEntryPrefix(2, 2, 0), "└─")
 }
 
-func TestWatchEntryPrefixMiddleEntry(t *testing.T) {
-	prefix := watchEntryPrefix(0, 2, 0)
-	if !strings.Contains(prefix, "├─") {
-		t.Fatalf("expected ├─ for non-last entry, got %q", prefix)
-	}
+func TestWatchEntryPrefix_MiddleEntry_ReturnsTBranch(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, watchEntryPrefix(0, 2, 0), "├─")
 }
 
-func TestWatchEntryPrefixLastEntryWithTruncation(t *testing.T) {
-	prefix := watchEntryPrefix(2, 2, 1)
-	if !strings.Contains(prefix, "├─") {
-		t.Fatalf("expected ├─ for last listed entry when truncation follows, got %q", prefix)
-	}
+func TestWatchEntryPrefix_LastEntryWithTruncation_ReturnsTBranch(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, watchEntryPrefix(2, 2, 1), "├─")
 }
 
-func TestWriteUpdatedFilesEmptyWritesNone(t *testing.T) {
+func TestWriteUpdatedFiles_Empty_WritesNoneLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	if err := svc.writeUpdatedFiles(map[string]struct{}{}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(out.lines) == 0 || !strings.Contains(out.lines[0], "none") {
-		t.Fatalf("expected 'none' line, got %v", out.lines)
-	}
+	// Act
+	require.NoError(t, svc.writeUpdatedFiles(map[string]struct{}{}))
+
+	// Assert
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "none")
 }
 
-func TestWriteUpdatedFilesWithFilesWritesList(t *testing.T) {
+func TestWriteUpdatedFiles_WithFiles_WritesHeader(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	pending := map[string]struct{}{"main.go": {}, "util.go": {}}
-	if err := svc.writeUpdatedFiles(pending); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, svc.writeUpdatedFiles(map[string]struct{}{"main.go": {}, "util.go": {}}))
 
+	// Assert
 	joined := strings.Join(out.lines, "\n")
-	if !strings.Contains(joined, "updated files") {
-		t.Fatalf("expected 'updated files' header, got %v", out.lines)
-	}
+	assert.Contains(t, joined, "updated files")
 }
 
-func TestWriteWatchFileListEmptyWritesBlankLine(t *testing.T) {
+func TestWriteWatchFileList_Empty_WritesBlankLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
 
-	if err := svc.writeWatchFileList(nil); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(out.lines) != 1 || out.lines[0] != "" {
-		t.Fatalf("expected single blank line, got %v", out.lines)
-	}
+	// Act
+	require.NoError(t, svc.writeWatchFileList(nil))
+
+	// Assert
+	require.Len(t, out.lines, 1)
+	assert.Equal(t, "", out.lines[0])
 }
 
-func TestWriteWatchFileListWithFilesTruncates(t *testing.T) {
+func TestWriteWatchFileList_OverLimit_WritesTruncationMessage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &internalWatchOutput{}
 	svc := newWatchService(t.TempDir())
 	svc.output = out
-
 	files := make([]string, watchMaxFilesListed+2)
 	for i := range files {
 		files[i] = "file.go"
 	}
 
-	if err := svc.writeWatchFileList(files); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, svc.writeWatchFileList(files))
 
-	joined := strings.Join(out.lines, "\n")
-	if !strings.Contains(joined, "and 2 more") {
-		t.Fatalf("expected truncation message, got %v", out.lines)
-	}
+	// Assert
+	assert.Contains(t, strings.Join(out.lines, "\n"), "and 2 more")
 }
 
-func TestTrackEventFilesIgnoresChmod(t *testing.T) {
+func TestTrackEventFiles_IgnoresChmod(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventFiles(fsnotify.Event{Op: fsnotify.Chmod, Name: filepath.Join(root, "main.go")}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected Chmod to not add to pending files")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventFilesIgnoresOutsideRoot(t *testing.T) {
+func TestTrackEventFiles_IgnoresOutsideRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventFiles(fsnotify.Event{Op: fsnotify.Write, Name: "/outside/file.go"}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected outside-root path to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventFilesIgnoresDirectory(t *testing.T) {
+func TestTrackEventFiles_IgnoresDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	subdir := filepath.Join(root, "sub")
-	if err := os.Mkdir(subdir, 0755); err != nil {
-		t.Fatalf("failed to create subdir: %v", err)
-	}
+	require.NoError(t, os.Mkdir(subdir, 0755))
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventFiles(fsnotify.Event{Op: fsnotify.Write, Name: subdir}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected directory event to not be tracked as file")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventFilesIgnoresSystemPaths(t *testing.T) {
+func TestTrackEventFiles_IgnoresSystemPaths(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventFiles(fsnotify.Event{Op: fsnotify.Write, Name: filepath.Join(root, ".git", "COMMIT_EDITMSG")}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected .git path to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventDirectoriesIgnoresChmod(t *testing.T) {
+func TestTrackEventDirectories_IgnoresChmod(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventDirectories(fsnotify.Event{Op: fsnotify.Chmod, Name: root}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected Chmod to not add to pending directories")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventDirectoriesIgnoresSystemDirectory(t *testing.T) {
+func TestTrackEventDirectories_IgnoresSystemDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	gitDir := filepath.Join(root, ".git")
-	if err := os.Mkdir(gitDir, 0755); err != nil {
-		t.Fatalf("failed to create .git dir: %v", err)
-	}
+	require.NoError(t, os.Mkdir(gitDir, 0755))
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventDirectories(fsnotify.Event{Op: fsnotify.Write, Name: gitDir}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected .git directory to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }
 
-func TestTrackEventDirectoriesIgnoresOutsideRoot(t *testing.T) {
+func TestTrackEventDirectories_IgnoresOutsideRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := t.TempDir()
 	svc := newWatchService(root)
 	pending := map[string]struct{}{}
 
+	// Act
 	svc.trackEventDirectories(fsnotify.Event{Op: fsnotify.Write, Name: "/outside/dir"}, root, neverMatcher{}, pending)
-	if len(pending) != 0 {
-		t.Fatal("expected outside-root path to not be tracked")
-	}
+
+	// Assert
+	assert.Empty(t, pending)
 }

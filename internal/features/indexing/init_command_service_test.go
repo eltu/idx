@@ -5,11 +5,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/shared/filesystem"
 )
 
-func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
+func TestInitCommandService_Run_WritesIndexFilesForAllowedEntries(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "child")
 	emptyDir := filepath.Join(rootDir, "empty")
@@ -48,26 +54,21 @@ func TestInitCommandServiceRunWritesIndexFilesForAllowedEntries(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if indexRepo.savedIndices[rootDir].DocumentCount != 2 {
-		t.Fatalf("expected root index to have 2 documents, got %d", indexRepo.savedIndices[rootDir].DocumentCount)
-	}
-	if indexRepo.savedIndices[childDir].DocumentCount != 1 {
-		t.Fatalf("expected child index to have 1 document, got %d", indexRepo.savedIndices[childDir].DocumentCount)
-	}
-	if _, ok := indexRepo.savedIndices[emptyDir]; ok {
-		t.Fatalf("did not expect index for empty directory %q", emptyDir)
-	}
-	if _, ok := indexRepo.savedIndices[vendorDir]; ok {
-		t.Fatalf("did not expect index for ignored directory %q", vendorDir)
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 2, indexRepo.savedIndices[rootDir].DocumentCount)
+	assert.Equal(t, 1, indexRepo.savedIndices[childDir].DocumentCount)
+	assert.NotContains(t, indexRepo.savedIndices, emptyDir)
+	assert.NotContains(t, indexRepo.savedIndices, vendorDir)
 }
 
-func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
+func TestInitCommandService_Run_RejectsDirectoryOutsideGitProject(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, "")
 	tree.gitRootErr = errors.New("directory \"/repo\" is not inside a git project: expected a path with a .git entry in the current directory or one of its parents")
@@ -82,13 +83,17 @@ func TestInitCommandServiceRunRejectsDirectoryOutsideGitProject(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunReturnsCurrentDirError(t *testing.T) {
+func TestInitCommandService_Run_ReturnsCurrentDirError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("", "")
 	tree.currentErr = errors.New("cwd unavailable")
 
@@ -103,13 +108,17 @@ func TestInitCommandServiceRunReturnsCurrentDirError(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected current directory error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceInspectReturnsCurrentDirError(t *testing.T) {
+func TestInitCommandService_Inspect_ReturnsCurrentDirError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("", "")
 	tree.currentErr = errors.New("cwd unavailable")
 
@@ -124,31 +133,43 @@ func TestInitCommandServiceInspectReturnsCurrentDirError(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Inspect(".")
-	if err == nil {
-		t.Fatal("expected current directory error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+func TestInitCommandService_Run_ReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected dependency validation error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceInspectReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+func TestInitCommandService_Inspect_ReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{})
 
+	// Act
 	err := service.Inspect(".")
-	if err == nil {
-		t.Fatal("expected dependency validation error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunReturnsMatcherFactoryError(t *testing.T) {
+func TestInitCommandService_Run_ReturnsMatcherFactoryError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	service := indexing.NewInitCommandService(indexing.InitCommandServiceDeps{
@@ -162,13 +183,17 @@ func TestInitCommandServiceRunReturnsMatcherFactoryError(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected matcher factory error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunPropagatesChildDirectoryReadError(t *testing.T) {
+func TestInitCommandService_Run_PropagatesChildDirectoryReadError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "child")
 	tree := newFakeProjectTree(rootDir, rootDir)
@@ -186,13 +211,17 @@ func TestInitCommandServiceRunPropagatesChildDirectoryReadError(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected child directory read error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunPropagatesFileReadErrorOnIndexBuild(t *testing.T) {
+func TestInitCommandService_Run_PropagatesFileReadErrorOnIndexBuild(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.readDirMap[rootDir] = []filesystem.DirectoryEntry{{Name: "missing.txt", Path: filepath.Join(rootDir, "missing.txt"), IsDir: false}}
@@ -208,13 +237,17 @@ func TestInitCommandServiceRunPropagatesFileReadErrorOnIndexBuild(t *testing.T) 
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected file read error, got nil")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
+func TestInitCommandService_Run_SkipsWhenIndexAlreadyExists(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -231,17 +264,18 @@ func TestInitCommandServiceRunSkipsWhenIndexAlreadyExists(t *testing.T) {
 		DaemonRepo:     nil,
 	})
 
+	// Act
 	err := service.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if output.lines[0] != "ℹ️ This project is already indexed. You can run idx search." {
-		t.Fatalf("unexpected output message %q", output.lines[0])
-	}
+	// Assert
+	require.NoError(t, err)
+	require.Equal(t, "ℹ️ This project is already indexed. You can run idx search.", output.lines[0])
 }
 
-func TestInitCommandServiceRunCreatesGitIgnoreWithIdxRuleWhenMissing(t *testing.T) {
+func TestInitCommandService_Run_CreatesGitIgnoreWithIdxRuleWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -257,17 +291,19 @@ func TestInitCommandServiceRunCreatesGitIgnoreWithIdxRuleWhenMissing(t *testing.
 		DaemonRepo:     nil,
 	})
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	err := service.Run()
 
+	// Assert
+	require.NoError(t, err)
 	gitIgnorePath := filepath.Join(rootDir, ".gitignore")
-	if tree.writes[gitIgnorePath] != ".idx/\n" {
-		t.Fatalf("expected .gitignore to be created with .idx rule, got %q", tree.writes[gitIgnorePath])
-	}
+	assert.Equal(t, ".idx/\n", tree.writes[gitIgnorePath])
 }
 
-func TestInitCommandServiceRunAppendsIdxRuleWhenMissingFromGitIgnore(t *testing.T) {
+func TestInitCommandService_Run_AppendsIdxRuleWhenMissingFromGitIgnore(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -284,17 +320,18 @@ func TestInitCommandServiceRunAppendsIdxRuleWhenMissingFromGitIgnore(t *testing.
 		DaemonRepo:     nil,
 	})
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	err := service.Run()
 
-	expected := "vendor/\n*.log\n.idx/\n"
-	if tree.writes[gitIgnorePath] != expected {
-		t.Fatalf("expected .gitignore update %q, got %q", expected, tree.writes[gitIgnorePath])
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "vendor/\n*.log\n.idx/\n", tree.writes[gitIgnorePath])
 }
 
-func TestInitCommandServiceRunDoesNotRewriteGitIgnoreWhenRuleAlreadyExists(t *testing.T) {
+func TestInitCommandService_Run_DoesNotRewriteGitIgnoreWhenRuleAlreadyExists(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := newFakeProjectTree(rootDir, rootDir)
 	tree.existing[filepath.Join(rootDir, ".idx", "index.idx")] = true
@@ -311,11 +348,10 @@ func TestInitCommandServiceRunDoesNotRewriteGitIgnoreWhenRuleAlreadyExists(t *te
 		DaemonRepo:     nil,
 	})
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	err := service.Run()
 
-	if _, wrote := tree.writes[gitIgnorePath]; wrote {
-		t.Fatal("expected no .gitignore rewrite when .idx rule already exists")
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.NotContains(t, tree.writes, gitIgnorePath)
 }

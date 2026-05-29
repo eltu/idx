@@ -3,10 +3,16 @@ package config_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/shared/config"
 )
 
-func TestYAMLRepositoryLoadParsesSearchContextAndRelaxation(t *testing.T) {
+func TestYAMLRepository_Load_ParsesSearchContextAndRelaxation(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -16,30 +22,24 @@ search:
   max_workers: 8
 `)
 
+	// Act
 	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if cfg.Search.Context != 4 {
-		t.Errorf("expected search.context 4, got %d", cfg.Search.Context)
-	}
-	if cfg.Search.Relaxation != "5" {
-		t.Errorf("expected search.relaxation \"5\", got %q", cfg.Search.Relaxation)
-	}
-	if cfg.Search.MaxWorkers != 8 {
-		t.Errorf("expected search.max_workers 8, got %d", cfg.Search.MaxWorkers)
-	}
-
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 4, cfg.Search.Context)
+	assert.Equal(t, "5", cfg.Search.Relaxation)
+	assert.Equal(t, 8, cfg.Search.MaxWorkers)
 	overrideSet := overrideMap(overrides)
 	for _, key := range []string{"search.context", "search.relaxation", "search.max_workers"} {
-		if !overrideSet[key] {
-			t.Errorf("expected %q in overrides, got: %v", key, overrides)
-		}
+		assert.True(t, overrideSet[key], "expected %q in overrides, got: %v", key, overrides)
 	}
 }
 
-func TestYAMLRepositoryLoadParsesBM25BAndProximityWeight(t *testing.T) {
+func TestYAMLRepository_Load_ParsesBM25BAndProximityWeight(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -48,27 +48,23 @@ bm25:
   proximity_weight: 0.3
 `)
 
+	// Act
 	cfg, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if cfg.BM25.B != 0.85 {
-		t.Errorf("expected bm25.b 0.85, got %v", cfg.BM25.B)
-	}
-	if cfg.BM25.ProximityWeight != 0.3 {
-		t.Errorf("expected bm25.proximity_weight 0.3, got %v", cfg.BM25.ProximityWeight)
-	}
-
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 0.85, cfg.BM25.B)
+	assert.Equal(t, 0.3, cfg.BM25.ProximityWeight)
 	overrideSet := overrideMap(overrides)
 	for _, key := range []string{"bm25.b", "bm25.proximity_weight"} {
-		if !overrideSet[key] {
-			t.Errorf("expected %q in overrides, got: %v", key, overrides)
-		}
+		assert.True(t, overrideSet[key], "expected %q in overrides, got: %v", key, overrides)
 	}
 }
 
-func TestYAMLRepositoryLoadNilBM25SectionSkipped(t *testing.T) {
+func TestYAMLRepository_Load_SkipsBM25OverridesWhenSectionAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -76,18 +72,20 @@ search:
   format: json
 `)
 
+	// Act
 	_, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
+	// Assert
+	require.NoError(t, err)
 	overrideSet := overrideMap(overrides)
-	if overrideSet["bm25.k1"] || overrideSet["bm25.b"] {
-		t.Errorf("expected no bm25 overrides when section absent, got: %v", overrides)
-	}
+	assert.False(t, overrideSet["bm25.k1"], "expected no bm25 overrides when section absent")
+	assert.False(t, overrideSet["bm25.b"], "expected no bm25 overrides when section absent")
 }
 
-func TestYAMLRepositoryLoadNilLogSectionSkipped(t *testing.T) {
+func TestYAMLRepository_Load_SkipsLogOverridesWhenSectionAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -95,18 +93,19 @@ search:
   format: json
 `)
 
+	// Act
 	_, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
+	// Assert
+	require.NoError(t, err)
 	overrideSet := overrideMap(overrides)
-	if overrideSet["log.level"] {
-		t.Errorf("expected no log.level override when section absent, got: %v", overrides)
-	}
+	assert.False(t, overrideSet["log.level"], "expected no log.level override when section absent")
 }
 
-func TestYAMLRepositoryLoadNilWatchSectionReturnsNil(t *testing.T) {
+func TestYAMLRepository_Load_SkipsWatchOverridesWhenSectionAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -114,18 +113,19 @@ bm25:
   k1: 1.5
 `)
 
+	// Act
 	_, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
+	// Assert
+	require.NoError(t, err)
 	overrideSet := overrideMap(overrides)
-	if overrideSet["watch.debounce"] {
-		t.Errorf("expected no watch.debounce override when section absent, got: %v", overrides)
-	}
+	assert.False(t, overrideSet["watch.debounce"], "expected no watch.debounce override when section absent")
 }
 
-func TestYAMLRepositoryLoadNilIndexSectionReturnsNil(t *testing.T) {
+func TestYAMLRepository_Load_SkipsIndexOverridesWhenSectionAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	repo := config.NewYAMLRepository()
 	dir := t.TempDir()
 	writeYAMLConfig(t, dir, `
@@ -133,15 +133,13 @@ bm25:
   k1: 1.5
 `)
 
+	// Act
 	_, overrides, err := repo.Load(dir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
+	// Assert
+	require.NoError(t, err)
 	overrideSet := overrideMap(overrides)
-	if overrideSet["index.ignore"] {
-		t.Errorf("expected no index.ignore override when section absent, got: %v", overrides)
-	}
+	assert.False(t, overrideSet["index.ignore"], "expected no index.ignore override when section absent")
 }
 
 func overrideMap(overrides []string) map[string]bool {

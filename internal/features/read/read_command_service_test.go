@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/read"
 	"idx/internal/shared/filesystem"
 )
@@ -15,214 +18,204 @@ import (
 // Happy path — basic reads
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunPrintsAbsolutePathContent(t *testing.T) {
+func TestReadCommandService_Run_PrintsAbsolutePathContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/main.go"] = "package main\nfunc main() {}\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.Run("/repo/main.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d: %v", len(output.lines), output.lines)
-	}
-	if output.lines[0] != "package main" {
-		t.Fatalf("unexpected first line %q", output.lines[0])
-	}
+	// Act
+	err := service.Run("/repo/main.go")
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 2)
+	assert.Equal(t, "package main", output.lines[0])
 }
 
-func TestReadCommandServiceRunResolvesRelativePathFromCurrentDir(t *testing.T) {
+func TestReadCommandService_Run_ResolvesRelativePathFromCurrentDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo/cmd", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/cmd/main.go"] = "package main\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.Run("main.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 1 || output.lines[0] != "package main" {
-		t.Fatalf("unexpected output: %v", output.lines)
-	}
+	// Act
+	err := service.Run("main.go")
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 1)
+	assert.Equal(t, "package main", output.lines[0])
 }
 
-func TestReadCommandServiceRunResolvesRelativeSubdirectoryPath(t *testing.T) {
+func TestReadCommandService_Run_ResolvesRelativeSubdirectoryPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/internal/foo.go"] = "package foo\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.Run("internal/foo.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 1 || output.lines[0] != "package foo" {
-		t.Fatalf("unexpected output: %v", output.lines)
-	}
+	// Act
+	err := service.Run("internal/foo.go")
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 1)
+	assert.Equal(t, "package foo", output.lines[0])
 }
 
-func TestReadCommandServiceRunNormalizesDoubleDotPath(t *testing.T) {
+func TestReadCommandService_Run_NormalizesDoubleDotPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo/cmd/idx", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/cmd/main.go"] = "package main\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.Run("../main.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(output.lines) != 1 || output.lines[0] != "package main" {
-		t.Fatalf("unexpected output: %v", output.lines)
-	}
+	// Act
+	err := service.Run("../main.go")
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, output.lines, 1)
+	assert.Equal(t, "package main", output.lines[0])
 }
 
 // ---------------------------------------------------------------------------
 // Directory detection
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunReturnsErrorForDirectoryPath(t *testing.T) {
+func TestReadCommandService_Run_ReturnsErrorForDirectoryPath(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.dirs["/repo/internal"] = true
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
+
+	// Act
 	err := service.Run("/repo/internal")
-	if err == nil {
-		t.Fatal("expected error for directory path, got nil")
-	}
 
-	if !strings.Contains(err.Error(), "directory") {
-		t.Fatalf("expected 'directory' in error message, got %q", err.Error())
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no output on error, got %v", output.lines)
-	}
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "directory")
+	assert.Empty(t, output.lines)
 }
 
 // ---------------------------------------------------------------------------
 // Project root enforcement
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunRejectsPathOutsideProjectRoot(t *testing.T) {
+func TestReadCommandService_Run_RejectsPathOutsideProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/etc/passwd"] = "root:x:0:0\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
+
+	// Act
 	err := service.Run("/etc/passwd")
-	if err == nil {
-		t.Fatal("expected error for path outside project root, got nil")
-	}
 
-	if !strings.Contains(err.Error(), "outside project root") {
-		t.Fatalf("expected 'outside project root' in error, got %q", err.Error())
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no output on error, got %v", output.lines)
-	}
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "outside project root")
+	assert.Empty(t, output.lines)
 }
 
-func TestReadCommandServiceRunRejectsRelativePathEscapingRoot(t *testing.T) {
+func TestReadCommandService_Run_RejectsRelativePathEscapingRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo/cmd", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/etc/passwd"] = "root\n"
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	err := service.Run("../../etc/passwd")
-	if err == nil {
-		t.Fatal("expected error for path escaping project root, got nil")
-	}
 
-	if !strings.Contains(err.Error(), "outside project root") {
-		t.Fatalf("expected 'outside project root' in error, got %q", err.Error())
-	}
+	// Act
+	err := service.Run("../../etc/passwd")
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "outside project root")
 }
 
 // ---------------------------------------------------------------------------
 // Line range — --from / --to
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunWithOptionsFromLinePrintsFromGivenLine(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer()
-	streamer.files["/repo/file.txt"] = "line1\nline2\nline3\nline4\n"
-	output := &capturingTextOutput{}
+func TestReadCommandService_RunWithOptions_LineRange(t *testing.T) {
+	t.Parallel()
 
-	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.RunWithOptions("/repo/file.txt", 3, 0); err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	tests := []struct {
+		name          string
+		fileContent   string
+		from, to      int
+		expectedLines []string
+	}{
+		{
+			name:        "FromLine_PrintsFromGivenLine",
+			fileContent: "line1\nline2\nline3\nline4\n",
+			from:        3, to: 0,
+			expectedLines: []string{"line3", "line4"},
+		},
+		{
+			name:        "ToLine_PrintsUpToGivenLine",
+			fileContent: "line1\nline2\nline3\nline4\n",
+			from:        0, to: 2,
+			expectedLines: []string{"line1", "line2"},
+		},
+		{
+			name:        "BothBounds_PrintsRange",
+			fileContent: "line1\nline2\nline3\nline4\nline5\n",
+			from:        2, to: 4,
+			expectedLines: []string{"line2", "line3", "line4"},
+		},
+		{
+			name:        "FromBeyondEOF_PrintsNothing",
+			fileContent: "line1\nline2\n",
+			from:        99, to: 0,
+			expectedLines: nil,
+		},
 	}
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d: %v", len(output.lines), output.lines)
-	}
-	if output.lines[0] != "line3" {
-		t.Fatalf("expected first line to be 'line3', got %q", output.lines[0])
-	}
-}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestReadCommandServiceRunWithOptionsToLinePrintsUpToGivenLine(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer()
-	streamer.files["/repo/file.txt"] = "line1\nline2\nline3\nline4\n"
-	output := &capturingTextOutput{}
+			// Arrange
+			tree := newFakeProjectTree("/repo", "/repo")
+			streamer := newFakeFileStreamer()
+			streamer.files["/repo/file.txt"] = tc.fileContent
+			output := &capturingTextOutput{}
+			service := read.NewReadCommandService(tree, streamer, output)
 
-	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.RunWithOptions("/repo/file.txt", 0, 2); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+			// Act
+			err := service.RunWithOptions("/repo/file.txt", tc.from, tc.to)
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d: %v", len(output.lines), output.lines)
-	}
-	if output.lines[1] != "line2" {
-		t.Fatalf("expected last line to be 'line2', got %q", output.lines[1])
-	}
-}
-
-func TestReadCommandServiceRunWithOptionsBothBoundsPrintsRange(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer()
-	streamer.files["/repo/file.txt"] = "line1\nline2\nline3\nline4\nline5\n"
-	output := &capturingTextOutput{}
-
-	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.RunWithOptions("/repo/file.txt", 2, 4); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(output.lines) != 3 {
-		t.Fatalf("expected 3 lines, got %d: %v", len(output.lines), output.lines)
-	}
-	if output.lines[0] != "line2" || output.lines[2] != "line4" {
-		t.Fatalf("unexpected range output: %v", output.lines)
-	}
-}
-
-func TestReadCommandServiceRunWithOptionsFromBeyondEOFPrintsNothing(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer()
-	streamer.files["/repo/file.txt"] = "line1\nline2\n"
-	output := &capturingTextOutput{}
-
-	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.RunWithOptions("/repo/file.txt", 99, 0); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no output when from exceeds file length, got %v", output.lines)
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedLines, output.lines)
+		})
 	}
 }
 
@@ -230,187 +223,195 @@ func TestReadCommandServiceRunWithOptionsFromBeyondEOFPrintsNothing(t *testing.T
 // Error cases
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunReturnsErrorForMissingFile(t *testing.T) {
+func TestReadCommandService_Run_ReturnsErrorForMissingFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	output := &capturingTextOutput{}
-
 	service := read.NewReadCommandService(tree, streamer, output)
-	err := service.Run("/repo/missing.go")
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
-	}
 
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no output on error, got %v", output.lines)
-	}
+	// Act
+	err := service.Run("/repo/missing.go")
+
+	// Assert
+	require.Error(t, err)
+	assert.Empty(t, output.lines)
 }
 
-func TestReadCommandServiceRunReturnsErrorWhenCurrentDirFails(t *testing.T) {
+func TestReadCommandService_Run_ReturnsErrorWhenCurrentDirFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("", "/repo")
-	streamer := newFakeFileStreamer()
-	output := &capturingTextOutput{}
+	service := read.NewReadCommandService(tree, newFakeFileStreamer(), &capturingTextOutput{})
 
-	service := read.NewReadCommandService(tree, streamer, output)
-	if err := service.Run("main.go"); err == nil {
-		t.Fatal("expected error when current directory resolution fails")
+	// Act & Assert
+	require.Error(t, service.Run("main.go"))
+}
+
+func TestReadCommandService_Run_NilDependencies_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		runFn func(string) error
+	}{
+		{
+			name:  "AllNil",
+			runFn: read.NewReadCommandService(nil, nil, nil).Run,
+		},
+		{
+			name:  "NilProjectTree",
+			runFn: read.NewReadCommandService(nil, newFakeFileStreamer(), &capturingTextOutput{}).Run,
+		},
+		{
+			name:  "NilStreamer",
+			runFn: read.NewReadCommandService(newFakeProjectTree("/repo", "/repo"), nil, &capturingTextOutput{}).Run,
+		},
+		{
+			name:  "NilOutput",
+			runFn: read.NewReadCommandService(newFakeProjectTree("/repo", "/repo"), newFakeFileStreamer(), nil).Run,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act & Assert
+			require.Error(t, tc.runFn("main.go"))
+		})
 	}
 }
 
-func TestReadCommandServiceRunReturnsErrorForNilDependencies(t *testing.T) {
-	service := read.NewReadCommandService(nil, nil, nil)
-	if err := service.Run("main.go"); err == nil {
-		t.Fatal("expected dependency validation error, got nil")
-	}
-}
+func TestReadCommandService_Run_ErrorIncludesFilePath(t *testing.T) {
+	t.Parallel()
 
-func TestReadCommandServiceRunReturnsErrorForNilProjectTree(t *testing.T) {
-	service := read.NewReadCommandService(nil, newFakeFileStreamer(), &capturingTextOutput{})
-	if err := service.Run("main.go"); err == nil {
-		t.Fatal("expected nil projectTree error")
-	}
-}
-
-func TestReadCommandServiceRunReturnsErrorForNilStreamer(t *testing.T) {
-	service := read.NewReadCommandService(newFakeProjectTree("/repo", "/repo"), nil, &capturingTextOutput{})
-	if err := service.Run("main.go"); err == nil {
-		t.Fatal("expected nil streamer error")
-	}
-}
-
-func TestReadCommandServiceRunReturnsErrorForNilOutput(t *testing.T) {
-	service := read.NewReadCommandService(newFakeProjectTree("/repo", "/repo"), newFakeFileStreamer(), nil)
-	if err := service.Run("main.go"); err == nil {
-		t.Fatal("expected nil output error")
-	}
-}
-
-func TestReadCommandServiceRunErrorIncludesFilePath(t *testing.T) {
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer()
-	output := &capturingTextOutput{}
+	service := read.NewReadCommandService(tree, newFakeFileStreamer(), &capturingTextOutput{})
 
-	service := read.NewReadCommandService(tree, streamer, output)
+	// Act
 	err := service.Run("/repo/missing.go")
-	if err == nil {
-		t.Fatal("expected error for missing file")
-	}
 
-	if !strings.Contains(err.Error(), "missing.go") {
-		t.Fatalf("expected error to mention file path, got %q", err.Error())
-	}
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "missing.go")
 }
 
 // ---------------------------------------------------------------------------
 // Read log integration
 // ---------------------------------------------------------------------------
 
-func TestReadCommandServiceRunRecordsAccessLogAfterSuccessfulRead(t *testing.T) {
+func TestReadCommandService_Run_RecordsAccessLogAfterSuccessfulRead(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/main.go"] = "package main\n"
-	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{}
+	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 
-	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
-	if err := service.Run("/repo/main.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.Run("/repo/main.go"))
 
-	if len(logRepo.calls) != 1 {
-		t.Fatalf("expected 1 log call, got %d", len(logRepo.calls))
-	}
-	if logRepo.calls[0].relativePath != "main.go" {
-		t.Fatalf("expected logged path 'main.go', got %q", logRepo.calls[0].relativePath)
-	}
-	if logRepo.calls[0].projectRoot != "/repo" {
-		t.Fatalf("expected logged root '/repo', got %q", logRepo.calls[0].projectRoot)
-	}
+	// Assert
+	require.Len(t, logRepo.calls, 1)
+	assert.Equal(t, "main.go", logRepo.calls[0].relativePath)
+	assert.Equal(t, "/repo", logRepo.calls[0].projectRoot)
 }
 
-func TestReadCommandServiceRunDoesNotRecordLogOnReadError(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
-	streamer := newFakeFileStreamer() // missing file → read fails
-	output := &capturingTextOutput{}
-	logRepo := &capturingReadLogRepository{}
+func TestReadCommandService_Run_DoesNotRecordLogOnReadError(t *testing.T) {
+	t.Parallel()
 
-	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
+	// Arrange
+	logRepo := &capturingReadLogRepository{}
+	service := read.NewReadCommandService(
+		newFakeProjectTree("/repo", "/repo"),
+		newFakeFileStreamer(), // missing file → read fails
+		&capturingTextOutput{},
+	).WithReadLog(logRepo)
+
+	// Act
 	_ = service.Run("/repo/missing.go")
 
-	if len(logRepo.calls) != 0 {
-		t.Fatalf("expected no log call on read failure, got %d", len(logRepo.calls))
-	}
+	// Assert
+	assert.Empty(t, logRepo.calls)
 }
 
-func TestReadCommandServiceRunLogFailureDoesNotFailRead(t *testing.T) {
+func TestReadCommandService_Run_LogFailureDoesNotFailRead(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/main.go"] = "package main\n"
 	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{err: errors.New("disk full")}
-
 	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
-	if err := service.Run("/repo/main.go"); err != nil {
-		t.Fatalf("expected read to succeed even when log fails, got %v", err)
-	}
 
-	if len(output.lines) == 0 {
-		t.Fatal("expected file content to be printed despite log error")
-	}
+	// Act
+	err := service.Run("/repo/main.go")
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, output.lines)
 }
 
-func TestReadCommandServiceRunDoesNotLogGitDirectoryFiles(t *testing.T) {
+func TestReadCommandService_Run_DoesNotLogGitDirectoryFiles(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/.git/config"] = "[core]\n"
-	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{}
+	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 
-	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
-	if err := service.Run("/repo/.git/config"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.Run("/repo/.git/config"))
 
-	if len(logRepo.calls) != 0 {
-		t.Fatalf("expected no log call for .git file, got %d", len(logRepo.calls))
-	}
+	// Assert
+	assert.Empty(t, logRepo.calls)
 }
 
-func TestReadCommandServiceRunDoesNotLogIdxDirectoryFiles(t *testing.T) {
+func TestReadCommandService_Run_DoesNotLogIdxDirectoryFiles(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/.idx/read_log.idx"] = "2026-01-01T00:00:00;main.go;1;0\n"
-	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{}
+	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 
-	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
-	if err := service.Run("/repo/.idx/read_log.idx"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.Run("/repo/.idx/read_log.idx"))
 
-	if len(logRepo.calls) != 0 {
-		t.Fatalf("expected no log call for .idx file, got %d", len(logRepo.calls))
-	}
+	// Assert
+	assert.Empty(t, logRepo.calls)
 }
 
-func TestReadCommandServiceRunRecordsRelativePathForSubdirectoryFile(t *testing.T) {
+func TestReadCommandService_Run_RecordsRelativePathForSubdirectoryFile(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
 	streamer.files["/repo/internal/foo.go"] = "package foo\n"
-	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{}
+	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 
-	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
-	if err := service.Run("/repo/internal/foo.go"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.Run("/repo/internal/foo.go"))
 
-	if len(logRepo.calls) != 1 {
-		t.Fatalf("expected 1 log call, got %d", len(logRepo.calls))
-	}
-	if logRepo.calls[0].relativePath != "internal/foo.go" {
-		t.Fatalf("expected relative path 'internal/foo.go', got %q", logRepo.calls[0].relativePath)
-	}
+	// Assert
+	require.Len(t, logRepo.calls, 1)
+	assert.Equal(t, "internal/foo.go", logRepo.calls[0].relativePath)
 }
 
 // ---------------------------------------------------------------------------

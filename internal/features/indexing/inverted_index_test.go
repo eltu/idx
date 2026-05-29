@@ -3,10 +3,18 @@ package indexing
 import (
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestInvertedIndexDocumentAndTermLifecycle(t *testing.T) {
+func TestInvertedIndex_DocumentAndTermLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := NewInvertedIndex()
+
+	// Act
 	index.AddDocument("a.txt", "repo/a.txt", 3)
 	index.AddDocument("b.txt", "repo/b.txt", 1)
 	index.AddTerm("go", "a.txt", 2, []int{0, 5})
@@ -17,74 +25,69 @@ func TestInvertedIndexDocumentAndTermLifecycle(t *testing.T) {
 	index.CalculateAverageDocLen()
 	index.CalculateIDF()
 
-	if index.DocumentCount != 2 {
-		t.Fatalf("expected document count 2, got %d", index.DocumentCount)
-	}
-	if index.AverageDocLength != 2 {
-		t.Fatalf("expected average doc length 2, got %v", index.AverageDocLength)
-	}
-	if index.Terms["go"] == nil || len(index.Terms["go"].Docs) != 2 {
-		t.Fatal("expected go term in two docs")
-	}
-	if index.Terms["go"].IDF <= 0 {
-		t.Fatalf("expected positive idf, got %f", index.Terms["go"].IDF)
-	}
-	if !index.FileNameTerms["a.txt"]["a.txt"] {
-		t.Fatal("expected filename token to be indexed")
-	}
-	if !index.PathTerms["repo"]["a.txt"] || !index.PathTerms["docs"]["a.txt"] || !index.PathTerms["a.txt"]["a.txt"] {
-		t.Fatal("expected path segment tokens to be indexed")
-	}
-	if !index.ExtensionTerms["txt"]["a.txt"] {
-		t.Fatal("expected extension token to be indexed")
-	}
+	// Assert
+	assert.Equal(t, 2, index.DocumentCount)
+	assert.Equal(t, float64(2), index.AverageDocLength)
+	require.NotNil(t, index.Terms["go"])
+	assert.Len(t, index.Terms["go"].Docs, 2)
+	assert.Positive(t, index.Terms["go"].IDF)
+	assert.True(t, index.FileNameTerms["a.txt"]["a.txt"], "expected filename token indexed")
+	assert.True(t, index.PathTerms["repo"]["a.txt"], "expected path segment 'repo' indexed")
+	assert.True(t, index.PathTerms["docs"]["a.txt"], "expected path segment 'docs' indexed")
+	assert.True(t, index.PathTerms["a.txt"]["a.txt"], "expected path segment 'a.txt' indexed")
+	assert.True(t, index.ExtensionTerms["txt"]["a.txt"], "expected extension 'txt' indexed")
 }
 
-func TestInvertedIndexCalculateAverageDocLenWithNoDocuments(t *testing.T) {
+func TestInvertedIndex_CalculateAverageDocLen_ZeroWithNoDocuments(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	index := NewInvertedIndex()
+
+	// Act
 	index.CalculateAverageDocLen()
-	if index.AverageDocLength != 0 {
-		t.Fatalf("expected average length 0, got %f", index.AverageDocLength)
-	}
+
+	// Assert
+	assert.Equal(t, float64(0), index.AverageDocLength)
 }
 
-func TestIDFScoreAndBM25ScoreEdgeCases(t *testing.T) {
-	if idfScore(10, 0) != 0 {
-		t.Fatalf("expected idf zero when df is zero, got %f", idfScore(10, 0))
-	}
+func TestIDFScore_AndBM25Score_EdgeCases(t *testing.T) {
+	t.Parallel()
 
-	value := idfScore(10, 2)
-	if value <= 0 {
-		t.Fatalf("expected positive idf value, got %f", value)
-	}
+	// Assert — idf with zero df returns zero
+	assert.Equal(t, float64(0), idfScore(10, 0))
 
-	score := BM25Score(3, value, 100, 80, 1.5, 0.75)
-	if score <= 0 {
-		t.Fatalf("expected positive bm25 score, got %f", score)
-	}
+	// Assert — idf with valid df returns positive
+	idf := idfScore(10, 2)
+	assert.Positive(t, idf)
 
-	zeroIDF := BM25Score(3, 0, 100, 80, 1.5, 0.75)
-	if zeroIDF != 0 {
-		t.Fatalf("expected zero score with idf zero, got %f", zeroIDF)
-	}
+	// Assert — BM25 with positive idf returns positive
+	score := BM25Score(3, idf, 100, 80, 1.5, 0.75)
+	assert.Positive(t, score)
+	assert.False(t, math.IsNaN(score))
+	assert.False(t, math.IsInf(score, 0))
 
-	if math.IsNaN(score) || math.IsInf(score, 0) {
-		t.Fatalf("expected finite score, got %f", score)
-	}
+	// Assert — BM25 with zero idf returns zero
+	assert.Equal(t, float64(0), BM25Score(3, 0, 100, 80, 1.5, 0.75))
 }
 
-func TestCountTokenFrequenciesReturnsCountsAndPositions(t *testing.T) {
+func TestCountTokenFrequencies_ReturnsCountsAndPositions(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tokens := []TokenWithPosition{
 		{Token: "go", Position: 0},
 		{Token: "idx", Position: 3},
 		{Token: "go", Position: 7},
 	}
 
+	// Act
 	freq, pos := CountTokenFrequencies(tokens)
-	if freq["go"] != 2 || freq["idx"] != 1 {
-		t.Fatalf("unexpected frequencies: %#v", freq)
-	}
-	if len(pos["go"]) != 2 || pos["go"][0] != 0 || pos["go"][1] != 7 {
-		t.Fatalf("unexpected positions for go: %#v", pos["go"])
-	}
+
+	// Assert
+	assert.Equal(t, 2, freq["go"])
+	assert.Equal(t, 1, freq["idx"])
+	require.Len(t, pos["go"], 2)
+	assert.Equal(t, 0, pos["go"][0])
+	assert.Equal(t, 7, pos["go"][1])
 }

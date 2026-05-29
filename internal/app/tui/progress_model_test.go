@@ -2,277 +2,306 @@ package tui
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---- shortProgressDirName ----
 
-func TestShortProgressDirNameShallowPathUnchanged(t *testing.T) {
-	got := shortProgressDirName("foo/bar")
-	if got != "foo/bar" {
-		t.Fatalf("expected unchanged for 2-part path, got %q", got)
-	}
+func TestShortProgressDirName_ShallowPath_Unchanged(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "foo/bar", shortProgressDirName("foo/bar"))
 }
 
-func TestShortProgressDirNameSinglePartUnchanged(t *testing.T) {
-	got := shortProgressDirName("single")
-	if got != "single" {
-		t.Fatalf("expected unchanged for 1-part path, got %q", got)
-	}
+func TestShortProgressDirName_SinglePart_Unchanged(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "single", shortProgressDirName("single"))
 }
 
-func TestShortProgressDirNameDeepPathKeepsLastTwo(t *testing.T) {
-	got := shortProgressDirName("a/b/c/d")
-	if got != "c/d" {
-		t.Fatalf("expected c/d, got %q", got)
-	}
+func TestShortProgressDirName_DeepPath_KeepsLastTwo(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "c/d", shortProgressDirName("a/b/c/d"))
 }
 
-func TestShortProgressDirNameWindowsSlashNormalized(t *testing.T) {
-	got := shortProgressDirName(`a\b\c\d`)
-	if got != "c/d" {
-		t.Fatalf("expected c/d for windows path, got %q", got)
-	}
+func TestShortProgressDirName_WindowsSlash_Normalized(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "c/d", shortProgressDirName(`a\b\c\d`))
 }
 
-func TestShortProgressDirNameExactlyThreePartsKeepsLastTwo(t *testing.T) {
-	got := shortProgressDirName("x/y/z")
-	if got != "y/z" {
-		t.Fatalf("expected y/z, got %q", got)
-	}
+func TestShortProgressDirName_ExactlyThreeParts_KeepsLastTwo(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "y/z", shortProgressDirName("x/y/z"))
 }
 
 // ---- progressPercent ----
 
-func TestProgressPercentZeroTotalIsZero(t *testing.T) {
+func TestProgressPercent_ZeroTotal_ReturnsZero(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 0, current: 0}
-	if progressPercent(m) != 0.0 {
-		t.Fatalf("expected 0.0 for zero total")
-	}
+	assert.Equal(t, 0.0, progressPercent(m))
 }
 
-func TestProgressPercentHalf(t *testing.T) {
+func TestProgressPercent_HalfProgress_ReturnsApproximatelyHalf(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 10, current: 5}
-	got := progressPercent(m)
-	if got < 0.49 || got > 0.51 {
-		t.Fatalf("expected ~0.5, got %f", got)
-	}
+	assert.InDelta(t, 0.5, progressPercent(m), 0.01)
 }
 
-func TestProgressPercentFull(t *testing.T) {
+func TestProgressPercent_FullProgress_ReturnsOne(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 10, current: 10}
-	if progressPercent(m) != 1.0 {
-		t.Fatalf("expected 1.0 for full progress")
-	}
+	assert.Equal(t, 1.0, progressPercent(m))
 }
 
-func TestProgressPercentCapsAtOne(t *testing.T) {
+func TestProgressPercent_OverFull_CapsAtOne(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 5, current: 20}
-	if progressPercent(m) != 1.0 {
-		t.Fatalf("expected 1.0 cap when current > total")
-	}
+	assert.Equal(t, 1.0, progressPercent(m))
 }
 
 // ---- renderGradientFilled ----
 
-func TestRenderGradientFilledZeroIsEmpty(t *testing.T) {
-	got := renderGradientFilled(0)
-	if got != "" {
-		t.Fatalf("expected empty string for 0, got %q", got)
-	}
+func TestRenderGradientFilled_Zero_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, renderGradientFilled(0))
 }
 
-func TestRenderGradientFilledOneBlock(t *testing.T) {
-	got := renderGradientFilled(1)
-	if !strings.Contains(got, "█") {
-		t.Fatalf("expected block character in output, got %q", got)
-	}
+func TestRenderGradientFilled_OneBlock_ContainsBlock(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, renderGradientFilled(1), "█")
 }
 
-func TestRenderGradientFilledMultipleBlocks(t *testing.T) {
-	got := renderGradientFilled(5)
-	count := strings.Count(got, "█")
-	if count != 5 {
-		t.Fatalf("expected 5 block chars, got %d", count)
+func TestRenderGradientFilled_MultipleBlocks_ExactCount(t *testing.T) {
+	t.Parallel()
+
+	result := renderGradientFilled(5)
+	count := 0
+	for _, r := range result {
+		if r == '█' {
+			count++
+		}
 	}
+	assert.Equal(t, 5, count)
 }
 
 // ---- renderInitProgressDirLine ----
 
-func TestRenderInitProgressDirLineEmptyIsEmpty(t *testing.T) {
-	got := renderInitProgressDirLine("")
-	if got != "" {
-		t.Fatalf("expected empty string for empty dir, got %q", got)
-	}
+func TestRenderInitProgressDirLine_EmptyDir_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, renderInitProgressDirLine(""))
 }
 
-func TestRenderInitProgressDirLineNonEmptyContainsDir(t *testing.T) {
-	got := renderInitProgressDirLine("foo/bar")
-	if !strings.Contains(got, "bar") {
-		t.Fatalf("expected dir name in line, got %q", got)
-	}
+func TestRenderInitProgressDirLine_NonEmpty_ContainsDirName(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, renderInitProgressDirLine("foo/bar"), "bar")
 }
 
 // ---- initProgressModel Update ----
 
-func TestInitProgressModelUpdateWindowSize(t *testing.T) {
+func TestInitProgressModel_Update_WindowSize_UpdatesWidth(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	m := newInitProgressModel(nil, nil, func() {})
+
+	// Act
 	result, _ := m.Update(tea.WindowSizeMsg{Width: 120})
-	updated := result.(initProgressModel)
-	if updated.width != 120 {
-		t.Fatalf("expected width=120, got %d", updated.width)
-	}
+
+	// Assert
+	assert.Equal(t, 120, result.(initProgressModel).width)
 }
 
-func TestInitProgressModelUpdateSpinnerAdvancesFrame(t *testing.T) {
+func TestInitProgressModel_Update_SpinnerMsg_AdvancesFrame(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	m := newInitProgressModel(nil, nil, func() {})
 	m.phase = phaseCounting
 	m.spinnerIdx = 0
+
+	// Act
 	result, _ := m.Update(progressSpinnerMsg{})
-	updated := result.(initProgressModel)
-	if updated.spinnerIdx != 1 {
-		t.Fatalf("expected spinnerIdx=1, got %d", updated.spinnerIdx)
-	}
+
+	// Assert
+	assert.Equal(t, 1, result.(initProgressModel).spinnerIdx)
 }
 
-func TestInitProgressModelUpdateSpinnerWrapsAround(t *testing.T) {
+func TestInitProgressModel_Update_SpinnerMsg_WrapsAround(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	m := newInitProgressModel(nil, nil, func() {})
 	m.phase = phaseCounting
 	m.spinnerIdx = len(spinnerFrames) - 1
+
+	// Act
 	result, _ := m.Update(progressSpinnerMsg{})
-	updated := result.(initProgressModel)
-	if updated.spinnerIdx != 0 {
-		t.Fatalf("expected spinnerIdx to wrap to 0, got %d", updated.spinnerIdx)
-	}
+
+	// Assert
+	assert.Equal(t, 0, result.(initProgressModel).spinnerIdx)
 }
 
-func TestInitProgressModelUpdateSpinnerIgnoredDuringIndexing(t *testing.T) {
+func TestInitProgressModel_Update_SpinnerMsg_IgnoredDuringIndexing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	progressCh := make(chan string)
 	totalCh := make(chan int)
 	m := newInitProgressModel(progressCh, totalCh, func() {})
 	m.phase = phaseIndexing
 	m.spinnerIdx = 2
+
+	// Act
 	result, _ := m.Update(progressSpinnerMsg{})
-	updated := result.(initProgressModel)
-	if updated.spinnerIdx != 2 {
-		t.Fatalf("expected spinnerIdx unchanged during indexing, got %d", updated.spinnerIdx)
-	}
+
+	// Assert — spinner index must not change during indexing phase
+	assert.Equal(t, 2, result.(initProgressModel).spinnerIdx)
 }
 
-func TestInitProgressModelUpdateSetTotalSwitchesPhase(t *testing.T) {
+func TestInitProgressModel_Update_SetTotal_SwitchesToIndexingPhase(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	progressCh := make(chan string, 1)
 	totalCh := make(chan int, 1)
 	m := newInitProgressModel(progressCh, totalCh, func() {})
 	m.phase = phaseCounting
+
+	// Act
 	result, _ := m.Update(progressSetTotalMsg{total: 42})
 	updated := result.(initProgressModel)
-	if updated.phase != phaseIndexing {
-		t.Fatal("expected phase to switch to phaseIndexing")
-	}
-	if updated.total != 42 {
-		t.Fatalf("expected total=42, got %d", updated.total)
-	}
+
+	// Assert
+	assert.Equal(t, phaseIndexing, updated.phase)
+	assert.Equal(t, 42, updated.total)
 }
 
-func TestInitProgressModelUpdateProgressTickIncrements(t *testing.T) {
+func TestInitProgressModel_Update_ProgressTick_IncrementsCurrentAndSetsDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	progressCh := make(chan string, 1)
 	totalCh := make(chan int, 1)
 	m := newInitProgressModel(progressCh, totalCh, func() {})
 	m.phase = phaseIndexing
 	m.total = 10
 	m.current = 3
+
+	// Act
 	result, _ := m.Update(progressTickMsg{dir: "some/dir"})
 	updated := result.(initProgressModel)
-	if updated.current != 4 {
-		t.Fatalf("expected current=4, got %d", updated.current)
-	}
-	if updated.lastDir != "some/dir" {
-		t.Fatalf("expected lastDir=some/dir, got %q", updated.lastDir)
-	}
+
+	// Assert
+	assert.Equal(t, 4, updated.current)
+	assert.Equal(t, "some/dir", updated.lastDir)
 }
 
-func TestInitProgressModelUpdateDoneSetsTotalAsCurrent(t *testing.T) {
+func TestInitProgressModel_Update_Done_SetsTotalAsCurrent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	m := newInitProgressModel(nil, nil, func() {})
 	m.total = 10
 	m.current = 7
+
+	// Act
 	result, _ := m.Update(progressDoneMsg{})
-	updated := result.(initProgressModel)
-	if updated.current != 10 {
-		t.Fatalf("expected current==total on done, got %d", updated.current)
-	}
+
+	// Assert
+	assert.Equal(t, 10, result.(initProgressModel).current)
 }
 
-func TestInitProgressModelUpdateCtrlCCallsCancel(t *testing.T) {
+func TestInitProgressModel_Update_CtrlC_CallsCancel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	canceled := false
 	m := newInitProgressModel(nil, nil, func() { canceled = true })
+
+	// Act
 	m.Update(tea.KeyPressMsg{Text: "ctrl+c"})
-	if !canceled {
-		t.Fatal("expected cancelFunc to be called on ctrl+c")
-	}
+
+	// Assert
+	assert.True(t, canceled)
 }
 
 // ---- initProgressModel View ----
 
-func TestInitProgressModelViewCountingPhase(t *testing.T) {
+func TestInitProgressModel_View_CountingPhase_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	m := newInitProgressModel(nil, nil, func() {})
 	m.phase = phaseCounting
-	view := m.View()
-	_ = view // just verify it doesn't panic
+	_ = m.View()
 }
 
-func TestInitProgressModelViewIndexingPhaseZeroTotal(t *testing.T) {
+func TestInitProgressModel_View_IndexingPhaseZeroTotal_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	m := newInitProgressModel(nil, nil, func() {})
 	m.phase = phaseIndexing
 	m.total = 0
-	view := m.View()
-	_ = view
+	_ = m.View()
 }
 
-func TestInitProgressModelViewIndexingPhaseWithProgress(t *testing.T) {
+func TestInitProgressModel_View_IndexingWithProgress_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	m := newInitProgressModel(nil, nil, func() {})
 	m.phase = phaseIndexing
 	m.total = 10
 	m.current = 5
 	m.width = 80
-	view := m.View()
-	_ = view
+	_ = m.View()
 }
 
 // ---- newInitProgressModel ----
 
-func TestNewInitProgressModelHasChannels(t *testing.T) {
+func TestNewInitProgressModel_SetsAllChannels(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	progressCh := make(chan string)
 	totalCh := make(chan int)
 	_, cancel := context.WithCancel(context.Background())
+
+	// Act
 	m := newInitProgressModel(progressCh, totalCh, cancel)
-	if m.progressCh == nil {
-		t.Fatal("expected progressCh to be set")
-	}
-	if m.totalCh == nil {
-		t.Fatal("expected totalCh to be set")
-	}
-	if m.cancelFunc == nil {
-		t.Fatal("expected cancelFunc to be set")
-	}
+
+	// Assert
+	require.NotNil(t, m.progressCh)
+	require.NotNil(t, m.totalCh)
+	require.NotNil(t, m.cancelFunc)
 }
 
 // ---- renderInitProgressBar ----
 
-func TestRenderInitProgressBarNarrowWidthUsesMinimum(t *testing.T) {
+func TestRenderInitProgressBar_NarrowWidth_UsesMinimum(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 10, current: 5, width: 5}
-	got := renderInitProgressBar(m)
-	if got == "" {
-		t.Fatal("expected non-empty bar")
-	}
+	assert.NotEmpty(t, renderInitProgressBar(m))
 }
 
-func TestRenderInitProgressBarZeroWidthDefaultsTo80(t *testing.T) {
+func TestRenderInitProgressBar_ZeroWidth_DefaultsTo80(t *testing.T) {
+	t.Parallel()
+
 	m := initProgressModel{total: 10, current: 5, width: 0}
-	got := renderInitProgressBar(m)
-	if got == "" {
-		t.Fatal("expected non-empty bar with default width")
-	}
+	assert.NotEmpty(t, renderInitProgressBar(m))
 }

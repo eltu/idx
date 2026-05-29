@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	featsearch "idx/internal/features/search"
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
@@ -25,131 +28,123 @@ func (w *writeFailConn) Write(_ []byte) (int, error) {
 
 // --- captureWriter ---
 
-func TestCaptureWriterWriteLineAndJoined(t *testing.T) {
+func TestCaptureWriter_WriteLineAndJoined(t *testing.T) {
+	t.Parallel()
+
+	// Arrange + Act
 	w := &captureWriter{}
-	if err := w.WriteLine("line one"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := w.WriteLine("line two"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	want := "line one\nline two"
-	if w.joined() != want {
-		t.Errorf("joined: want %q, got %q", want, w.joined())
-	}
+	require.NoError(t, w.WriteLine("line one"))
+	require.NoError(t, w.WriteLine("line two"))
+
+	// Assert
+	assert.Equal(t, "line one\nline two", w.joined())
 }
 
-func TestCaptureWriterJoinedEmpty(t *testing.T) {
+func TestCaptureWriter_JoinedEmpty_ReturnsEmptyString(t *testing.T) {
+	t.Parallel()
 	w := &captureWriter{}
-	if w.joined() != "" {
-		t.Errorf("expected empty string for empty writer, got %q", w.joined())
-	}
+	assert.Empty(t, w.joined())
 }
 
-func TestCaptureWriterFirstLineEmpty(t *testing.T) {
+func TestCaptureWriter_FirstLine_EmptyWhenNoLines(t *testing.T) {
+	t.Parallel()
 	w := &captureWriter{}
-	if w.firstLine() != "" {
-		t.Errorf("expected empty firstLine on empty writer, got %q", w.firstLine())
-	}
+	assert.Empty(t, w.firstLine())
 }
 
-func TestCaptureWriterFirstLineReturnFirstOnly(t *testing.T) {
+func TestCaptureWriter_FirstLine_ReturnsOnlyFirst(t *testing.T) {
+	t.Parallel()
 	w := &captureWriter{}
 	_ = w.WriteLine("first")
 	_ = w.WriteLine("second")
-	if w.firstLine() != "first" {
-		t.Errorf("expected %q, got %q", "first", w.firstLine())
-	}
+	assert.Equal(t, "first", w.firstLine())
 }
 
 // --- operatorOrDefault ---
 
-func TestOperatorOrDefaultWithEmptyString(t *testing.T) {
-	got := operatorOrDefault("")
-	if got != featsearch.OperatorAND {
-		t.Errorf("expected %q, got %q", featsearch.OperatorAND, got)
-	}
+func TestOperatorOrDefault_EmptyString_DefaultsToAND(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, featsearch.OperatorAND, operatorOrDefault(""))
 }
 
-func TestOperatorOrDefaultWithExplicitOR(t *testing.T) {
-	got := operatorOrDefault("OR")
-	if got != "OR" {
-		t.Errorf("expected %q, got %q", "OR", got)
-	}
+func TestOperatorOrDefault_ExplicitOR_ReturnsOR(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "OR", operatorOrDefault("OR"))
 }
 
 // --- parseSearchJSON ---
 
-func TestParseSearchJSONEmptyLineReturnsEmpty(t *testing.T) {
+func TestParseSearchJSON_EmptyLine_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	resp, err := parseSearchJSON("")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(resp.Results) != 0 {
-		t.Errorf("expected 0 results, got %d", len(resp.Results))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, resp.Results)
 }
 
-func TestParseSearchJSONValidResult(t *testing.T) {
+func TestParseSearchJSON_ValidResult_ParsesCorrectly(t *testing.T) {
+	t.Parallel()
 	line := `{"count":1,"results":[{"file":"foo.go","name":"foo.go","path":"/src/foo.go","matches":[{"line":5,"content":"hello","match":true}]}]}`
 	resp, err := parseSearchJSON(line)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resp.Count)
+	require.Len(t, resp.Results, 1)
+	assert.Equal(t, "foo.go", resp.Results[0].File)
+	require.Len(t, resp.Results[0].Matches, 1)
+	assert.True(t, resp.Results[0].Matches[0].Match)
+}
+
+func TestParseSearchJSON_SpecialFields_ParsedCorrectly(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		line  string
+		check func(t *testing.T, resp idxipc.SearchResponse)
+	}{
+		{
+			"score field",
+			`{"count":1,"results":[{"file":"x.go","name":"x.go","path":"/x.go","score":1.5,"matches":[]}]}`,
+			func(t *testing.T, resp idxipc.SearchResponse) {
+				require.NotNil(t, resp.Results[0].Score)
+				assert.Equal(t, 1.5, *resp.Results[0].Score)
+			},
+		},
+		{
+			"stale field",
+			`{"count":1,"results":[{"file":"x.go","name":"x.go","path":"/x.go","stale":true,"matches":[]}]}`,
+			func(t *testing.T, resp idxipc.SearchResponse) {
+				assert.True(t, resp.Results[0].Stale)
+			},
+		},
+		{
+			"empty results",
+			`{"count":0,"results":[]}`,
+			func(t *testing.T, resp idxipc.SearchResponse) {
+				assert.Equal(t, 0, resp.Count)
+				assert.Empty(t, resp.Results)
+			},
+		},
 	}
-	if resp.Count != 1 {
-		t.Errorf("expected count 1, got %d", resp.Count)
-	}
-	if len(resp.Results) != 1 || resp.Results[0].File != "foo.go" {
-		t.Errorf("unexpected results: %+v", resp.Results)
-	}
-	if len(resp.Results[0].Matches) != 1 || !resp.Results[0].Matches[0].Match {
-		t.Errorf("unexpected matches: %+v", resp.Results[0].Matches)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			resp, err := parseSearchJSON(tc.line)
+			require.NoError(t, err)
+			tc.check(t, resp)
+		})
 	}
 }
 
-func TestParseSearchJSONWithScore(t *testing.T) {
-	line := `{"count":1,"results":[{"file":"x.go","name":"x.go","path":"/x.go","score":1.5,"matches":[]}]}`
-	resp, err := parseSearchJSON(line)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.Results[0].Score == nil || *resp.Results[0].Score != 1.5 {
-		t.Errorf("expected score 1.5, got %v", resp.Results[0].Score)
-	}
-}
-
-func TestParseSearchJSONWithStale(t *testing.T) {
-	line := `{"count":1,"results":[{"file":"x.go","name":"x.go","path":"/x.go","stale":true,"matches":[]}]}`
-	resp, err := parseSearchJSON(line)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !resp.Results[0].Stale {
-		t.Errorf("expected stale=true")
-	}
-}
-
-func TestParseSearchJSONInvalidReturnsError(t *testing.T) {
+func TestParseSearchJSON_InvalidJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
 	_, err := parseSearchJSON("not-valid-json")
-	if err == nil {
-		t.Fatal("expected error for invalid JSON")
-	}
-}
-
-func TestParseSearchJSONEmptyResults(t *testing.T) {
-	line := `{"count":0,"results":[]}`
-	resp, err := parseSearchJSON(line)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.Count != 0 || len(resp.Results) != 0 {
-		t.Errorf("expected empty results, got: %+v", resp)
-	}
+	require.Error(t, err)
 }
 
 // --- searchOptionsFromRequest ---
 
-func TestSearchOptionsFromRequestMapping(t *testing.T) {
+func TestSearchOptionsFromRequest_MapsAllFields(t *testing.T) {
+	t.Parallel()
 	req := idxipc.SearchRequest{
 		Size:             10,
 		Operator:         "OR",
@@ -164,28 +159,19 @@ func TestSearchOptionsFromRequestMapping(t *testing.T) {
 		PathQueries:      []string{"internal"},
 	}
 	opts := searchOptionsFromRequest(req)
-	if opts.Size != 10 {
-		t.Errorf("Size: want 10, got %d", opts.Size)
-	}
-	if opts.Operator != "OR" {
-		t.Errorf("Operator: want OR, got %q", opts.Operator)
-	}
-	if opts.Format != "json" {
-		t.Errorf("Format: want json, got %q", opts.Format)
-	}
-	if !opts.FilesOnly || !opts.AgentCompact || !opts.Explain {
-		t.Errorf("boolean flags not set: %+v", opts)
-	}
-	if opts.From != 5 {
-		t.Errorf("From: want 5, got %d", opts.From)
-	}
+	assert.Equal(t, 10, opts.Size)
+	assert.Equal(t, "OR", opts.Operator)
+	assert.Equal(t, "json", opts.Format)
+	assert.True(t, opts.FilesOnly)
+	assert.True(t, opts.AgentCompact)
+	assert.True(t, opts.Explain)
+	assert.Equal(t, 5, opts.From)
 }
 
-func TestSearchOptionsFromRequestEmptyOperatorDefaultsToAND(t *testing.T) {
+func TestSearchOptionsFromRequest_EmptyOperator_DefaultsToAND(t *testing.T) {
+	t.Parallel()
 	opts := searchOptionsFromRequest(idxipc.SearchRequest{})
-	if opts.Operator != featsearch.OperatorAND {
-		t.Errorf("expected AND operator, got %q", opts.Operator)
-	}
+	assert.Equal(t, featsearch.OperatorAND, opts.Operator)
 }
 
 // --- handleConn ---
@@ -201,7 +187,8 @@ func testServerWithEcho() *indexServer {
 	return s
 }
 
-func TestHandleConnDispatchesRequest(t *testing.T) {
+func TestHandleConn_DispatchesRequest(t *testing.T) {
+	t.Parallel()
 	s := testServerWithEcho()
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
@@ -215,9 +202,7 @@ func TestHandleConnDispatchesRequest(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := sharedjsonrpc.WriteMessage(&buf, msg); err != nil {
-		t.Fatalf("WriteMessage: %v", err)
-	}
+	require.NoError(t, sharedjsonrpc.WriteMessage(&buf, msg))
 
 	done := make(chan struct{})
 	go func() {
@@ -225,23 +210,19 @@ func TestHandleConnDispatchesRequest(t *testing.T) {
 		s.handleConn(context.Background(), serverConn)
 	}()
 
-	if _, err := clientConn.Write(buf.Bytes()); err != nil {
-		t.Fatalf("pipe write: %v", err)
-	}
+	_, err := clientConn.Write(buf.Bytes())
+	require.NoError(t, err)
 
 	resp, err := sharedjsonrpc.ReadMessage(bufio.NewReader(clientConn))
 	clientConn.Close()
 	<-done
 
-	if err != nil {
-		t.Fatalf("ReadMessage: %v", err)
-	}
-	if resp.Error != nil {
-		t.Errorf("unexpected error: %+v", resp.Error)
-	}
+	require.NoError(t, err)
+	assert.Nil(t, resp.Error)
 }
 
-func TestHandleConnUnknownMethodReturnsError(t *testing.T) {
+func TestHandleConn_UnknownMethod_ReturnsError(t *testing.T) {
+	t.Parallel()
 	s := &indexServer{
 		deps:       ServerDeps{},
 		dispatcher: sharedjsonrpc.NewDispatcher(),
@@ -257,9 +238,7 @@ func TestHandleConnUnknownMethodReturnsError(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := sharedjsonrpc.WriteMessage(&buf, msg); err != nil {
-		t.Fatalf("WriteMessage: %v", err)
-	}
+	require.NoError(t, sharedjsonrpc.WriteMessage(&buf, msg))
 
 	done := make(chan struct{})
 	go func() {
@@ -267,23 +246,20 @@ func TestHandleConnUnknownMethodReturnsError(t *testing.T) {
 		s.handleConn(context.Background(), serverConn)
 	}()
 
-	if _, err := clientConn.Write(buf.Bytes()); err != nil {
-		t.Fatalf("pipe write: %v", err)
-	}
+	_, err := clientConn.Write(buf.Bytes())
+	require.NoError(t, err)
 
 	resp, err := sharedjsonrpc.ReadMessage(bufio.NewReader(clientConn))
 	clientConn.Close()
 	<-done
 
-	if err != nil {
-		t.Fatalf("ReadMessage: %v", err)
-	}
-	if resp.Error == nil || resp.Error.Code != sharedjsonrpc.ErrMethodNotFound {
-		t.Errorf("expected method-not-found, got: %+v", resp)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, sharedjsonrpc.ErrMethodNotFound, resp.Error.Code)
 }
 
-func TestHandleConnEOFIsIgnored(t *testing.T) {
+func TestHandleConn_EOF_Ignored(t *testing.T) {
+	t.Parallel()
 	s := testServerWithEcho()
 	serverConn, clientConn := net.Pipe()
 	clientConn.Close() // causes immediate EOF on server side
@@ -296,23 +272,8 @@ func TestHandleConnEOFIsIgnored(t *testing.T) {
 	<-done // must return without panic
 }
 
-func TestNewServerRegistersHandlers(t *testing.T) {
-	// NewServer must not panic with valid deps structure
-	srv := NewServer(ServerDeps{})
-	if srv == nil {
-		t.Fatal("expected non-nil server")
-	}
-}
-
-func TestServeListenErrorReturnsError(t *testing.T) {
-	srv := NewServer(ServerDeps{SocketPath: "/tmp/nonexistent-dir-abc123xyz/s.sock"})
-	err := srv.Serve(context.Background())
-	if err == nil {
-		t.Error("expected error for socket path in non-existent directory, got nil")
-	}
-}
-
-func TestHandleConnNonEOFReadErrorIsHandled(t *testing.T) {
+func TestHandleConn_NonEOFReadError_IsHandled(t *testing.T) {
+	t.Parallel()
 	s := testServerWithEcho()
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
@@ -329,7 +290,8 @@ func TestHandleConnNonEOFReadErrorIsHandled(t *testing.T) {
 	<-done
 }
 
-func TestHandleConnNotificationNoIDSkipsWrite(t *testing.T) {
+func TestHandleConn_NotificationNoID_SkipsWrite(t *testing.T) {
+	t.Parallel()
 	s := testServerWithEcho()
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
@@ -353,7 +315,8 @@ func TestHandleConnNotificationNoIDSkipsWrite(t *testing.T) {
 	<-done
 }
 
-func TestHandleConnWriteErrorIsHandledGracefully(t *testing.T) {
+func TestHandleConn_WriteError_IsHandledGracefully(t *testing.T) {
+	t.Parallel()
 	s := testServerWithEcho()
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
@@ -380,11 +343,24 @@ func TestHandleConnWriteErrorIsHandledGracefully(t *testing.T) {
 	<-done
 }
 
-func TestServeAcceptsConnectionAndSpawnsGoroutine(t *testing.T) {
+func TestNewServer_RegistersHandlers(t *testing.T) {
+	t.Parallel()
+	// NewServer must not panic with valid deps structure
+	srv := NewServer(ServerDeps{})
+	require.NotNil(t, srv)
+}
+
+func TestServe_ListenError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	srv := NewServer(ServerDeps{SocketPath: "/tmp/nonexistent-dir-abc123xyz/s.sock"})
+	err := srv.Serve(context.Background())
+	require.Error(t, err)
+}
+
+func TestServe_AcceptsConnection_SpawnsGoroutine(t *testing.T) {
+	// Arrange
 	dir, err := os.MkdirTemp("/tmp", "idx")
-	if err != nil {
-		t.Fatalf("mkdirtemp: %v", err)
-	}
+	require.NoError(t, err, "mkdirtemp")
 	defer os.RemoveAll(dir)
 
 	sockPath := dir + "/s.sock"
@@ -394,6 +370,7 @@ func TestServeAcceptsConnectionAndSpawnsGoroutine(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- srv.Serve(ctx) }()
 
+	// Act: wait for the socket to be ready
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, statErr := os.Stat(sockPath); statErr == nil {
@@ -407,10 +384,14 @@ func TestServeAcceptsConnectionAndSpawnsGoroutine(t *testing.T) {
 	if dialErr == nil {
 		conn.Close()
 	}
+
+	// Give the spawned goroutine a moment to start before canceling.
+	// Use a short sleep rather than a race-prone time.After approach since we are
+	// just ensuring the goroutine is schedulable, not awaiting a result.
 	time.Sleep(20 * time.Millisecond)
 
 	cancel()
-	if serveErr := <-done; serveErr != nil {
-		t.Errorf("Serve returned unexpected error: %v", serveErr)
-	}
+
+	// Assert
+	assert.NoError(t, <-done, "Serve returned unexpected error")
 }

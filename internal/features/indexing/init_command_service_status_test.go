@@ -6,12 +6,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	"idx/internal/features/indexing/storage"
 	"idx/internal/shared/filesystem"
 )
 
-func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing.T) {
+func TestStatus_ReportsIndicesUpToDate_WhenLatestLogsMatchFileTimestamp(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
 
@@ -25,25 +31,22 @@ func TestStatusReportsIndicesUpToDateWhenLatestLogsMatchFileTimestamp(t *testing
 	service := newStatusService(output)
 	changeTo(t, rootDir)
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
-	if err := service.Status(); err != nil {
-		t.Fatalf("expected status to succeed, got %v", err)
-	}
+	// Act
+	err := service.Status()
 
-	if len(output.lines) == 0 {
-		t.Fatal("expected status output line, got none")
-	}
-
+	// Assert
+	require.NoError(t, err)
+	require.NotEmpty(t, output.lines)
 	outputText := strings.Join(output.lines, "")
-	if !strings.Contains(outputText, "up to date") {
-		t.Fatalf("expected up-to-date message in status output, got: %q", outputText)
-	}
+	assert.Contains(t, outputText, "up to date")
 }
 
-func TestStatusWithProfileReportsDetailedTableAndSummary(t *testing.T) {
+func TestStatus_WithProfile_ReportsDetailedTableAndSummary(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
 
@@ -57,33 +60,24 @@ func TestStatusWithProfileReportsDetailedTableAndSummary(t *testing.T) {
 	service := newStatusService(output)
 	changeTo(t, rootDir)
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
-	if err := service.StatusWithProfile(true); err != nil {
-		t.Fatalf("expected profile status to succeed, got %v", err)
-	}
+	// Act
+	err := service.StatusWithProfile(true)
 
+	// Assert
+	require.NoError(t, err)
 	outputText := strings.Join(output.lines, "\n")
-	if !strings.Contains(outputText, "📊 Summary") {
-		t.Fatalf("expected summary header in output, got %q", outputText)
-	}
-
-	if !strings.Contains(outputText, "files checked") {
-		t.Fatalf("expected files checked row in output, got %q", outputText)
-	}
-
-	if !strings.Contains(outputText, "root.txt") {
-		t.Fatalf("expected checked row for root file in output, got %q", outputText)
-	}
-
-	if !strings.Contains(outputText, "✓") {
-		t.Fatalf("expected updated marker in output, got %q", outputText)
-	}
+	assert.Contains(t, outputText, "📊 Summary")
+	assert.Contains(t, outputText, "files checked")
+	assert.Contains(t, outputText, "root.txt")
+	assert.Contains(t, outputText, "✓")
 }
 
-func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
+func TestStatus_FailsWhenFileChangedAfterLastIndex(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
 
@@ -94,33 +88,26 @@ func TestStatusFailsWhenFileChangedAfterLastIndex(t *testing.T) {
 	service := newStatusService(output)
 	changeTo(t, rootDir)
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 	linesBeforeStatus := len(output.lines)
 
 	writeFile(t, rootFile, "root v2 — changed after indexing")
 
+	// Act
 	err := service.Status()
-	if err == nil {
-		t.Fatal("expected status to fail when file content changed after indexing")
-	}
 
-	if !strings.Contains(err.Error(), "stale index") {
-		t.Fatalf("expected stale index error, got %v", err)
-	}
-
-	if len(output.lines) <= linesBeforeStatus {
-		t.Fatalf("expected stale status to write formatted output, got no new lines")
-	}
-
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "stale index")
+	assert.Greater(t, len(output.lines), linesBeforeStatus)
 	outputText := strings.Join(output.lines[linesBeforeStatus:], "\n")
-	if !strings.Contains(outputText, "idx sync") {
-		t.Fatalf("expected stale output to mention idx sync, got %q", outputText)
-	}
+	assert.Contains(t, outputText, "idx sync")
 }
 
-func TestStatusFailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
+func TestStatus_FailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
+	// NOTE: no t.Parallel() — uses os.Chdir which mutates process-wide state.
+
+	// Arrange
 	rootDir := t.TempDir()
 	ensureGitProject(t, rootDir)
 
@@ -130,22 +117,18 @@ func TestStatusFailsWhenNewDirectoryIsNotIndexed(t *testing.T) {
 	service := newStatusService(&capturingTextOutput{})
 	changeTo(t, rootDir)
 
-	if err := service.Run(); err != nil {
-		t.Fatalf("expected init to succeed, got %v", err)
-	}
+	require.NoError(t, service.Run())
 
 	// Add a new subdirectory with a file after indexing — it should be detected as missing.
 	newDir := filepath.Join(rootDir, "newpkg")
 	writeFile(t, filepath.Join(newDir, "handler.txt"), "new content")
 
+	// Act
 	err := service.Status()
-	if err == nil {
-		t.Fatal("expected status to fail when a new unindexed directory exists")
-	}
 
-	if !strings.Contains(err.Error(), "unindexed") {
-		t.Fatalf("expected unindexed directories error, got %v", err)
-	}
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "unindexed")
 }
 
 func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
@@ -163,31 +146,19 @@ func newStatusService(output *capturingTextOutput) indexing.InitCommandService {
 
 func ensureGitProject(t *testing.T, rootDir string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o750); err != nil {
-		t.Fatalf("expected git marker creation to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0o750))
 }
 
 func writeFile(t *testing.T, path string, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("expected parent directory creation to succeed, got %v", err)
-	}
-
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("expected file write to succeed, got %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }
 
 func changeTo(t *testing.T, directoryPath string) {
 	t.Helper()
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected cwd read to succeed, got %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(originalDir) })
-
-	if err := os.Chdir(directoryPath); err != nil {
-		t.Fatalf("expected chdir to %q to succeed, got %v", directoryPath, err)
-	}
+	require.NoError(t, os.Chdir(directoryPath))
 }

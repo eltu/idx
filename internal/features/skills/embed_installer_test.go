@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/skills"
 )
 
@@ -22,96 +25,122 @@ func newTestEmbedInstaller(t *testing.T) (*skills.EmbedSkillsInstaller, string) 
 	return installer, tmpDir
 }
 
-func TestInstallCopiesSkillFilesToEditorDir(t *testing.T) {
+func TestInstall_CopiesSkillFilesToEditorDir(t *testing.T) {
+	t.Parallel()
+
 	for _, editor := range []string{"claude", "cursor", "copilot"} {
+		editor := editor
 		t.Run(editor, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
 			installer, homeDir := newTestEmbedInstaller(t)
-			if err := installer.Install(editor); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+
+			// Act
+			require.NoError(t, installer.Install(editor))
+
+			// Assert
 			targetDir := filepath.Join(homeDir, "."+editor, "skills", "idx-search")
-			if _, err := os.Stat(filepath.Join(targetDir, "SKILL.md")); err != nil {
-				t.Fatalf("expected SKILL.md at %q: %v", targetDir, err)
-			}
-			if _, err := os.Stat(filepath.Join(targetDir, "references", "idx-commands.md")); err != nil {
-				t.Fatalf("expected references/idx-commands.md at %q: %v", targetDir, err)
-			}
+			_, err := os.Stat(filepath.Join(targetDir, "SKILL.md"))
+			require.NoError(t, err, "expected SKILL.md at %q", targetDir)
+			_, err = os.Stat(filepath.Join(targetDir, "references", "idx-commands.md"))
+			require.NoError(t, err, "expected references/idx-commands.md at %q", targetDir)
 		})
 	}
 }
 
-func TestInstallCreatesClaudeSettingsWithPermission(t *testing.T) {
+func TestInstall_CreatesClaudeSettingsWithPermission(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
-	if err := installer.Install("claude"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+
+	// Act
+	require.NoError(t, installer.Install("claude"))
+
+	// Assert
 	data, err := os.ReadFile(filepath.Join(homeDir, ".claude", "settings.json"))
-	if err != nil {
-		t.Fatalf("expected settings.json to be created: %v", err)
-	}
-	if !strings.Contains(string(data), "Bash(idx *)") {
-		t.Fatalf("expected permission in settings.json, got %q", string(data))
-	}
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "Bash(idx *)")
 }
 
-func TestInstallDoesNotDuplicateClaudePermission(t *testing.T) {
+func TestInstall_DoesNotDuplicateClaudePermission(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
-	_ = installer.Install("claude")
-	if err := installer.Install("claude"); err != nil {
-		t.Fatalf("second install failed: %v", err)
-	}
+	require.NoError(t, installer.Install("claude"))
+
+	// Act — install again
+	require.NoError(t, installer.Install("claude"))
+
+	// Assert
 	data, _ := os.ReadFile(filepath.Join(homeDir, ".claude", "settings.json"))
-	if count := strings.Count(string(data), "Bash(idx *)"); count != 1 {
-		t.Fatalf("expected 1 permission entry, found %d in %q", count, string(data))
-	}
+	assert.Equal(t, 1, strings.Count(string(data), "Bash(idx *)"), "expected exactly 1 permission entry")
 }
 
-func TestInstallPreservesExistingClaudeSettingsFields(t *testing.T) {
+func TestInstall_PreservesExistingClaudeSettingsFields(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
 	settingsDir := filepath.Join(homeDir, ".claude")
-	_ = os.MkdirAll(settingsDir, 0750)
+	require.NoError(t, os.MkdirAll(settingsDir, 0750))
 	existing := `{"mcpServers":{"server1":{}},"permissions":{"allow":[]}}`
-	_ = os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(existing), 0600)
+	require.NoError(t, os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(existing), 0600))
 
-	if err := installer.Install("claude"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	// Act
+	require.NoError(t, installer.Install("claude"))
+
+	// Assert
 	data, _ := os.ReadFile(filepath.Join(settingsDir, "settings.json"))
-	if !strings.Contains(string(data), "mcpServers") {
-		t.Fatalf("expected existing fields to be preserved, got %q", string(data))
-	}
-	if !strings.Contains(string(data), "Bash(idx *)") {
-		t.Fatalf("expected permission to be added, got %q", string(data))
-	}
+	assert.Contains(t, string(data), "mcpServers")
+	assert.Contains(t, string(data), "Bash(idx *)")
 }
 
-func TestInstallDoesNotWriteClaudeSettingsForOtherEditors(t *testing.T) {
+func TestInstall_DoesNotWriteClaudeSettingsForOtherEditors(t *testing.T) {
+	t.Parallel()
+
 	for _, editor := range []string{"cursor", "copilot"} {
+		editor := editor
 		t.Run(editor, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
 			installer, homeDir := newTestEmbedInstaller(t)
-			if err := installer.Install(editor); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+
+			// Act
+			require.NoError(t, installer.Install(editor))
+
+			// Assert
 			settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
-			if _, err := os.Stat(settingsPath); !os.IsNotExist(err) {
-				t.Fatalf("expected no settings.json for editor %q, got err %v", editor, err)
-			}
+			_, err := os.Stat(settingsPath)
+			assert.True(t, os.IsNotExist(err), "expected no settings.json for editor %q", editor)
 		})
 	}
 }
 
-func TestInstallReturnsErrorWhenHomeDirFails(t *testing.T) {
+func TestInstall_ReturnsErrorWhenHomeDirFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	homeDirErr := errors.New("home dir unavailable")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
 		func() (string, error) { return "", homeDirErr },
 		os.MkdirAll, os.WriteFile, os.ReadFile,
 	)
-	if err := installer.Install("claude"); !errors.Is(err, homeDirErr) {
-		t.Fatalf("expected homeDir error, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("claude")
+
+	// Assert
+	require.ErrorIs(t, err, homeDirErr)
 }
 
-func TestInstallReturnsErrorWhenMkdirAllFails(t *testing.T) {
+func TestInstall_ReturnsErrorWhenMkdirAllFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tmpDir := t.TempDir()
 	mkdirErr := errors.New("permission denied")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
@@ -119,12 +148,18 @@ func TestInstallReturnsErrorWhenMkdirAllFails(t *testing.T) {
 		func(string, os.FileMode) error { return mkdirErr },
 		os.WriteFile, os.ReadFile,
 	)
-	if err := installer.Install("cursor"); !errors.Is(err, mkdirErr) {
-		t.Fatalf("expected mkdirAll error, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("cursor")
+
+	// Assert
+	require.ErrorIs(t, err, mkdirErr)
 }
 
-func TestInstallReturnsErrorWhenWriteFileFails(t *testing.T) {
+func TestInstall_ReturnsErrorWhenWriteFileFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tmpDir := t.TempDir()
 	writeErr := errors.New("disk full")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
@@ -133,29 +168,41 @@ func TestInstallReturnsErrorWhenWriteFileFails(t *testing.T) {
 		func(string, []byte, os.FileMode) error { return writeErr },
 		os.ReadFile,
 	)
-	if err := installer.Install("cursor"); !errors.Is(err, writeErr) {
-		t.Fatalf("expected writeFile error, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("cursor")
+
+	// Assert
+	require.ErrorIs(t, err, writeErr)
 }
 
-func TestNewEmbedSkillsInstallerIsNotNil(t *testing.T) {
-	if skills.NewEmbedSkillsInstaller() == nil {
-		t.Fatal("expected non-nil installer from NewEmbedSkillsInstaller")
-	}
+func TestNewEmbedSkillsInstaller_ReturnsNonNil(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.NotNil(t, skills.NewEmbedSkillsInstaller())
 }
 
-func TestInstallReturnsErrorForMalformedClaudeSettingsJSON(t *testing.T) {
+func TestInstall_ReturnsErrorForMalformedClaudeSettingsJSON(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
 	settingsDir := filepath.Join(homeDir, ".claude")
-	_ = os.MkdirAll(settingsDir, 0750)
-	_ = os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte("not valid json"), 0600)
+	require.NoError(t, os.MkdirAll(settingsDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte("not valid json"), 0600))
 
-	if err := installer.Install("claude"); err == nil {
-		t.Fatal("expected error for malformed settings.json, got nil")
-	}
+	// Act
+	err := installer.Install("claude")
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestInstallReturnsErrorWhenReadFileFailsWithNonNotExistError(t *testing.T) {
+func TestInstall_ReturnsErrorWhenReadFileFailsWithNonNotExistError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tmpDir := t.TempDir()
 	readErr := errors.New("permission denied")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
@@ -169,42 +216,52 @@ func TestInstallReturnsErrorWhenReadFileFailsWithNonNotExistError(t *testing.T) 
 			return os.ReadFile(path)
 		},
 	)
-	if err := installer.Install("claude"); !errors.Is(err, readErr) {
-		t.Fatalf("expected readFile error, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("claude")
+
+	// Assert
+	require.ErrorIs(t, err, readErr)
 }
 
-func TestInstallHandlesNonMapPermissionsInClaudeSettings(t *testing.T) {
+func TestInstall_HandlesNonMapPermissionsInClaudeSettings(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
 	settingsDir := filepath.Join(homeDir, ".claude")
-	_ = os.MkdirAll(settingsDir, 0750)
-	_ = os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(`{"permissions":"not-a-map"}`), 0600)
+	require.NoError(t, os.MkdirAll(settingsDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(`{"permissions":"not-a-map"}`), 0600))
 
-	if err := installer.Install("claude"); err != nil {
-		t.Fatalf("unexpected error for non-map permissions: %v", err)
-	}
+	// Act
+	require.NoError(t, installer.Install("claude"))
+
+	// Assert
 	data, _ := os.ReadFile(filepath.Join(settingsDir, "settings.json"))
-	if !strings.Contains(string(data), "Bash(idx *)") {
-		t.Fatalf("expected permission to be added despite non-map permissions, got %q", string(data))
-	}
+	assert.Contains(t, string(data), "Bash(idx *)")
 }
 
-func TestInstallHandlesNonArrayAllowInClaudeSettings(t *testing.T) {
+func TestInstall_HandlesNonArrayAllowInClaudeSettings(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	installer, homeDir := newTestEmbedInstaller(t)
 	settingsDir := filepath.Join(homeDir, ".claude")
-	_ = os.MkdirAll(settingsDir, 0750)
-	_ = os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(`{"permissions":{"allow":"not-an-array"}}`), 0600)
+	require.NoError(t, os.MkdirAll(settingsDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(`{"permissions":{"allow":"not-an-array"}}`), 0600))
 
-	if err := installer.Install("claude"); err != nil {
-		t.Fatalf("unexpected error for non-array allow: %v", err)
-	}
+	// Act
+	require.NoError(t, installer.Install("claude"))
+
+	// Assert
 	data, _ := os.ReadFile(filepath.Join(settingsDir, "settings.json"))
-	if !strings.Contains(string(data), "Bash(idx *)") {
-		t.Fatalf("expected permission to be added despite non-array allow, got %q", string(data))
-	}
+	assert.Contains(t, string(data), "Bash(idx *)")
 }
 
-func TestInstallReturnsErrorWhenClaudeSettingsDirCreationFails(t *testing.T) {
+func TestInstall_ReturnsErrorWhenClaudeSettingsDirCreationFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tmpDir := t.TempDir()
 	mkdirErr := errors.New("cannot create .claude directory")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
@@ -218,12 +275,18 @@ func TestInstallReturnsErrorWhenClaudeSettingsDirCreationFails(t *testing.T) {
 		},
 		os.WriteFile, os.ReadFile,
 	)
-	if err := installer.Install("claude"); !errors.Is(err, mkdirErr) {
-		t.Fatalf("expected mkdirAll error from saveClaudeSettings, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("claude")
+
+	// Assert
+	require.ErrorIs(t, err, mkdirErr)
 }
 
-func TestInstallReturnsErrorWhenClaudeSettingsWriteFails(t *testing.T) {
+func TestInstall_ReturnsErrorWhenClaudeSettingsWriteFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tmpDir := t.TempDir()
 	writeErr := errors.New("settings write failed")
 	installer := skills.NewEmbedSkillsInstallerWithDeps(
@@ -237,7 +300,10 @@ func TestInstallReturnsErrorWhenClaudeSettingsWriteFails(t *testing.T) {
 		},
 		os.ReadFile,
 	)
-	if err := installer.Install("claude"); !errors.Is(err, writeErr) {
-		t.Fatalf("expected writeFile error from saveClaudeSettings, got %v", err)
-	}
+
+	// Act
+	err := installer.Install("claude")
+
+	// Assert
+	require.ErrorIs(t, err, writeErr)
 }

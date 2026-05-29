@@ -4,170 +4,240 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/read"
 )
 
-func TestColoredHelpersAndAbsInt(t *testing.T) {
-	if coloredFilePath("a.go", false) != "a.go" {
-		t.Fatal("expected plain path when ANSI disabled")
-	}
-	if coloredFilePath("a.go", true) == "a.go" {
-		t.Fatal("expected ANSI-decorated path when ANSI enabled")
-	}
+func TestColoredFilePath_WithoutANSI_ReturnsPlainPath(t *testing.T) {
+	t.Parallel()
 
-	if coloredLineNumber(7, false) != "7" {
-		t.Fatal("expected plain line number when ANSI disabled")
-	}
-	if coloredLineNumber(7, true) == "7" {
-		t.Fatal("expected ANSI-decorated line number when ANSI enabled")
-	}
-
-	if absInt(-3) != 3 {
-		t.Fatal("expected absInt to convert negative number")
-	}
-	if absInt(4) != 4 {
-		t.Fatal("expected absInt to keep positive number")
-	}
+	// Act & Assert
+	assert.Equal(t, "a.go", coloredFilePath("a.go", false))
 }
 
-func TestHighlightTermsInLineBranches(t *testing.T) {
+func TestColoredFilePath_WithANSI_ReturnsDecoratedPath(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.NotEqual(t, "a.go", coloredFilePath("a.go", true))
+}
+
+func TestColoredLineNumber_WithoutANSI_ReturnsPlainNumber(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.Equal(t, "7", coloredLineNumber(7, false))
+}
+
+func TestColoredLineNumber_WithANSI_ReturnsDecoratedNumber(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.NotEqual(t, "7", coloredLineNumber(7, true))
+}
+
+func TestAbsInt_NegativeInput_ReturnsPositive(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.Equal(t, 3, absInt(-3))
+}
+
+func TestAbsInt_PositiveInput_ReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.Equal(t, 4, absInt(4))
+}
+
+func TestHighlightTermsInLine_WithoutANSI_ReturnsUnchangedLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	line := "go search guide"
-	terms := []string{"go", "search"}
 
-	if highlightTermsInLine(line, terms, false) != line {
-		t.Fatal("expected unchanged line when ANSI disabled")
+	// Act & Assert
+	assert.Equal(t, line, highlightTermsInLine(line, []string{"go", "search"}, false))
+}
+
+func TestHighlightTermsInLine_WithANSI_ReturnsHighlightedLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	line := "go search guide"
+
+	// Act
+	highlighted := highlightTermsInLine(line, []string{"go", "search"}, true)
+
+	// Assert
+	assert.NotEqual(t, line, highlighted)
+}
+
+func TestHighlightTermsInLine_NoTermMatch_ReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	// Act & Assert
+	assert.Equal(t, "alpha beta", highlightTermsInLine("alpha beta", []string{"zzz"}, true))
+}
+
+func TestFileNameMatchBonus_FileNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		terms     []string
+		fileName  string
+		wantMin   float64
+		wantExact float64
+	}{
+		{
+			name:      "ExactStem_ReturnsFull",
+			terms:     []string{"main"},
+			fileName:  "main.go",
+			wantExact: 1.0,
+		},
+		{
+			name:      "ExactTokenInSnakeCase_ReturnsFull",
+			terms:     []string{"main"},
+			fileName:  "main_test.go",
+			wantExact: 1.0,
+		},
+		{
+			name:     "CamelCase_ReturnsAtLeastHalf",
+			terms:    []string{"index"},
+			fileName: "InvertedIndex.go",
+			wantMin:  0.5,
+		},
+		{
+			name:     "SnakeCase_ReturnsAtLeastHalf",
+			terms:    []string{"search"},
+			fileName: "search_scoring.go",
+			wantMin:  0.5,
+		},
+		{
+			name:      "NoMatch_ReturnsZero",
+			terms:     []string{"daemon"},
+			fileName:  "search_scoring.go",
+			wantExact: 0.0,
+		},
 	}
 
-	highlighted := highlightTermsInLine(line, terms, true)
-	if highlighted == line {
-		t.Fatal("expected highlighted output when ANSI enabled")
-	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	unchanged := highlightTermsInLine("alpha beta", []string{"zzz"}, true)
-	if unchanged != "alpha beta" {
-		t.Fatal("expected unchanged line when no term matches")
+			// Act
+			bonus := fileNameMatchBonus(tc.terms, tc.fileName)
+
+			// Assert
+			if tc.wantExact != 0 || tc.wantMin == 0 {
+				assert.Equal(t, tc.wantExact, bonus)
+			} else {
+				assert.GreaterOrEqual(t, bonus, tc.wantMin)
+			}
+		})
 	}
 }
 
-func TestFileNameMatchBonusExactStem(t *testing.T) {
-	bonus := fileNameMatchBonus([]string{"main"}, "main.go")
-	if bonus != 1.0 {
-		t.Fatalf("expected 1.0 for exact stem match, got %v", bonus)
-	}
-}
+func TestFileNameTokens_SnakeCase_ExtractsAllTokens(t *testing.T) {
+	t.Parallel()
 
-func TestFileNameMatchBonusPartialToken(t *testing.T) {
-	bonus := fileNameMatchBonus([]string{"main"}, "main_test.go")
-	if bonus != 1.0 {
-		t.Fatalf("expected 1.0 for exact token match in main_test.go, got %v", bonus)
-	}
-}
-
-func TestFileNameMatchBonusCamelCase(t *testing.T) {
-	bonus := fileNameMatchBonus([]string{"index"}, "InvertedIndex.go")
-	if bonus < 0.5 {
-		t.Fatalf("expected >= 0.5 for CamelCase token match, got %v", bonus)
-	}
-}
-
-func TestFileNameMatchBonusSnakeCase(t *testing.T) {
-	bonus := fileNameMatchBonus([]string{"search"}, "search_scoring.go")
-	if bonus < 0.5 {
-		t.Fatalf("expected >= 0.5 for snake_case token match, got %v", bonus)
-	}
-}
-
-func TestFileNameMatchBonusNoMatch(t *testing.T) {
-	bonus := fileNameMatchBonus([]string{"daemon"}, "search_scoring.go")
-	if bonus != 0.0 {
-		t.Fatalf("expected 0.0 for non-matching query term, got %v", bonus)
-	}
-}
-
-func TestFileNameTokensSnakeCase(t *testing.T) {
+	// Act
 	tokens := fileNameTokens("search_scoring.go")
+
+	// Assert
 	want := map[string]bool{"search": true, "scoring": true, "go": true}
 	for _, tok := range tokens {
 		delete(want, tok)
 	}
-	if len(want) != 0 {
-		t.Fatalf("missing tokens from snake_case split: %v", want)
-	}
+	assert.Empty(t, want, "missing tokens from snake_case split")
 }
 
-func TestFileNameTokensCamelCase(t *testing.T) {
+func TestFileNameTokens_CamelCase_ExtractsAllTokens(t *testing.T) {
+	t.Parallel()
+
+	// Act
 	tokens := fileNameTokens("InvertedIndex.go")
+
+	// Assert
 	want := map[string]bool{"inverted": true, "index": true, "go": true}
 	for _, tok := range tokens {
 		delete(want, tok)
 	}
-	if len(want) != 0 {
-		t.Fatalf("missing tokens from CamelCase split: %v", want)
-	}
+	assert.Empty(t, want, "missing tokens from CamelCase split")
 }
 
 func TestPopularityBonus(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 
-	t.Run("zero read count returns zero", func(t *testing.T) {
+	t.Run("ZeroReadCount_ReturnsZero", func(t *testing.T) {
+		t.Parallel()
+
 		entry := read.LogEntry{ReadCount: 0, LastReadAt: now}
-		if got := popularityBonus(entry, now, 0.3); got != 0 {
-			t.Fatalf("expected 0 bonus for unread file, got %f", got)
-		}
+		assert.Equal(t, 0.0, popularityBonus(entry, now, 0.3))
 	})
 
-	t.Run("zero weight returns zero", func(t *testing.T) {
+	t.Run("ZeroWeight_ReturnsZero", func(t *testing.T) {
+		t.Parallel()
+
 		entry := read.LogEntry{ReadCount: 10, LastReadAt: now}
-		if got := popularityBonus(entry, now, 0); got != 0 {
-			t.Fatalf("expected 0 bonus when weight is zero, got %f", got)
-		}
+		assert.Equal(t, 0.0, popularityBonus(entry, now, 0))
 	})
 
-	t.Run("10 reads today approaches full weight", func(t *testing.T) {
+	t.Run("TenReadsToday_ApproachesFullWeight", func(t *testing.T) {
+		t.Parallel()
+
 		entry := read.LogEntry{ReadCount: 10, LastReadAt: now}
 		got := popularityBonus(entry, now, 0.3)
-		if got < 0.29 || got > 0.31 {
-			t.Fatalf("expected ~0.30 bonus, got %f", got)
-		}
+		assert.InDelta(t, 0.30, got, 0.01)
 	})
 
-	t.Run("14-day-old read has half decay", func(t *testing.T) {
+	t.Run("FourteenDayOldRead_HalfDecay", func(t *testing.T) {
+		t.Parallel()
+
 		past := now.Add(-14 * 24 * time.Hour)
 		entry := read.LogEntry{ReadCount: 10, LastReadAt: past}
 		got := popularityBonus(entry, now, 0.3)
-		if got < 0.14 || got > 0.16 {
-			t.Fatalf("expected ~0.15 bonus at 14-day half-life, got %f", got)
-		}
+		assert.InDelta(t, 0.15, got, 0.01)
 	})
 
-	t.Run("bonus is capped at weight even for very high read counts", func(t *testing.T) {
+	t.Run("VeryHighReadCount_CappedAtWeight", func(t *testing.T) {
+		t.Parallel()
+
 		entry := read.LogEntry{ReadCount: 10000, LastReadAt: now}
 		got := popularityBonus(entry, now, 0.3)
-		if got > 0.3+1e-9 {
-			t.Fatalf("expected bonus capped at weight 0.3, got %f", got)
-		}
+		assert.LessOrEqual(t, got, 0.3+1e-9)
 	})
 
-	t.Run("future timestamp treated as now (no negative decay)", func(t *testing.T) {
+	t.Run("FutureTimestamp_NonNegativeBonus", func(t *testing.T) {
+		t.Parallel()
+
 		future := now.Add(24 * time.Hour)
 		entry := read.LogEntry{ReadCount: 5, LastReadAt: future}
 		got := popularityBonus(entry, now, 0.3)
-		if got < 0 {
-			t.Fatalf("expected non-negative bonus for future timestamp, got %f", got)
-		}
+		assert.GreaterOrEqual(t, got, 0.0)
 	})
 }
 
-func TestWriteMatchedLinesDelegatesToWithOptions(t *testing.T) {
+func TestWriteMatchedLines_DelegatesToWithOptions(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	out := &capturingOutput{}
 	svc := SearchCommandService{output: out}
 	lines := []matchedLine{{lineNumber: 1, content: "hello world"}}
-	if err := svc.writeMatchedLines(lines, []string{"hello"}, false); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out.lines) == 0 {
-		t.Fatal("expected at least one output line")
-	}
+
+	// Act
+	err := svc.writeMatchedLines(lines, []string{"hello"}, false)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, out.lines)
 }
 
 type capturingOutput struct{ lines []string }

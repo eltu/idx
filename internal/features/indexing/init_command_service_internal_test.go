@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/shared/filesystem"
 )
 
@@ -261,7 +264,10 @@ func newValidInternalService(root string) InitCommandService {
 	}
 }
 
-func TestInitCommandServiceValidateDependenciesBranches(t *testing.T) {
+func TestInitCommandService_ValidateDependencies_Branches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := filepath.Join(string(filepath.Separator), "repo")
 	base := newValidInternalService(root)
 
@@ -281,96 +287,111 @@ func TestInitCommandServiceValidateDependenciesBranches(t *testing.T) {
 
 	for _, current := range cases {
 		t.Run(current.name, func(t *testing.T) {
+			t.Parallel()
 			service := base
 			current.mutate(&service)
 
-			if err := service.validateDependencies(); err == nil {
-				t.Fatal("expected dependency validation error")
-			}
+			// Act / Assert
+			require.Error(t, service.validateDependencies())
 		})
 	}
 
-	if err := base.validateDependencies(); err != nil {
-		t.Fatalf("expected valid dependencies, got %v", err)
-	}
+	// Act / Assert: all valid
+	require.NoError(t, base.validateDependencies())
 }
 
-func TestInitCommandServiceSyncReturnsSpecificErrorBranches(t *testing.T) {
+func TestInitCommandService_Sync_ReturnsSpecificErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join(string(filepath.Separator), "repo")
 
 	t.Run("find git root", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
 		service := newValidInternalService(root)
 		service.projectTree.(*internalProjectTree).gitRootErr = errors.New("git root failure")
 
-		if err := service.Sync(); err == nil {
-			t.Fatal("expected find git root error")
-		}
+		// Act / Assert
+		require.Error(t, service.Sync())
 	})
 
 	t.Run("root index exists check", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
 		service := newValidInternalService(root)
 		service.projectTree.(*internalProjectTree).existsErr[indexFilePath(root)] = errors.New("exists failure")
 
-		if err := service.Sync(); err == nil {
-			t.Fatal("expected exists error")
-		}
+		// Act / Assert
+		require.Error(t, service.Sync())
 	})
 
 	t.Run("indexed directories read", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
 		service := newValidInternalService(root)
 		service.projectTree.(*internalProjectTree).readDirErr[root] = errors.New("read dir failure")
 
-		if err := service.Sync(); err == nil {
-			t.Fatal("expected indexed directories error")
-		}
+		// Act / Assert
+		require.Error(t, service.Sync())
 	})
 
 	t.Run("eligible directories matcher", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
 		service := newValidInternalService(root)
 		service.matcherFactory = internalMatcherFactory{matcher: internalMatcher{err: errors.New("matcher failure")}}
 		service.projectTree.(*internalProjectTree).readDirMap[root] = []filesystem.DirectoryEntry{{Name: "file.txt", Path: filepath.Join(root, "file.txt")}}
 
-		if err := service.Sync(); err == nil {
-			t.Fatal("expected matcher error while selecting eligible directories")
-		}
+		// Act / Assert
+		require.Error(t, service.Sync())
 	})
 }
 
-func TestInitCommandServiceInspectAndWriteInspectIndexErrorBranches(t *testing.T) {
+func TestInitCommandService_InspectAndWriteInspectIndex_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := filepath.Join(string(filepath.Separator), "repo")
 	service := newValidInternalService(root)
 	tree := service.projectTree.(*internalProjectTree)
 
+	// Exists error during Inspect
 	tree.existsErr[indexFilePath(root)] = errors.New("exists failure")
-	if err := service.Inspect("."); err == nil {
-		t.Fatal("expected inspect exists error")
-	}
+	require.Error(t, service.Inspect("."))
 
+	// Load error in writeInspectIndex
 	service.indexRepo = internalIndexRepo{loadErr: errors.New("load failure")}
-	if err := service.writeInspectIndex(root); err == nil {
-		t.Fatal("expected inspect load error")
-	}
+	require.Error(t, service.writeInspectIndex(root))
 
+	// JSON marshal error for NaN
 	invalid := NewInvertedIndex()
 	invalid.AverageDocLength = math.NaN()
 	service.indexRepo = internalIndexRepo{index: invalid}
-	if err := service.writeInspectIndex(root); err == nil {
-		t.Fatal("expected JSON marshal error for invalid NaN payload")
-	}
+	require.Error(t, service.writeInspectIndex(root))
 }
 
-func TestInitCommandServiceStorageHelperErrorBranches(t *testing.T) {
+func TestInitCommandService_StorageHelper_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	root := filepath.Join(string(filepath.Separator), "repo")
 	service := newValidInternalService(root)
 	tree := service.projectTree.(*internalProjectTree)
 
+	// Exists error in hasDirectoryIndex
 	tree.existsErr[indexFilePath(root)] = errors.New("exists failure")
-	if _, err := service.hasDirectoryIndex(root); err == nil {
-		t.Fatal("expected hasDirectoryIndex error")
-	}
+	_, err := service.hasDirectoryIndex(root)
+	require.Error(t, err)
 
+	// Checksum load error
 	service.checksumRepo = internalChecksumRepo{loadErr: errors.New("load failure")}
-	if _, _, err := service.loadChecksumSnapshot(root); err == nil {
-		t.Fatal("expected checksum load error")
-	}
+	_, _, err = service.loadChecksumSnapshot(root)
+	require.Error(t, err)
 }
+
+// keep assert imported via the table-driven test to avoid unused-import errors.
+var _ = assert.NoError

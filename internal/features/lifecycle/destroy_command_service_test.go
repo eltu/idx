@@ -3,14 +3,19 @@ package lifecycle_test
 import (
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	lifecycle "idx/internal/features/lifecycle"
 	"idx/internal/shared/filesystem"
 )
 
-func TestDestroyCommandServiceRunRemovesIdxDirectoriesRecursively(t *testing.T) {
+func TestDestroyCommandService_Run_RemovesIdxDirectoriesRecursively(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	apiDir := filepath.Join(rootDir, "cmd", "api")
 	coreDir := filepath.Join(rootDir, "internal", "core")
@@ -26,91 +31,82 @@ func TestDestroyCommandServiceRunRemovesIdxDirectoriesRecursively(t *testing.T) 
 	tree.readDirMap[apiDir] = []filesystem.DirectoryEntry{{Name: ".idx", Path: filepath.Join(apiDir, ".idx"), IsDir: true}}
 	tree.readDirMap[filepath.Join(rootDir, "internal")] = []filesystem.DirectoryEntry{{Name: "core", Path: coreDir, IsDir: true}}
 	tree.readDirMap[coreDir] = []filesystem.DirectoryEntry{{Name: ".idx", Path: filepath.Join(coreDir, ".idx"), IsDir: true}}
-
 	output := &capturingTextOutput{}
 	service := lifecycle.NewDestroyCommandService(tree, output)
 
+	// Act
 	err := service.Run()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if len(tree.removed) != 3 {
-		t.Fatalf("expected 3 removed directories, got %d", len(tree.removed))
-	}
-
-	if tree.removed[0] != filepath.Join(rootDir, ".idx") {
-		t.Fatalf("unexpected first removed path %q", tree.removed[0])
-	}
-
-	if len(output.lines) != 1 {
-		t.Fatalf("expected 1 output line, got %d", len(output.lines))
-	}
-
-	if output.lines[0] != "🧹 Index metadata removed from project." {
-		t.Fatalf("unexpected output message %q", output.lines[0])
-	}
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, tree.removed, 3)
+	assert.Equal(t, filepath.Join(rootDir, ".idx"), tree.removed[0])
+	require.Len(t, output.lines, 1)
+	assert.Equal(t, "🧹 Index metadata removed from project.", output.lines[0])
 }
 
-func TestDestroyCommandServiceRunRequiresProjectRoot(t *testing.T) {
+func TestDestroyCommandService_Run_RequiresProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	currentDir := filepath.Join(rootDir, "internal")
-
 	tree := newFakeProjectTree(currentDir, rootDir)
-	output := &capturingTextOutput{}
-	service := lifecycle.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, &capturingTextOutput{})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
 
-	expectedMessage := "destroy must run from project root: got current directory \"/repo/internal\", expected root directory \"/repo\""
-	if err.Error() != expectedMessage {
-		t.Fatalf("unexpected error message %q", err.Error())
-	}
-
-	if len(tree.removed) != 0 {
-		t.Fatalf("expected no directories removed, got %d", len(tree.removed))
-	}
+	// Assert
+	require.Error(t, err)
+	assert.EqualError(t, err, `destroy must run from project root: got current directory "/repo/internal", expected root directory "/repo"`)
+	assert.Empty(t, tree.removed)
 }
 
-func TestDestroyCommandServiceRunFailsWhenCurrentDirResolutionFails(t *testing.T) {
-	tree := newFakeProjectTree("/repo", "/repo")
+func TestDestroyCommandService_Run_FailsWhenCurrentDirResolutionFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	tree := newFakeProjectTree("", "/repo")
 	tree.gitRootErr = errors.New("git root unavailable")
-	tree.currentDir = ""
-	output := &capturingTextOutput{}
-	service := lifecycle.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, &capturingTextOutput{})
 
-	_, _ = tree.CurrentDir()
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected error when current directory cannot be resolved")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestDestroyCommandServiceRunFailsWhenGitRootLookupFails(t *testing.T) {
+func TestDestroyCommandService_Run_FailsWhenGitRootLookupFails(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	tree.gitRootErr = errors.New("not a git repository")
-	output := &capturingTextOutput{}
-	service := lifecycle.NewDestroyCommandService(tree, output)
+	service := lifecycle.NewDestroyCommandService(tree, &capturingTextOutput{})
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected git root lookup error")
-	}
+
+	// Assert
+	require.Error(t, err)
 }
 
-func TestDestroyCommandServiceRunReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+func TestDestroyCommandService_Run_ReturnsErrorWhenDependenciesAreNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	service := lifecycle.NewDestroyCommandService(nil, nil)
 
-	err := service.Run()
-	if err == nil {
-		t.Fatal("expected dependency validation error, got nil")
-	}
+	// Act & Assert
+	require.Error(t, service.Run())
 }
 
-func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *testing.T) {
+func TestDestroyCommandService_Run_ContinuesAfterRemoveFailureAndReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	apiDir := filepath.Join(rootDir, "cmd", "api")
 	coreDir := filepath.Join(rootDir, "internal", "core")
@@ -128,26 +124,17 @@ func TestDestroyCommandServiceRunContinuesAfterRemoveFailureAndReturnsError(t *t
 	tree.readDirMap[filepath.Join(rootDir, "internal")] = []filesystem.DirectoryEntry{{Name: "core", Path: coreDir, IsDir: true}}
 	tree.readDirMap[coreDir] = []filesystem.DirectoryEntry{{Name: ".idx", Path: filepath.Join(coreDir, ".idx"), IsDir: true}}
 	tree.removeErrs[failingIdx] = errors.New("permission denied")
-
 	output := &capturingTextOutput{}
 	service := lifecycle.NewDestroyCommandService(tree, output)
 
+	// Act
 	err := service.Run()
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
 
-	if len(tree.removed) != 3 {
-		t.Fatalf("expected 3 removal attempts, got %d", len(tree.removed))
-	}
-
-	if !strings.Contains(err.Error(), failingIdx) {
-		t.Fatalf("expected error to contain failing path %q, got %q", failingIdx, err.Error())
-	}
-
-	if len(output.lines) != 0 {
-		t.Fatalf("expected no success output on partial failure, got %v", output.lines)
-	}
+	// Assert
+	require.Error(t, err)
+	assert.Len(t, tree.removed, 3)
+	assert.ErrorContains(t, err, failingIdx)
+	assert.Empty(t, output.lines)
 }
 
 // fakeProjectTree implements filesystem.ProjectTree for testing.
@@ -180,15 +167,13 @@ func (tree *fakeProjectTree) CurrentDir() (string, error) {
 	if tree.currentDir == "" {
 		return "", errors.New("cwd unavailable")
 	}
-
 	return tree.currentDir, nil
 }
 
-func (tree *fakeProjectTree) FindGitRoot(startDir string) (string, error) {
+func (tree *fakeProjectTree) FindGitRoot(_ string) (string, error) {
 	if tree.gitRootErr != nil {
 		return "", tree.gitRootErr
 	}
-
 	return tree.gitRoot, nil
 }
 
@@ -196,12 +181,10 @@ func (tree *fakeProjectTree) ReadDir(path string) ([]filesystem.DirectoryEntry, 
 	if err, ok := tree.readDirErr[path]; ok {
 		return nil, err
 	}
-
 	entries, ok := tree.readDirMap[path]
 	if !ok {
 		return []filesystem.DirectoryEntry{}, nil
 	}
-
 	return entries, nil
 }
 
@@ -214,7 +197,6 @@ func (tree *fakeProjectTree) RemoveAll(path string) error {
 	if err, hasError := tree.removeErrs[path]; hasError {
 		return err
 	}
-
 	return nil
 }
 

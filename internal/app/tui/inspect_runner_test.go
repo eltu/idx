@@ -3,18 +3,23 @@ package tui_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/app/tui"
 	"idx/internal/features/indexing"
 )
 
-func TestNewInspectRunnerImplementsPort(t *testing.T) {
+func TestNewInspectRunner_ImplementsPort(t *testing.T) {
+	t.Parallel()
 	runner := tui.NewInspectRunner()
-	if runner == nil {
-		t.Fatal("expected NewInspectRunner to return non-nil runner")
-	}
+	require.NotNil(t, runner)
 }
 
-func TestInspectRunnerRunUsesTestHook(t *testing.T) {
+func TestInspectRunner_Run_UsesTestHook(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	called := false
 	tui.SetRunInspectTUITestHook(func(_ *indexing.InvertedIndex) error {
 		called = true
@@ -22,11 +27,11 @@ func TestInspectRunnerRunUsesTestHook(t *testing.T) {
 	})
 	defer tui.SetRunInspectTUITestHook(nil)
 
+	// Act
 	runner := tui.NewInspectRunner()
-	if err := runner.Run(indexing.NewInvertedIndex()); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !called {
-		t.Fatal("expected inspect TUI test hook to be invoked via runner.Run")
-	}
+	err := runner.Run(indexing.NewInvertedIndex())
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, called, "expected inspect TUI test hook to be invoked via runner.Run")
 }

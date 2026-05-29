@@ -6,410 +6,390 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"idx/internal/features/indexing"
 	search "idx/internal/features/search"
 )
 
-func TestSearchCommandServiceRunWithOptionsReturnsJSONOutput(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_ReturnsJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
-	if response["count"] != float64(1) {
-		t.Fatalf("expected count 1, got %v", response["count"])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
+	assert.Equal(t, float64(1), response["count"])
 }
 
-func TestSearchCommandServiceRunWithOptionsReturnsPrettyJSONOutput(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_ReturnsPrettyJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, PrettyJSON: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, PrettyJSON: true}))
 
-	if !strings.Contains(output.lines[0], "\n") {
-		t.Fatalf("expected pretty JSON with line breaks, got %q", output.lines[0])
-	}
+	// Assert
+	assert.Contains(t, out.lines[0], "\n")
 }
 
-func TestSearchCommandServiceRunWithOptionsIncludesContextLines(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_IncludesContextLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Context: 1})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Context: 1}))
 
-	if stripANSICodes(output.lines[2]) != "├── 1: alpha" {
-		t.Fatalf("expected first context line, got %q", output.lines[2])
-	}
+	// Assert
+	assert.Equal(t, "├── 1: alpha", stripANSICodes(out.lines[2]))
 }
 
-func TestSearchCommandServiceRunWithOptionsMatchesOnlyFiltersContextLines(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_MatchesOnlyFiltersContextLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Context: 1, MatchesOnly: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Context: 1, MatchesOnly: true}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
 	file := results[0].(map[string]any)
 	matches := file["matches"].([]any)
-	if len(matches) != 1 {
-		t.Fatalf("expected one matched line after filtering context, got %d", len(matches))
-	}
+	assert.Len(t, matches, 1)
 }
 
-func TestSearchCommandServiceRunWithOptionsSizeRestrictsResultCount(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_SizeRestrictsResultCount(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, Size: 1})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, Size: 1}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
-	if len(results) != 1 {
-		t.Fatalf("expected one file result with size, got %d", len(results))
-	}
+	assert.Len(t, results, 1)
 }
 
-func TestSearchCommandServiceRunWithOptionsFromAndSizePaginateResults(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_FromAndSizePaginateResults(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, From: 1, Size: 1})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, From: 1, Size: 1}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	payload := response["results"].([]any)[0].(map[string]any)
-	if payload["file"] != "./readme.md" {
-		t.Fatalf("expected second-ranked file ./readme.md for from=1,size=1, got %v", payload["file"])
-	}
+	assert.Equal(t, "./readme.md", payload["file"])
 }
 
-func TestSearchCommandServiceDisplaysMatchCountInTextFormat(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_DisplaysMatchCountInTextFormat(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputText})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputText}))
 
-	if !strings.Contains(output.lines[0], "Found 2 file(s)") {
-		t.Fatalf("expected match count header, got %q", output.lines[0])
-	}
+	// Assert
+	assert.Contains(t, out.lines[0], "Found 2 file(s)")
 }
 
-func TestSearchCommandServiceDisplaysMatchCountWithPaginationInTextFormat(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_DisplaysMatchCountWithPagination(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputText, Size: 1})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputText, Size: 1}))
 
-	if !strings.Contains(output.lines[0], "showing 1") {
-		t.Fatalf("expected pagination info in header, got %q", output.lines[0])
-	}
+	// Assert
+	assert.Contains(t, out.lines[0], "showing 1")
 }
 
-func TestSearchCommandServiceRunWithOptionsAgentCompactOutputsTokenEfficientText(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_AgentCompact_OutputsTokenEfficientText(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "   module idx   "}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputText, MatchesOnly: true, AgentCompact: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputText, MatchesOnly: true, AgentCompact: true}))
 
-	if len(output.lines) != 2 {
-		t.Fatalf("expected compact output with 2 lines, got %d: %v", len(output.lines), output.lines)
-	}
-
-	if output.lines[0] != "./go.mod" {
-		t.Fatalf("expected compact path header, got %q", output.lines[0])
-	}
-
-	if output.lines[1] != "1:module idx" {
-		t.Fatalf("expected trimmed compact line, got %q", output.lines[1])
-	}
+	// Assert
+	require.Len(t, out.lines, 2)
+	assert.Equal(t, "./go.mod", out.lines[0])
+	assert.Equal(t, "1:module idx", out.lines[1])
 }
 
-func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsPathsOnly(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_FilesOnly_ReturnsPathsOnlyInText(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputText, FilesOnly: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputText, FilesOnly: true}))
 
-	if len(output.lines) != 3 {
-		t.Fatalf("expected 3 output lines, got %d: %v", len(output.lines), output.lines)
-	}
+	// Assert
+	assert.Len(t, out.lines, 3)
 }
 
-func TestSearchCommandServiceRunWithOptionsFilesOnlyReturnsJSONArray(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_FilesOnly_ReturnsJSONArray(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, FilesOnly: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, FilesOnly: true}))
 
+	// Assert
 	var payload []string
-	if err := json.Unmarshal([]byte(output.lines[0]), &payload); err != nil {
-		t.Fatalf("expected valid JSON array output, got error %v with payload %q", err, output.lines[0])
-	}
-	if len(payload) != 2 {
-		t.Fatalf("expected 2 file paths in JSON, got %d: %v", len(payload), payload)
-	}
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &payload))
+	assert.Len(t, payload, 2)
 }
 
-func TestSearchCommandServiceRunWithOptionsFilesOnlyWithJSONPretty(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_FilesOnlyWithPrettyJSON(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{
 		filepath.Join(rootDir, "guide.md"):  "go search guide",
 		filepath.Join(rootDir, "readme.md"): "go content\nsearch topic",
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, FilesOnly: true, PrettyJSON: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("go search", search.Options{Format: search.OutputJSON, FilesOnly: true, PrettyJSON: true}))
 
-	if !strings.Contains(output.lines[0], "\n") {
-		t.Fatalf("expected pretty JSON with line breaks, got %q", output.lines[0])
-	}
+	// Assert
+	assert.Contains(t, out.lines[0], "\n")
 }
 
-func TestSearchCommandServiceRunWithOptionsSupportsMetadataOnlyPathFilter(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_MetadataOnlyPathFilter(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal", "core")
 	tree := searchTreeWithIndexes(rootDir, []string{filepath.Join("internal", "core")})
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{
 		rootDir:  searchableIndex(),
 		childDir: searchableIndexForMetadataPath(childDir, "go.mod"),
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fakeSearchFileReader{files: map[string]string{}}, repo)
 
-	err := service.RunWithOptions("", search.Options{PathQuery: "internal core"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("", search.Options{PathQuery: "internal core"}))
 
-	if stripANSICodes(output.lines[1]) != "internal/core/go.mod" {
-		t.Fatalf("expected metadata-only path result, got %q", output.lines[1])
-	}
+	// Assert
+	assert.Equal(t, "internal/core/go.mod", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWithOptionsSupportsPathWildcardSuffixFilter(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_PathWildcardSuffixFilter(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	childDir := filepath.Join(rootDir, "internal", "core")
 	tree := searchTreeWithIndexes(rootDir, []string{filepath.Join("internal", "core")})
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{
 		rootDir:  searchableIndex(),
 		childDir: searchableIndexForMetadataPath(childDir, "go.mod"),
 	}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fakeSearchFileReader{files: map[string]string{}}, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fakeSearchFileReader{files: map[string]string{}}, repo)
 
-	err := service.RunWithOptions("", search.Options{PathQuery: "*core"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("", search.Options{PathQuery: "*core"}))
 
-	if stripANSICodes(output.lines[1]) != "internal/core/go.mod" {
-		t.Fatalf("expected internal/core/go.mod with suffix wildcard, got %q", output.lines[1])
-	}
+	// Assert
+	assert.Equal(t, "internal/core/go.mod", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWithOptionsSupportsExtensionFilter(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_ExtensionFilter(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "AGENTS.md"): "idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("idx", search.Options{ExtensionQuery: "md"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("idx", search.Options{ExtensionQuery: "md"}))
 
-	if len(output.lines) < 2 {
-		t.Fatalf("expected result output lines, got %v", output.lines)
-	}
-
-	if stripANSICodes(output.lines[1]) != "./AGENTS.md" {
-		t.Fatalf("expected extension-filtered result ./AGENTS.md, got %q", output.lines[1])
-	}
+	// Assert
+	require.GreaterOrEqual(t, len(out.lines), 2)
+	assert.Equal(t, "./AGENTS.md", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWithOptionsExplainShowsScoreInTextOutput(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_ExplainShowsScoreInTextOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Explain: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Explain: true}))
 
-	if stripANSICodes(output.lines[1]) != "./go.mod (score: 1.0000)" {
-		t.Fatalf("expected score in text output with explain, got %q", output.lines[1])
-	}
+	// Assert
+	assert.Equal(t, "./go.mod (score: 1.0000)", stripANSICodes(out.lines[1]))
 }
 
-func TestSearchCommandServiceRunWithOptionsJSONOmitsScoreByDefault(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_JSONOmitsScoreByDefault(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
 	first := results[0].(map[string]any)
-	if _, exists := first["score"]; exists {
-		t.Fatalf("expected score to be omitted by default, got %v", first["score"])
-	}
+	_, hasScore := first["score"]
+	assert.False(t, hasScore, "expected score to be omitted by default")
 }
 
-func TestSearchCommandServiceRunWithOptionsJSONIncludesScoreWithExplain(t *testing.T) {
+func TestSearchCommandService_RunWithOptions_JSONIncludesScoreWithExplain(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	rootDir := filepath.Join(string(filepath.Separator), "repo")
 	tree := searchTreeWithIndexes(rootDir, nil)
-	output := &capturingTextOutput{}
+	out := &capturingTextOutput{}
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, output, fileReader, repo)
+	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
-	err := service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Explain: true})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	// Act
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Explain: true}))
 
+	// Assert
 	var response map[string]any
-	if err := json.Unmarshal([]byte(output.lines[0]), &response); err != nil {
-		t.Fatalf("expected valid JSON output, got error %v with payload %q", err, output.lines[0])
-	}
-
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
 	results := response["results"].([]any)
 	first := results[0].(map[string]any)
-	if _, exists := first["score"]; !exists {
-		t.Fatal("expected score to be present when explain is enabled")
-	}
+	_, hasScore := first["score"]
+	assert.True(t, hasScore, "expected score present when explain enabled")
+
+	_ = strings.Contains // keep import used
 }
