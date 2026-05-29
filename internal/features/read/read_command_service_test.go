@@ -14,6 +14,11 @@ import (
 	"idx/internal/shared/filesystem"
 )
 
+const (
+	pkgMainContent = "package main\n"
+	pkgFooContent  = "package foo\n"
+)
+
 // ---------------------------------------------------------------------------
 // Happy path — basic reads
 // ---------------------------------------------------------------------------
@@ -43,7 +48,7 @@ func TestReadCommandService_Run_ResolvesRelativePathFromCurrentDir(t *testing.T)
 	// Arrange
 	tree := newFakeProjectTree("/repo/cmd", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/cmd/main.go"] = "package main\n"
+	streamer.files["/repo/cmd/main.go"] = pkgMainContent
 	output := &capturingTextOutput{}
 	service := read.NewReadCommandService(tree, streamer, output)
 
@@ -62,7 +67,7 @@ func TestReadCommandService_Run_ResolvesRelativeSubdirectoryPath(t *testing.T) {
 	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/internal/foo.go"] = "package foo\n"
+	streamer.files["/repo/internal/foo.go"] = pkgFooContent
 	output := &capturingTextOutput{}
 	service := read.NewReadCommandService(tree, streamer, output)
 
@@ -81,7 +86,7 @@ func TestReadCommandService_Run_NormalizesDoubleDotPath(t *testing.T) {
 	// Arrange
 	tree := newFakeProjectTree("/repo/cmd/idx", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/cmd/main.go"] = "package main\n"
+	streamer.files["/repo/cmd/main.go"] = pkgMainContent
 	output := &capturingTextOutput{}
 	service := read.NewReadCommandService(tree, streamer, output)
 
@@ -312,7 +317,7 @@ func TestReadCommandService_Run_RecordsAccessLogAfterSuccessfulRead(t *testing.T
 	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/main.go"] = "package main\n"
+	streamer.files["/repo/main.go"] = pkgMainContent
 	logRepo := &capturingReadLogRepository{}
 	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 
@@ -349,7 +354,7 @@ func TestReadCommandService_Run_LogFailureDoesNotFailRead(t *testing.T) {
 	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/main.go"] = "package main\n"
+	streamer.files["/repo/main.go"] = pkgMainContent
 	output := &capturingTextOutput{}
 	logRepo := &capturingReadLogRepository{err: errors.New("disk full")}
 	service := read.NewReadCommandService(tree, streamer, output).WithReadLog(logRepo)
@@ -402,7 +407,7 @@ func TestReadCommandService_Run_RecordsRelativePathForSubdirectoryFile(t *testin
 	// Arrange
 	tree := newFakeProjectTree("/repo", "/repo")
 	streamer := newFakeFileStreamer()
-	streamer.files["/repo/internal/foo.go"] = "package foo\n"
+	streamer.files["/repo/internal/foo.go"] = pkgFooContent
 	logRepo := &capturingReadLogRepository{}
 	service := read.NewReadCommandService(tree, streamer, &capturingTextOutput{}).WithReadLog(logRepo)
 

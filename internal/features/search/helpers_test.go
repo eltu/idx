@@ -109,7 +109,7 @@ func splitRelativePath(path string) []string {
 	return parts
 }
 
-func appendDirectoryEntry(tree *fakeProjectTree, parentDir string, directoryPath string, name string) {
+func appendDirectoryEntry(tree *fakeProjectTree, parentDir, directoryPath, name string) {
 	entries := tree.readDirMap[parentDir]
 	for _, entry := range entries {
 		if entry.Path == directoryPath {
@@ -211,7 +211,7 @@ func searchableIndexForRelativePath() *indexing.InvertedIndex {
 	return index
 }
 
-func searchableIndexWithSingleResult(fileName string, moduleIDF float64, idxIDF float64, modulePositions []int, idxPositions []int) *indexing.InvertedIndex {
+func searchableIndexWithSingleResult(fileName string, moduleIDF, idxIDF float64, modulePositions, idxPositions []int) *indexing.InvertedIndex {
 	index := indexing.NewInvertedIndex()
 	index.Documents[fileName] = &indexing.DocStats{Name: fileName, Path: fileName, Length: 5}
 	index.AddPathTerms(fileName, fileName)

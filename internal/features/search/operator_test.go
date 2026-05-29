@@ -12,6 +12,11 @@ import (
 	search "idx/internal/features/search"
 )
 
+const (
+	fullGoFileName     = "full.go"
+	fullGoRelativePath = "./" + fullGoFileName
+)
+
 func searchableIndexWithDisjointTerms() *indexing.InvertedIndex {
 	index := indexing.NewInvertedIndex()
 	index.Documents["a.go"] = &indexing.DocStats{Name: "a.go", Path: "a.go", Length: 3}
@@ -105,7 +110,7 @@ func TestSearchCommandService_OROperator_RanksFullMatchAbovePartialMatch(t *test
 	results := response["results"].([]any)
 	require.GreaterOrEqual(t, len(results), 2)
 	topFile := results[0].(map[string]any)["file"].(string)
-	assert.True(t, topFile == "full.go" || topFile == "./full.go", "expected full.go first, got %q", topFile)
+	assert.True(t, topFile == fullGoFileName || topFile == fullGoRelativePath, "expected full.go first, got %q", topFile)
 }
 
 func searchableIndexWithSameScoreButConcentratedTerms() *indexing.InvertedIndex {
@@ -220,7 +225,7 @@ func TestSearchCommandService_ANDRelaxation_RanksByMatchedTokenCount(t *testing.
 	require.GreaterOrEqual(t, len(results), 2)
 	first := results[0].(map[string]any)["file"].(string)
 	second := results[1].(map[string]any)["file"].(string)
-	assert.True(t, first == "full.go" || first == "./full.go", "expected full.go first, got %q", first)
+	assert.True(t, first == fullGoFileName || first == fullGoRelativePath, "expected full.go first, got %q", first)
 	assert.True(t, second == "relaxed.go" || second == "./relaxed.go", "expected relaxed.go second, got %q", second)
 }
 

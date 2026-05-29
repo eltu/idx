@@ -11,6 +11,8 @@ import (
 	"idx/internal/shared/filesystem"
 )
 
+const testRepoRoot = "/repo"
+
 type indexedTreeStub struct {
 	entries map[string][]filesystem.DirectoryEntry
 	exists  map[string]bool
@@ -45,7 +47,7 @@ func TestIndexedDirectories_AndEligibleDirectories_ReturnsIndexedAndEligible(t *
 	t.Parallel()
 
 	// Arrange
-	root := "/repo"
+	root := testRepoRoot
 	child := filepath.Join(root, "child")
 	tree := indexedTreeStub{
 		entries: map[string][]filesystem.DirectoryEntry{
@@ -80,7 +82,7 @@ func TestIndexedDirectories_StatError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	root := "/repo"
+	root := testRepoRoot
 	treeWithStatError := indexedTreeStub{
 		entries: map[string][]filesystem.DirectoryEntry{root: {}},
 		exists:  map[string]bool{},
@@ -99,7 +101,7 @@ func TestIndexedDirectories_ReadDirError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	root := "/repo"
+	root := testRepoRoot
 	treeWithReadError := indexedTreeStub{
 		entries: map[string][]filesystem.DirectoryEntry{},
 		exists:  map[string]bool{},

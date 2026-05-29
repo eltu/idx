@@ -39,11 +39,124 @@
 
 - Tests run with a single command: `make test`.
 - Every new function gets a test. Bug fixes get a regression test.
-- Use `go.uber.org/mock` for interface-based mocks in tests.
-- Generate mocks with `mockgen` when needed; avoid handwritten fake/mock
-  implementations for collaborators that are already expressed as ports.
-- Tests must be F.I.R.S.T: fast, independent, repeatable,
-  self-validating, timely.
+- Tests must be F.I.R.S.T: fast, independent, repeatable, self-validating, timely.
+
+### Naming
+
+Use `Test<Type>_<Scenario>_<ExpectedResult>` with underscores separating segments and
+PascalCase within each segment. The name must read as a sentence — "When X, it should Y":
+
+```
+TestReadLogRepository_RecordRead_CreatesEntryOnFirstRead
+TestSearchCommandService_Run_ReturnsErrorWhenDependenciesAreNil
+TestBinaryIndexRepository_SaveIndex_ReturnsErrorForInvalidDirectory
+```
+
+Never use generic names like `TestError`, `TestService`, or camelCase without underscores.
+
+### Structure — Arrange / Act / Assert
+
+Every non-trivial test must have the three sections with comments:
+
+```go
+func TestDestroyCommandService_Run_RemovesIdxDirectories(t *testing.T) {
+    t.Parallel()
+
+    // Arrange
+    tree := newFakeProjectTree(rootDir, rootDir)
+    service := lifecycle.NewDestroyCommandService(tree, output)
+
+    // Act
+    err := service.Run()
+
+    // Assert
+    require.NoError(t, err)
+    assert.Len(t, tree.removed, 3)
+}
+```
+
+### Parallelism
+
+Add `t.Parallel()` as the **first statement** in every test that is isolated
+(uses only local variables, `t.TempDir()`, or mocks). Also add it inside each
+`t.Run()` subtest. Never use `t.Parallel()` in tests that call `t.Setenv`,
+`t.Chdir`, or any other function that mutates global process state.
+
+### Assertions
+
+Always use `testify/require` and `testify/assert`. Never use `t.Fatal` / `t.Fatalf`
+/ `t.Error` / `t.Errorf` directly.
+
+- Use `require` when the test cannot continue after a failure (error checks, nil guards).
+- Use `assert` for non-blocking validations.
+- Pass `expected` before `got`: `assert.Equal(t, expected, actual)`.
+- Prefer specific assertions over `assert.True`: `assert.Len`, `assert.ErrorIs`,
+  `assert.ErrorContains`, `assert.NotEmpty`, `assert.Positive`.
+
+```go
+// ✅
+require.NoError(t, err)
+assert.Equal(t, "AND", opts.Operator)
+assert.Len(t, results, 3)
+assert.ErrorIs(t, err, ErrNotInitialized)
+
+// ❌
+if err != nil { t.Fatalf("unexpected error: %v", err) }
+assert.True(t, len(results) == 3)
+```
+
+### Table-Driven Tests
+
+Convert 3 or more tests that cover the same function with different inputs into a
+table-driven test. Capture the loop variable and parallelize each subtest:
+
+```go
+for _, tc := range tests {
+    tc := tc
+    t.Run(tc.name, func(t *testing.T) {
+        t.Parallel()
+        // ...
+    })
+}
+```
+
+### No time.Sleep
+
+Replace `time.Sleep` with channels, context cancellation, or `sync.WaitGroup`.
+When a test genuinely depends on real wall-clock timing (e.g. a debounce timer),
+keep the sleep and add a comment explaining why it is unavoidable.
+
+### Mocking
+
+Use `go.uber.org/mock` for interface-based mocks. Generate with `mockgen`; avoid
+handwritten fakes for collaborators already expressed as ports. Handwritten fakes
+are acceptable for simple anonymous adapters (e.g. `fakeFileReader`).
+
+### Identical method bodies (SonarQube S4144)
+
+Two methods on the same type with identical bodies are a code smell. The linter
+does not catch this — SonarQube reports it as S4144. When it happens, make the
+second method delegate to the first:
+
+```go
+// ❌ identical bodies
+func (w *captureWriter) WriteInline(text string) error {
+    w.mu.Lock(); defer w.mu.Unlock()
+    w.writes = append(w.writes, text)
+    return nil
+}
+
+// ✅ delegate
+func (w *captureWriter) WriteInline(text string) error {
+    return w.WriteLine(text)
+}
+```
+
+### What to test
+
+Prioritize: business rules, edge cases (zero / empty / max), every error path,
+concurrency and cancellation, and regressions. High coverage does not mean high
+quality — a test that only exercises the happy path has low value.
 
 ## Dependencies
 

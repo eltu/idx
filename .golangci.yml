@@ -15,7 +15,7 @@ linters:
     - gosec          # security issues (OWASP-aligned)
     - misspell       # common spelling mistakes
     - godot          # comment punctuation
-    - dupl           # duplicated code blocks
+    - dupl           # duplicated code blocks (SonarQube: S4144)
     - noctx          # http.Request without context
     - bodyclose      # http response body not closed
   settings:
@@ -42,19 +42,21 @@ linters:
       locale: US
   exclusions:
     rules:
-      # Test files: relax rules that don't catch bugs
+      # Test files: relax rules that produce noise in test helpers without catching bugs.
+      # goconst and gocritic (paramTypeCombine) remain active for tests — they enforce
+      # the same naming/style rules as production code and do not produce false positives.
+      # NOTE: SonarQube S4144 (identical method bodies on the same type) is not covered
+      # by dupl — it requires SonarQube analysis. Fix those manually when reported.
       - path: "_test\\.go"
         linters:
-          - dupl
-          - gosec
-          - gocyclo
-          - gocognit
-          - goconst
-          - gocritic
-          - revive
-          - errcheck
-          - noctx
-          - unused
+          - dupl       # tests share structural patterns (setup/teardown) by design
+          - gosec      # test code does not run in production
+          - gocyclo    # complex table-driven tests are acceptable
+          - gocognit   # same as gocyclo
+          - errcheck   # deferred close errors in tests can be ignored
+          - noctx      # test http calls rarely need context
+          - unused     # test helpers may be used indirectly by other test files
+          - revive     # interface stubs in fakes must keep parameter names to satisfy the interface
       # Doc-comment style is enforced by CLAUDE.md, not by linter
       - linters: [revive]
         text: "should have comment or be unexported"

@@ -220,10 +220,7 @@ func (w *captureSpinnerWriter) WriteLine(text string) error {
 }
 
 func (w *captureSpinnerWriter) WriteInline(text string) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.writes = append(w.writes, text)
-	return nil
+	return w.WriteLine(text)
 }
 
 func TestRunStatusSpinnerLoop_DoneClosed_StopsImmediately(t *testing.T) {

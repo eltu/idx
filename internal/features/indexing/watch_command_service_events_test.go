@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const watchTestFileName = "file.go"
+
 func TestWatchFileLabel_EmptyFiles_ReturnsStructuralChange(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +45,7 @@ func TestTruncatedFileList_OverLimit_Truncates(t *testing.T) {
 	// Arrange
 	files := make([]string, watchMaxFilesListed+3)
 	for i := range files {
-		files[i] = "file.go"
+		files[i] = watchTestFileName
 	}
 
 	// Act
@@ -129,7 +131,7 @@ func TestWriteWatchFileList_OverLimit_WritesTruncationMessage(t *testing.T) {
 	svc.output = out
 	files := make([]string, watchMaxFilesListed+2)
 	for i := range files {
-		files[i] = "file.go"
+		files[i] = watchTestFileName
 	}
 
 	// Act

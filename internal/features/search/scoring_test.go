@@ -10,6 +10,8 @@ import (
 	"idx/internal/features/read"
 )
 
+const goSearchGuideLine = "go search guide"
+
 func TestColoredFilePath_WithoutANSI_ReturnsPlainPath(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +58,7 @@ func TestHighlightTermsInLine_WithoutANSI_ReturnsUnchangedLine(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	line := "go search guide"
+	line := goSearchGuideLine
 
 	// Act & Assert
 	assert.Equal(t, line, highlightTermsInLine(line, []string{"go", "search"}, false))
@@ -66,7 +68,7 @@ func TestHighlightTermsInLine_WithANSI_ReturnsHighlightedLine(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	line := "go search guide"
+	line := goSearchGuideLine
 
 	// Act
 	highlighted := highlightTermsInLine(line, []string{"go", "search"}, true)

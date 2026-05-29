@@ -149,7 +149,7 @@ func ensureGitProject(t *testing.T, rootDir string) {
 	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, ".git"), 0o750))
 }
 
-func writeFile(t *testing.T, path string, content string) {
+func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))

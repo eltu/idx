@@ -149,7 +149,7 @@ func tokenStrings(twp []TokenWithPosition) []string {
 	return out
 }
 
-func assertTokensEqual(t *testing.T, got []string, want []string) {
+func assertTokensEqual(t *testing.T, got, want []string) {
 	t.Helper()
 	require.Len(t, got, len(want), "token count mismatch: got %v, want %v", got, want)
 	for i, tok := range got {
