@@ -51,6 +51,7 @@ type CommandRunner struct {
 	config          config.IdxConfig
 	configFilePath  string
 	configOverrides []string
+	projectRoot     string
 }
 
 // NewCommandRunner wires CLI arguments to command execution.
@@ -117,6 +118,14 @@ func (runner CommandRunner) WithConfig(cfg config.IdxConfig, filePath string, ov
 	runner.config = cfg
 	runner.configFilePath = filePath
 	runner.configOverrides = overrides
+	return runner
+}
+
+// WithProjectRoot stores the pre-resolved project root so server lifecycle
+// commands (start/stop/status) do not need to re-discover it via filesystem walk.
+// Example: runner = runner.WithProjectRoot("/home/user/myproject").
+func (runner CommandRunner) WithProjectRoot(root string) CommandRunner {
+	runner.projectRoot = root
 	return runner
 }
 

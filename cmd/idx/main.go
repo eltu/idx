@@ -364,7 +364,8 @@ func runClient(arguments []string, output io.Writer) error {
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
 		WithServerManager(serverDaemonAdapter).
-		WithConfig(d.cfg, d.configFilePath, d.overrides)
+		WithConfig(d.cfg, d.configFilePath, d.overrides).
+		WithProjectRoot(d.projectRoot)
 
 	return runner.Run()
 }

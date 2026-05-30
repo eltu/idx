@@ -55,7 +55,7 @@ func (runner CommandRunner) newServerStartCommand() *cobra.Command {
 		Use:   "start",
 		Short: "Start the idx server daemon in the background",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			root, err := findProjectRoot(".")
+			root, err := runner.resolveServerRoot()
 			if err != nil {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
 				return fmt.Errorf("")
@@ -75,7 +75,7 @@ func (runner CommandRunner) newServerStopCommand() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the idx server daemon",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			root, err := findProjectRoot(".")
+			root, err := runner.resolveServerRoot()
 			if err != nil {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
 				return fmt.Errorf("")
@@ -90,7 +90,7 @@ func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
 		Use:   "status",
 		Short: "Show the idx server daemon status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			root, err := findProjectRoot(".")
+			root, err := runner.resolveServerRoot()
 			if err != nil {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
 				return fmt.Errorf("")
@@ -98,6 +98,18 @@ func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
 			return runner.serverManager.Status(root)
 		},
 	}
+}
+
+// resolveServerRoot returns the pre-resolved project root when available,
+// falling back to a filesystem walk looking for a .idx directory.
+// The pre-resolved root (set via WithProjectRoot) is preferred so that CLI
+// commands stay consistent with the path already computed by sharedDeps and
+// passed to the server via IDX_PROJECT_PATH.
+func (runner CommandRunner) resolveServerRoot() (string, error) {
+	if runner.projectRoot != "" {
+		return runner.projectRoot, nil
+	}
+	return findProjectRoot(".")
 }
 
 // newServerRunCommand is the hidden internal command spawned by OSServerSpawner.
