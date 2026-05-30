@@ -465,15 +465,15 @@ func TestInitCommandService_InspectAndWriteInspectIndex_ErrorBranchesFromMovedFi
 	tree.existsErr[indexFilePath(root)] = errors.New("exists failure")
 	require.Error(t, service.Inspect("."))
 
-	// Load error in writeInspectIndex
+	// Load error in LoadInspectIndex (single directory path)
 	service.indexRepo = internalIndexRepo{loadErr: errors.New("load failure")}
-	require.Error(t, service.writeInspectIndex(root))
+	_, err := service.LoadInspectIndex(".")
+	require.Error(t, err)
 
-	// JSON marshal error for NaN
+	// JSON marshal error for NaN in writeIndexJSON
 	invalid := NewInvertedIndex()
 	invalid.AverageDocLength = math.NaN()
-	service.indexRepo = internalIndexRepo{index: invalid}
-	require.Error(t, service.writeInspectIndex(root))
+	require.Error(t, service.writeIndexJSON(invalid))
 }
 
 // keep strings imported to allow error-message checks in the Test functions above.

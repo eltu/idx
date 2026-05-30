@@ -38,6 +38,8 @@ func (s *indexServer) registerHandlers() {
 	s.dispatcher.Register(idxipc.MethodSync, s.handleSync)
 	s.dispatcher.Register(idxipc.MethodStatus, s.handleStatus)
 	s.dispatcher.Register(idxipc.MethodRead, s.handleRead)
+	s.dispatcher.Register(idxipc.MethodInspect, s.handleInspect)
+	s.dispatcher.Register(idxipc.MethodDestroy, s.handleDestroy)
 }
 
 // Serve binds the Unix socket and serves JSON-RPC requests until ctx is canceled.

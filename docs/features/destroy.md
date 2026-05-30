@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Remove `.idx` metadata recursively from the current project.
+Remove `.idx` metadata recursively from the current project and stop the running server daemon.
 
 ## Usage
 
@@ -20,8 +20,8 @@ idx destroy
 
 ## Behavior and Side Effects
 
-- Before destroy logic runs, CLI tries to disable daemon monitoring for `.`.
-- Daemon disable errors are ignored when they indicate a non-active daemon state.
+- Sends `idx.destroy` to the running server via RPC so the server can clean up in-memory state before the files are removed.
+- After the RPC completes, sends `SIGTERM` to stop the server daemon. Stop errors indicating the server was already stopped or state was not found are ignored.
 - Resolves current directory and Git root.
 - Must run from the project root.
 - Recursively traverses directories.

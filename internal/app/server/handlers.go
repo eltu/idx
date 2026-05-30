@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	featindexing "idx/internal/features/indexing"
+	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
 	featsearch "idx/internal/features/search"
 	sharedfs "idx/internal/shared/filesystem"
@@ -64,6 +65,23 @@ func (s *indexServer) handleStatus(_ context.Context, _ json.RawMessage) (any, e
 	capture := &captureWriter{}
 	svc := featindexing.NewInitCommandService(initDepsWithCapture(s.deps, capture))
 	err := svc.Status()
+	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
+}
+
+func (s *indexServer) handleInspect(_ context.Context, params json.RawMessage) (any, error) {
+	var req idxipc.InspectRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, err
+	}
+
+	svc := featindexing.NewInitCommandService(initDepsWithCapture(s.deps, &captureWriter{}))
+	return svc.LoadInspectIndex(req.IndexPath)
+}
+
+func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, error) {
+	capture := &captureWriter{}
+	svc := featlifecycle.NewDestroyCommandService(s.deps.ProjectTree, capture)
+	err := svc.Run()
 	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
 }
 

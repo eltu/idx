@@ -164,11 +164,13 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 		Use:   "destroy",
 		Short: "Destroy index metadata",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := runner.stopServerForDestroy(); err != nil {
+			// Run destroy first so the RPC reaches the server while it is still alive.
+			// stopServerForDestroy sends SIGTERM after, which is a no-op when the server
+			// already exited or when serverManager is nil (standalone mode).
+			if err := runner.destroyCommand.Run(); err != nil {
 				return err
 			}
-
-			return runner.destroyCommand.Run()
+			return runner.stopServerForDestroy()
 		},
 	}
 }

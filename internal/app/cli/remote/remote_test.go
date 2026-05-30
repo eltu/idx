@@ -11,10 +11,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	featindexing "idx/internal/features/indexing"
 	featsearch "idx/internal/features/search"
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
 )
+
+// fakeInspectUIRunner captures the index passed to it without rendering a TUI.
+type fakeInspectUIRunner struct {
+	captured *featindexing.InvertedIndex
+}
+
+func (f *fakeInspectUIRunner) Run(index *featindexing.InvertedIndex) error {
+	f.captured = index
+	return nil
+}
 
 // fakeOutput collects lines written by the remote adapters.
 type fakeOutput struct{ lines []string }
@@ -134,7 +145,7 @@ func TestRemoteIndexCommand_Run_SendsInit(t *testing.T) {
 	out := &fakeOutput{}
 
 	// Act
-	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out)
+	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out, &fakeInspectUIRunner{})
 	err := cmd.Run()
 
 	// Assert
@@ -151,7 +162,7 @@ func TestRemoteIndexCommand_Sync_SendsSync(t *testing.T) {
 		calledMethod = method
 		return idxipc.CommandResponse{Success: true}
 	})
-	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{})
+	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{}, &fakeInspectUIRunner{})
 	require.NoError(t, cmd.Sync())
 	assert.Equal(t, idxipc.MethodSync, calledMethod)
 }
@@ -163,30 +174,50 @@ func TestRemoteIndexCommand_Status_SendsStatus(t *testing.T) {
 		calledMethod = method
 		return idxipc.CommandResponse{Success: true}
 	})
-	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{})
+	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{}, &fakeInspectUIRunner{})
 	require.NoError(t, cmd.Status())
 	assert.Equal(t, idxipc.MethodStatus, calledMethod)
 }
 
-func TestRemoteIndexCommand_UnsupportedMethods_WriteMessage(t *testing.T) {
+func TestRemoteIndexCommand_Watch_WritesUnsupportedMessage(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name string
-		call func(cmd *RemoteIndexCommand) error
-	}{
-		{"Inspect", func(cmd *RemoteIndexCommand) error { return cmd.Inspect("") }},
-		{"Watch", func(cmd *RemoteIndexCommand) error { return cmd.Watch(false, 0) }},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			out := &fakeOutput{}
-			cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out)
-			require.NoError(t, tc.call(cmd))
-			assert.NotEmpty(t, out.lines, "expected unsupported message")
-		})
-	}
+
+	// Arrange
+	out := &fakeOutput{}
+	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out, &fakeInspectUIRunner{})
+
+	// Act
+	require.NoError(t, cmd.Watch(false, 0))
+
+	// Assert
+	assert.NotEmpty(t, out.lines)
+}
+
+func TestRemoteIndexCommand_Inspect_FetchesIndexAndRunsTUI(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	index := featindexing.InvertedIndex{DocumentCount: 3}
+	sock := fakeJSONRPCServer(t, func(method string, _ []byte) any {
+		assert.Equal(t, idxipc.MethodInspect, method)
+		return index
+	})
+	runner := &fakeInspectUIRunner{}
+	cmd := NewRemoteIndexCommand(NewSocketClient(sock), &fakeOutput{}, runner)
+
+	// Act
+	err := cmd.Inspect("")
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, runner.captured)
+	assert.Equal(t, 3, runner.captured.DocumentCount)
+}
+
+func TestRemoteIndexCommand_Inspect_ServerError_ReturnsError(t *testing.T) {
+	t.Parallel()
+	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/nonexistent-idx-inspect-99.sock"), &fakeOutput{}, &fakeInspectUIRunner{})
+	require.Error(t, cmd.Inspect(""))
 }
 
 func TestRemoteIndexCommand_Run_EmptyOutput_IsOK(t *testing.T) {
@@ -195,14 +226,53 @@ func TestRemoteIndexCommand_Run_EmptyOutput_IsOK(t *testing.T) {
 		return idxipc.CommandResponse{Success: true, Output: ""}
 	})
 	out := &fakeOutput{}
-	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out)
+	cmd := NewRemoteIndexCommand(NewSocketClient(sock), out, &fakeInspectUIRunner{})
 	require.NoError(t, cmd.Run())
 	assert.Empty(t, out.lines)
 }
 
 func TestRemoteIndexCommand_Run_UnreachableServer_ReturnsError(t *testing.T) {
 	t.Parallel()
-	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/nonexistent-idx-remote-99.sock"), &fakeOutput{})
+	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/nonexistent-idx-remote-99.sock"), &fakeOutput{}, &fakeInspectUIRunner{})
+	require.Error(t, cmd.Run())
+}
+
+// --- RemoteDestroyCommand ---
+
+func TestRemoteDestroyCommand_Run_SendsDestroy(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var calledMethod string
+	sock := fakeJSONRPCServer(t, func(method string, _ []byte) any {
+		calledMethod = method
+		return idxipc.CommandResponse{Success: true, Output: "🧹 Index metadata removed from project."}
+	})
+	out := &fakeOutput{}
+
+	// Act
+	cmd := NewRemoteDestroyCommand(NewSocketClient(sock), out)
+	err := cmd.Run()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, idxipc.MethodDestroy, calledMethod)
+	require.Len(t, out.lines, 1)
+	assert.Contains(t, out.lines[0], "Index metadata removed")
+}
+
+func TestRemoteDestroyCommand_Run_EmptyOutput_IsOK(t *testing.T) {
+	t.Parallel()
+	sock := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		return idxipc.CommandResponse{Success: true}
+	})
+	cmd := NewRemoteDestroyCommand(NewSocketClient(sock), &fakeOutput{})
+	require.NoError(t, cmd.Run())
+}
+
+func TestRemoteDestroyCommand_Run_UnreachableServer_ReturnsError(t *testing.T) {
+	t.Parallel()
+	cmd := NewRemoteDestroyCommand(NewSocketClient("/tmp/nonexistent-idx-destroy-99.sock"), &fakeOutput{})
 	require.Error(t, cmd.Run())
 }
 

@@ -2,11 +2,13 @@ package ipc
 
 // JSON-RPC method names for the idx IPC server.
 const (
-	MethodSearch = "idx.search"
-	MethodInit   = "idx.init"
-	MethodSync   = "idx.sync"
-	MethodStatus = "idx.status"
-	MethodRead   = "idx.read"
+	MethodSearch  = "idx.search"
+	MethodInit    = "idx.init"
+	MethodSync    = "idx.sync"
+	MethodStatus  = "idx.status"
+	MethodRead    = "idx.read"
+	MethodInspect = "idx.inspect"
+	MethodDestroy = "idx.destroy"
 )
 
 // SearchRequest carries all search parameters over RPC.
@@ -60,9 +62,15 @@ type ReadResponse struct {
 	Lines []string `json:"lines"`
 }
 
-// CommandResponse is used by init, sync, and status — commands whose output
+// CommandResponse is used by init, sync, status, and destroy — commands whose output
 // is human-readable text produced by the service layer.
 type CommandResponse struct {
 	Success bool   `json:"success"`
 	Output  string `json:"output"`
+}
+
+// InspectRequest specifies an optional directory path for idx.inspect.
+// An empty IndexPath causes the server to merge all indexed project directories.
+type InspectRequest struct {
+	IndexPath string `json:"index_path,omitempty"`
 }

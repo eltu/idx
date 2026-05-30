@@ -25,7 +25,7 @@ Unix domain socket via `net.Listen("unix", path)` / `net.Dial("unix", path)`. On
 
 ### Protocol
 
-Five RPC methods:
+Seven RPC methods:
 
 | Method | Cobra command |
 |---|---|
@@ -34,8 +34,10 @@ Five RPC methods:
 | `idx.sync` | `idx sync` |
 | `idx.status` | `idx status` |
 | `idx.read` | `idx read` |
+| `idx.inspect` | `idx inspect` |
+| `idx.destroy` | `idx destroy` |
 
-Commands outside RPC scope (`daemon`, `watch`, `inspect`, `skills`, `config`, `version`) remain in-process on the client side.
+Commands outside RPC scope (`daemon`, `watch`, `skills`, `config`, `version`) remain in-process on the client side.
 
 ### Server architecture
 
@@ -43,7 +45,8 @@ The server constructs a fresh service instance per request using a `captureWrite
 
 - **search**: server always calls `SearchCommandService` with `Format: "json"`, captures the single JSON line, and returns a structured `SearchResponse`. The client re-formats this for the terminal.
 - **read**: server captures each line from `ReadCommandService` and returns `ReadResponse{Lines: []string}`.
-- **init/sync/status**: server captures text output from `InitCommandService` and returns `CommandResponse{Success bool, Output string}`.
+- **init/sync/status/destroy**: server captures text output from the respective service and returns `CommandResponse{Success bool, Output string}`.
+- **inspect**: server calls `InitCommandService.LoadInspectIndex()` and returns the raw `*InvertedIndex` serialised as JSON. The client deserialises it and renders the TUI locally — the server never needs a terminal.
 
 Service instances are value types — construction is cheap and correct with a per-request `captureWriter`.
 
@@ -53,9 +56,10 @@ When the first non-flag argument is not `"server"`, `main.go` builds a `remote.S
 
 - `remote.RemoteSearcher` → implements `cli.Searcher`
 - `remote.RemoteReader` → implements `cli.Reader`
-- `remote.RemoteIndexCommand` → implements `cli.indexableCommand` (init/sync/status)
+- `remote.RemoteIndexCommand` → implements `cli.indexableCommand` (init/sync/status/inspect)
+- `remote.RemoteDestroyCommand` → implements `cli.Runner` (destroy)
 
-`watch` and `inspect` remain unsupported over RPC and print an informational message when invoked.
+`watch` remains unsupported over RPC and prints an informational message when invoked; the server watches internally.
 
 ### Error on missing server
 
@@ -73,7 +77,7 @@ When `net.Dial` fails (socket absent or refused), the client prints a styled lip
 internal/shared/jsonrpc/         ← codec + dispatcher (Content-Length framing)
 internal/shared/ipc/             ← protocol constants, request/response types, SocketPath helper
 internal/app/server/             ← server: accept loop, handlers, captureWriter
-internal/app/cli/remote/         ← RPC adapters: SocketClient, RemoteSearcher, RemoteReader, RemoteIndexCommand
+internal/app/cli/remote/         ← RPC adapters: SocketClient, RemoteSearcher, RemoteReader, RemoteIndexCommand, RemoteDestroyCommand
 ```
 
 ## Consequences
@@ -87,7 +91,7 @@ internal/app/cli/remote/         ← RPC adapters: SocketClient, RemoteSearcher,
 **Negative:**
 - Users must start `idx server` (or `idx daemon enable .`) before CLI commands work.
 - One connection per request is simpler to implement but adds a dial overhead (~0.1 ms locally) per call.
-- `watch` and `inspect` are not available over RPC — they require a local terminal and process lifecycle that doesn't fit the socket model.
+- `watch` is not available over RPC — the server watches internally.
 
 ## Alternatives Considered
 

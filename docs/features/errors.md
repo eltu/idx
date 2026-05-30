@@ -2,21 +2,19 @@
 
 ## Server not running
 
-All commands that route through the server (`search`, `init`, `sync`, `status`, `read`) require `idx server` to be running. If the socket is absent or refuses the connection, the command fails immediately with a styled message:
+All commands that route through the server (`search`, `init`, `sync`, `status`, `read`, `inspect`, `destroy`) require `idx server` to be running. If the socket is absent or refuses the connection, the command fails immediately with a styled message:
 
 ```
 ✗ idx server not running
-  start with: idx server
-  or:          idx daemon enable .
+  start with: idx server start
 ```
 
-**Recovery:** run `idx server` in a background terminal, or enable the daemon with `idx daemon enable .`.
+**Recovery:** run `idx server start` to start the daemon, then retry.
 
 ## Command dispatch and argument contract
 
 - `inspect accepts at most one path: got ... expected idx inspect [path]`
 - `invalid inspect path "...": expected idx inspect [path]`
-- `expected project path argument` (daemon enable/disable)
 
 ## Search flag validation
 
@@ -50,13 +48,27 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 - `unindexed directories found` — preceded by a styled warning panel listing the unindexed directories
 - `stale index` — preceded by the status overview panel showing `❌ N directory/ies stale — run idx sync`
 
-## Watch and daemon errors
+## Watch errors
 
 - `invalid --debounce value ...: expected a duration greater than 0`
 - `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
-- `cannot run watch: daemon is already monitoring this project. Disable the daemon with 'idx daemon disable' first`
-- `project "..." not being monitored`
-- `project "..." not being monitored: no projects active`
+- Watcher initialization or runtime watcher errors.
+- Directory read/sync/indexing errors during watch batches.
+
+## Server lifecycle errors
+
+- Not inside an idx project (no `.idx` directory found):
+  ```
+  ✗ Not inside an idx project
+    cd <project-root>
+    then: idx server start
+  ```
+- Project not initialized:
+  ```
+  ✗ Project not initialized
+    idx init
+    then: idx server start
+  ```
 - `failed to start watch for "...": got error ..., expected process to start`
 
 ## Skills install errors
@@ -69,9 +81,8 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 
 ## Recovery Quick Guide
 
-1. Start `idx server` (or `idx daemon enable .`) before running `search`, `init`, `sync`, `status`, or `read`.
+1. Run `idx server start` before running `search`, `init`, `sync`, `status`, `read`, `inspect`, or `destroy`.
 2. Run `idx init` to bootstrap indexes on first use.
 3. Run root-scoped commands (`sync`, `destroy`) from the project root.
 4. Validate flags and positional arguments.
-5. Use `idx daemon status` before starting `idx watch`.
-6. Use `idx status` to verify whether index logs still match file modification timestamps.
+5. Use `idx status` to verify whether index logs still match file modification timestamps.

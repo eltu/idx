@@ -224,7 +224,8 @@ quality — a test that only exercises the happy path has low value.
 - ADR 0016: `idx read` command streams files via `bufio.Scanner`; access log at `.idx/read_log.idx` tracks read counts with 30-day TTL, inode-based rename detection, deletion pruning, and a 5-min write cache.
 - ADR 0017: Read popularity boost in search ranking — additive log1p-normalised bonus with 14-day exponential decay; weight configurable via `bm25.popularity_weight` in `.idx.yml` and `--popularity-weight` CLI flag.
 - ADR 0018: Codebase modularized by feature (`internal/features/<feature>/`); shared cross-cutting concerns in `internal/shared/`; CLI delivery in `internal/app/cli/`; features do not import Cobra.
-- ADR 0019: IPC via JSON-RPC 2.0 over Unix socket (`~/.idx/<project>.sock`); persistent `idx server` holds index in memory; all CLI commands are clients; no in-process fallback — missing server is a clear error.
+- ADR 0019: IPC via JSON-RPC 2.0 over Unix socket (`~/.idx/<project>.sock`); persistent `idx server` holds index in memory; all index-related CLI commands (init, sync, status, search, read, inspect, destroy) are clients; no in-process fallback — missing server is a clear error.
+- ADR 0020: `idx server` is a self-managing daemon (server + watch in one process); `idx server start/stop/status` manage the lifecycle; `idx daemon enable/disable` removed; DI cycle between InitCommandService and ServerDaemonService eliminated.
 
 ## Formatting
 

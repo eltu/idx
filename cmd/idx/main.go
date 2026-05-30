@@ -346,15 +346,16 @@ func runClient(arguments []string, output io.Writer) error {
 		d.writer,
 	)
 
-	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
 	skillsInstaller := featskills.NewEmbedSkillsInstaller()
 	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
 
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	client := remote.NewSocketClient(socketPath)
+	inspectRunner := idxtui.NewInspectRunner()
 	searchCommand := remote.NewRemoteSearcher(client, d.writer)
 	readService := remote.NewRemoteReader(client, d.writer)
-	indexCmd := remote.NewRemoteIndexCommand(client, d.writer)
+	indexCmd := remote.NewRemoteIndexCommand(client, d.writer, inspectRunner)
+	destroyCommand := remote.NewRemoteDestroyCommand(client, d.writer)
 	serverDaemonAdapter := appcli.NewServerDaemonAdapter(serverDaemon)
 
 	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand).

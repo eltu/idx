@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Run continuous real-time synchronization while the process is active.
+Run continuous real-time synchronization while the process is active. When using `idx server`, watching is handled automatically by the server — use `idx watch` only when running without a server daemon.
 
 ## Usage
 
@@ -35,6 +35,7 @@ idx watch [flags]
 - Batches events by debounce window.
 - Re-indexes changed directories.
 - When `--show-updated-files` is enabled, prints the relative changed files per batch.
+- When `idx server` is running, `idx watch` is not available over RPC — the server manages watching internally.
 
 ## Output
 
@@ -62,9 +63,6 @@ idx watch --show-updated-files
 
 - Invalid debounce value:
 	- CLI validation: `invalid --debounce value ... expected a duration greater than 0`
-	- Service validation: `failed to run watch command: got invalid debounce ...`
-- If daemon state already contains monitored projects:
-	- `cannot run watch: daemon is already monitoring this project...`
-- Existing daemon watch is allowed when this process is started by daemon (`IDX_DAEMON_CHILD=1`).
+	- Service validation: `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
 - Watcher initialization or runtime watcher errors.
 - Directory read/sync/indexing errors during watch batches.

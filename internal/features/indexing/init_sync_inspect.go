@@ -146,51 +146,67 @@ func staleIndexedDirectories(indexed, eligible []string) []string {
 	return stale
 }
 
-func (service InitCommandService) Inspect(indexPath string) error {
-	if err := service.validateDependencies(); err != nil {
-		return err
-	}
-
+// LoadInspectIndex loads the merged InvertedIndex for all project directories (indexPath="")
+// or a single directory. Does not call the TUI — callers decide how to present the data.
+// Example: index, err := svc.LoadInspectIndex("").
+func (service InitCommandService) LoadInspectIndex(indexPath string) (*InvertedIndex, error) {
 	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
-		return fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+		return nil, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
 
 	trimmedIndexPath := strings.TrimSpace(indexPath)
 	if trimmedIndexPath == "" {
-		return service.inspectAllProjectIndices(currentDir)
+		return service.loadAllProjectIndices(currentDir)
 	}
 
 	targetDirectory := filepath.Clean(filepath.Join(currentDir, filepath.FromSlash(path.Clean(trimmedIndexPath))))
 	targetIndexPath := indexFilePath(targetDirectory)
 	hasIndex, err := service.projectTree.Exists(targetIndexPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !hasIndex {
-		return fmt.Errorf("no index found at %q: run idx init first", targetIndexPath)
+		return nil, fmt.Errorf("no index found at %q: run idx init first", targetIndexPath)
 	}
 
-	return service.writeInspectIndex(targetDirectory)
+	return service.indexRepo.LoadIndex(targetDirectory)
 }
 
-func (service InitCommandService) inspectAllProjectIndices(currentDir string) error {
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+func (service InitCommandService) Inspect(indexPath string) error {
+	if err := service.validateDependencies(); err != nil {
+		return err
+	}
+
+	index, err := service.LoadInspectIndex(indexPath)
 	if err != nil {
 		return err
+	}
+
+	if strings.TrimSpace(indexPath) == "" {
+		return service.inspectUI.Run(index)
+	}
+
+	return service.writeIndexJSON(index)
+}
+
+func (service InitCommandService) loadAllProjectIndices(currentDir string) (*InvertedIndex, error) {
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return nil, err
 	}
 
 	directories, err := IndexedDirectories(service.projectTree, projectRoot)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(directories) == 0 {
-		return fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
+		return nil, fmt.Errorf("no index found under project root %q: run idx init first", projectRoot)
 	}
 
-	return service.runInspectTUIForDirectories(directories)
+	return service.loadMergedInspectIndex(directories)
 }
 
 func (service InitCommandService) runInspectTUIForDirectory(directoryPath string) error {
@@ -304,19 +320,10 @@ func inspectDocumentID(directoryPath, documentName string) string {
 	return directoryPath + "::" + documentName
 }
 
-func (service InitCommandService) writeInspectIndex(directoryPath string) error {
-	if err := service.validateDependencies(); err != nil {
-		return err
-	}
-
-	index, err := service.indexRepo.LoadIndex(directoryPath)
-	if err != nil {
-		return err
-	}
-
+func (service InitCommandService) writeIndexJSON(index *InvertedIndex) error {
 	encoded, err := json.MarshalIndent(index, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to encode debug index for %q: got error %v, expected valid index payload", directoryPath, err)
+		return fmt.Errorf("failed to encode inspect index: got error %v, expected valid index payload", err)
 	}
 
 	return service.output.WriteLine(string(encoded))
