@@ -34,35 +34,51 @@ func (s *RemoteSearcher) RunWithOptions(query string, opts featsearch.Options) e
 
 func searchRequestFromOptions(query string, opts featsearch.Options) idxipc.SearchRequest {
 	return idxipc.SearchRequest{
-		Query:            query,
-		Size:             opts.Size,
-		Operator:         opts.Operator,
-		Format:           opts.Format,
-		Context:          opts.Context,
-		ExtensionQueries: opts.ExtensionQueries,
-		PathQueries:      opts.PathQueries,
-		PopularityWeight: opts.PopularityWeight,
-		FilesOnly:        opts.FilesOnly,
-		AgentCompact:     opts.AgentCompact,
-		Explain:          opts.Explain,
-		From:             opts.From,
+		Query:             query,
+		Size:              opts.Size,
+		Operator:          opts.Operator,
+		Format:            opts.Format,
+		Context:           opts.Context,
+		ExtensionQueries:  opts.ExtensionQueries,
+		PathQueries:       opts.PathQueries,
+		PopularityWeight:  opts.PopularityWeight,
+		FilesOnly:         opts.FilesOnly,
+		AgentCompact:      opts.AgentCompact,
+		Explain:           opts.Explain,
+		From:              opts.From,
+		RelaxationEnabled: opts.RelaxationEnabled,
+		RelaxationMin:     opts.RelaxationMinExclusive,
 	}
 }
 
 func writeSearchResults(resp idxipc.SearchResponse, opts featsearch.Options, out sharedoutput.Writer) error {
 	if opts.Format == featsearch.OutputJSON {
-		return writeSearchResultsJSON(resp, opts.PrettyJSON, out)
+		return writeSearchResultsJSON(resp, opts, out)
 	}
 	return writeSearchResultsText(resp, opts, out)
 }
 
-func writeSearchResultsJSON(resp idxipc.SearchResponse, pretty bool, out sharedoutput.Writer) error {
-	var encoded []byte
-	var err error
-	if pretty {
-		encoded, err = json.MarshalIndent(resp, "", "  ")
+func writeSearchResultsJSON(resp idxipc.SearchResponse, opts featsearch.Options, out sharedoutput.Writer) error {
+	var (
+		payload any
+		err     error
+		encoded []byte
+	)
+
+	if opts.FilesOnly {
+		paths := make([]string, 0, len(resp.Results))
+		for _, r := range resp.Results {
+			paths = append(paths, r.Path)
+		}
+		payload = paths
 	} else {
-		encoded, err = json.Marshal(resp)
+		payload = resp
+	}
+
+	if opts.PrettyJSON {
+		encoded, err = json.MarshalIndent(payload, "", "  ")
+	} else {
+		encoded, err = json.Marshal(payload)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to encode search response as JSON: %w", err)

@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -358,7 +359,7 @@ func TestWriteSearchResultsJSON_Compact_WritesResult(t *testing.T) {
 	t.Parallel()
 	resp := idxipc.SearchResponse{Count: 1, Results: []idxipc.SearchResult{{File: "x.go", Name: "x.go", Path: "/x.go"}}}
 	out := &fakeOutput{}
-	require.NoError(t, writeSearchResultsJSON(resp, false, out))
+	require.NoError(t, writeSearchResultsJSON(resp, featsearch.Options{Format: featsearch.OutputJSON}, out))
 	require.NotEmpty(t, out.lines)
 	assert.Contains(t, out.lines[0], "x.go")
 }
@@ -367,8 +368,22 @@ func TestWriteSearchResultsJSON_Pretty_WritesResult(t *testing.T) {
 	t.Parallel()
 	resp := idxipc.SearchResponse{Count: 0, Results: []idxipc.SearchResult{}}
 	out := &fakeOutput{}
-	require.NoError(t, writeSearchResultsJSON(resp, true, out))
+	require.NoError(t, writeSearchResultsJSON(resp, featsearch.Options{Format: featsearch.OutputJSON, PrettyJSON: true}, out))
 	assert.NotEmpty(t, out.lines)
+}
+
+func TestWriteSearchResultsJSON_FilesOnly_WritesStringArray(t *testing.T) {
+	t.Parallel()
+	resp := idxipc.SearchResponse{Count: 2, Results: []idxipc.SearchResult{
+		{File: "a.go", Name: "a.go", Path: "pkg/a.go"},
+		{File: "b.go", Name: "b.go", Path: "pkg/b.go"},
+	}}
+	out := &fakeOutput{}
+	require.NoError(t, writeSearchResultsJSON(resp, featsearch.Options{Format: featsearch.OutputJSON, FilesOnly: true}, out))
+	require.NotEmpty(t, out.lines)
+	var paths []string
+	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &paths))
+	assert.Equal(t, []string{"pkg/a.go", "pkg/b.go"}, paths)
 }
 
 // --- writeSearchResultsText ---

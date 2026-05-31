@@ -101,17 +101,21 @@ func initDepsWithCapture(deps ServerDeps, capture *captureWriter) featindexing.I
 func searchOptionsFromRequest(req idxipc.SearchRequest) featsearch.Options {
 	return featsearch.Options{
 		// Always use JSON so the server can parse the output into a structured response.
-		Format:           featsearch.OutputJSON,
-		Context:          req.Context,
-		AgentCompact:     req.AgentCompact,
-		FilesOnly:        req.FilesOnly,
-		Explain:          req.Explain,
-		PathQueries:      req.PathQueries,
-		ExtensionQueries: req.ExtensionQueries,
-		From:             req.From,
-		Size:             req.Size,
-		Operator:         operatorOrDefault(req.Operator),
-		PopularityWeight: req.PopularityWeight,
+		// FilesOnly is intentionally omitted here: the service produces a bare JSON array
+		// when FilesOnly=true, which parseSearchJSON cannot handle. The client applies the
+		// files-only filter when rendering the SearchResponse it receives.
+		Format:                 featsearch.OutputJSON,
+		Context:                req.Context,
+		AgentCompact:           req.AgentCompact,
+		Explain:                req.Explain,
+		PathQueries:            req.PathQueries,
+		ExtensionQueries:       req.ExtensionQueries,
+		From:                   req.From,
+		Size:                   req.Size,
+		Operator:               operatorOrDefault(req.Operator),
+		PopularityWeight:       req.PopularityWeight,
+		RelaxationEnabled:      req.RelaxationEnabled,
+		RelaxationMinExclusive: req.RelaxationMin,
 	}
 }
 

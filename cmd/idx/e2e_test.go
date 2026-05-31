@@ -24,8 +24,13 @@ import (
 	sharedoutput "idx/internal/shared/output"
 )
 
-// newTestProject creates a temp directory with a .git marker and three Go source files.
-// pkg/tokenizer.go contains the unique term "BM25Tokenizer" used by search tests.
+// newTestProject creates a temp directory with a .git marker and five Go source files
+// across three directories. Unique terms per file:
+//   - main.go:              hello, world, NewLogger
+//   - pkg/tokenizer.go:     BM25Tokenizer, BM25, tokens, scoring  (search e2e anchor)
+//   - pkg/util.go:          upperCaseWords, ToUpper
+//   - internal/logger.go:   Logger, logging, token
+//   - internal/handler.go:  TokenHandler, BM25, token, pipeline
 //
 // Uses /tmp instead of t.TempDir to produce short paths: macOS limits AF_UNIX
 // socket paths to 104 bytes, and t.TempDir paths easily exceed that limit.
@@ -38,13 +43,16 @@ func newTestProject(t *testing.T) string {
 	out, gitErr := exec.Command("git", "init", root).CombinedOutput()
 	require.NoError(t, gitErr, "git init failed: %s", out)
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "pkg"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "internal"), 0o750))
 
 	write := func(rel, content string) {
 		require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte(content), 0o644))
 	}
-	write("main.go", "package main\n\nfunc main() {\n\thello := \"world\"\n\t_ = hello\n}\n")
+	write("main.go", "package main\n\nfunc main() {\n\thello := \"world\"\n\t_ = hello\n\tl := NewLogger()\n\t_ = l\n}\n")
 	write("pkg/tokenizer.go", "package pkg\n\n// BM25Tokenizer splits text into tokens for BM25 scoring.\ntype BM25Tokenizer struct{}\n")
 	write("pkg/util.go", "package pkg\n\nimport \"strings\"\n\nfunc upperCaseWords(s string) string {\n\treturn strings.ToUpper(s)\n}\n")
+	write("internal/logger.go", "package internal\n\n// Logger handles structured logging for token events.\ntype Logger struct{}\n\nfunc NewLogger() *Logger { return &Logger{} }\n")
+	write("internal/handler.go", "package internal\n\n// TokenHandler routes token requests to the BM25 pipeline.\ntype TokenHandler struct{ logger *Logger }\n\nfunc NewTokenHandler(l *Logger) *TokenHandler { return &TokenHandler{logger: l} }\n")
 	return root
 }
 

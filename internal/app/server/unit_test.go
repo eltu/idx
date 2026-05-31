@@ -146,26 +146,30 @@ func TestParseSearchJSON_InvalidJSON_ReturnsError(t *testing.T) {
 func TestSearchOptionsFromRequest_MapsAllFields(t *testing.T) {
 	t.Parallel()
 	req := idxipc.SearchRequest{
-		Size:             10,
-		Operator:         "OR",
-		Format:           "json",
-		Context:          3,
-		FilesOnly:        true,
-		AgentCompact:     true,
-		Explain:          true,
-		From:             5,
-		PopularityWeight: 0.5,
-		ExtensionQueries: []string{"go"},
-		PathQueries:      []string{"internal"},
+		Size:              10,
+		Operator:          "OR",
+		Format:            "json",
+		Context:           3,
+		FilesOnly:         true, // intentionally not forwarded; applied client-side
+		AgentCompact:      true,
+		Explain:           true,
+		From:              5,
+		PopularityWeight:  0.5,
+		ExtensionQueries:  []string{"go"},
+		PathQueries:       []string{"internal"},
+		RelaxationEnabled: true,
+		RelaxationMin:     2,
 	}
 	opts := searchOptionsFromRequest(req)
 	assert.Equal(t, 10, opts.Size)
 	assert.Equal(t, "OR", opts.Operator)
-	assert.Equal(t, "json", opts.Format)
-	assert.True(t, opts.FilesOnly)
+	assert.Equal(t, featsearch.OutputJSON, opts.Format)
+	assert.False(t, opts.FilesOnly, "FilesOnly is filtered client-side, not forwarded to server service")
 	assert.True(t, opts.AgentCompact)
 	assert.True(t, opts.Explain)
 	assert.Equal(t, 5, opts.From)
+	assert.True(t, opts.RelaxationEnabled)
+	assert.Equal(t, 2, opts.RelaxationMinExclusive)
 }
 
 func TestSearchOptionsFromRequest_EmptyOperator_DefaultsToAND(t *testing.T) {
