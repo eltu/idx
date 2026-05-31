@@ -83,9 +83,10 @@ type yamlIndexConfig struct {
 }
 
 type yamlBM25Config struct {
-	K1              *float64 `yaml:"k1"`
-	B               *float64 `yaml:"b"`
-	ProximityWeight *float64 `yaml:"proximity_weight"`
+	K1               *float64 `yaml:"k1"`
+	B                *float64 `yaml:"b"`
+	ProximityWeight  *float64 `yaml:"proximity_weight"`
+	PopularityWeight *float64 `yaml:"popularity_weight"`
 }
 
 type yamlLogConfig struct {
@@ -201,6 +202,10 @@ func applyBM25Overrides(cfg *BM25Config, b *yamlBM25Config) []string {
 	if b.ProximityWeight != nil {
 		cfg.ProximityWeight = *b.ProximityWeight
 		keys = append(keys, "bm25.proximity_weight")
+	}
+	if b.PopularityWeight != nil {
+		cfg.PopularityWeight = *b.PopularityWeight
+		keys = append(keys, "bm25.popularity_weight")
 	}
 
 	return keys

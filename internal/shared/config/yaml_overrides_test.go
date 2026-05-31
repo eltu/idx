@@ -142,6 +142,49 @@ bm25:
 	assert.False(t, overrideSet["index.ignore"], "expected no index.ignore override when section absent")
 }
 
+func TestYAMLRepository_Load_ParsesBM25PopularityWeight(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := config.NewYAMLRepository()
+	dir := t.TempDir()
+	writeYAMLConfig(t, dir, `
+bm25:
+  popularity_weight: 0.7
+`)
+
+	// Act
+	cfg, overrides, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 0.7, cfg.BM25.PopularityWeight)
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["bm25.popularity_weight"],
+		"expected bm25.popularity_weight to be tracked as override, got: %v", overrides)
+}
+
+func TestYAMLRepository_Load_SkipsBM25PopularityWeightWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := config.NewYAMLRepository()
+	dir := t.TempDir()
+	writeYAMLConfig(t, dir, `
+bm25:
+  k1: 1.2
+`)
+
+	// Act
+	_, overrides, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	overrideSet := overrideMap(overrides)
+	assert.False(t, overrideSet["bm25.popularity_weight"],
+		"expected bm25.popularity_weight NOT in overrides when absent from file")
+}
+
 func overrideMap(overrides []string) map[string]bool {
 	m := make(map[string]bool, len(overrides))
 	for _, k := range overrides {
