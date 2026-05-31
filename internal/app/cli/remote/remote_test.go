@@ -180,20 +180,6 @@ func TestRemoteIndexCommand_Status_SendsStatus(t *testing.T) {
 	assert.Equal(t, idxipc.MethodStatus, calledMethod)
 }
 
-func TestRemoteIndexCommand_Watch_WritesUnsupportedMessage(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	out := &fakeOutput{}
-	cmd := NewRemoteIndexCommand(NewSocketClient("/tmp/unused.sock"), out, &fakeInspectUIRunner{})
-
-	// Act
-	require.NoError(t, cmd.Watch(false, 0))
-
-	// Assert
-	assert.NotEmpty(t, out.lines)
-}
-
 func TestRemoteIndexCommand_Inspect_FetchesIndexAndRunsTUI(t *testing.T) {
 	t.Parallel()
 

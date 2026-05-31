@@ -10,7 +10,7 @@ Detailed end-user command reference, organized by command.
 - [search](search.md)
 - [read](read.md)
 - [inspect](inspect.md)
-- [watch](watch.md)
+- [watch](watch.md) *(removed — see watch.md for migration)*
 - [destroy](destroy.md)
 - [version](version.md)
 - [skills](skills.md)
@@ -30,7 +30,7 @@ All commands inherit the root global flags:
 | Group | Commands |
 | --- | --- |
 | Index Setup | `init`, `destroy` |
-| Index Sync | `sync`, `watch`, `status` |
+| Index Sync | `sync`, `status` |
 | Search | `search`, `inspect`, `read` |
 | About | `version` |
 | Tools | `skills`, `server` |
@@ -40,7 +40,7 @@ All commands inherit the root global flags:
 
 1. Run `idx init` once per project to build the initial index.
 2. Run `idx server start` to start the daemon — all search/index commands require the server.
-3. Keep indexes fresh automatically — the server runs the watch loop internally.
+3. The server runs the watch loop internally — no separate command needed.
 4. Verify index freshness with `idx status`.
 5. Use `idx search` during development.
 6. Use `idx read <path>` to stream file content — repeated reads boost that file in search rankings via the read-popularity signal.

@@ -46,34 +46,6 @@ func TestAddCommandToGroup_MultipleCommands_AllGetGroupID(t *testing.T) {
 	assert.Len(t, parent.Commands(), 2)
 }
 
-// ---- newWatchCommand ----
-
-func TestWatchCommand_ZeroDebounce_ReturnsError(t *testing.T) {
-	t.Parallel()
-	runner := newRunnerWithStubIndex()
-	cmd := runner.newWatchCommand()
-	_ = cmd.ParseFlags([]string{"--debounce", "0s"})
-	err := cmd.RunE(cmd, []string{})
-	require.Error(t, err)
-}
-
-func TestWatchCommand_NegativeDebounce_ReturnsError(t *testing.T) {
-	t.Parallel()
-	runner := newRunnerWithStubIndex()
-	cmd := runner.newWatchCommand()
-	_ = cmd.ParseFlags([]string{"--debounce", "-1s"})
-	err := cmd.RunE(cmd, []string{})
-	require.Error(t, err)
-}
-
-func TestWatchCommand_HasRequiredFlags(t *testing.T) {
-	t.Parallel()
-	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
-	cmd := runner.newWatchCommand()
-	assert.NotNil(t, cmd.Flags().Lookup("show-updated-files"), "expected --show-updated-files flag")
-	assert.NotNil(t, cmd.Flags().Lookup("debounce"), "expected --debounce flag")
-}
-
 // ---- newRootCommand ----
 
 func TestNewRootCommand_BuildsWithoutPanic(t *testing.T) {

@@ -19,7 +19,6 @@ type indexableCommand interface {
 	Sync() error
 	Status() error
 	Inspect(indexPath string) error
-	Watch(showUpdatedFiles bool, debounce time.Duration) error
 	WatchWithContext(ctx context.Context, debounce time.Duration) error
 }
 

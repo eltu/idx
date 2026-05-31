@@ -5,11 +5,7 @@ import (
 	"fmt"
 	"idx/internal/shared/filesystem"
 	"idx/internal/shared/output"
-	"os"
-	"time"
 )
-
-const daemonChildEnvVar = "IDX_SERVER_DAEMON"
 
 type InitCommandService struct {
 	projectTree           filesystem.ProjectTree
@@ -91,53 +87,6 @@ func (service InitCommandService) Run() error {
 	}
 
 	return service.runIndex()
-}
-
-func (service InitCommandService) Watch(showUpdatedFiles bool, debounce time.Duration) error {
-	if err := service.validateDependencies(); err != nil {
-		return err
-	}
-
-	if debounce <= 0 {
-		return fmt.Errorf("failed to run watch command: got invalid debounce %s, expected duration greater than 0", debounce)
-	}
-
-	if service.watchStartedByDaemon() {
-		return service.watchLoop(showUpdatedFiles, debounce)
-	}
-
-	monitored, err := service.currentProjectAlreadyMonitored()
-	if err != nil {
-		return err
-	}
-	if monitored {
-		return fmt.Errorf("cannot run watch: server is already monitoring this project. Stop it with 'idx server stop' first")
-	}
-
-	return service.watchLoop(showUpdatedFiles, debounce)
-}
-
-func (service InitCommandService) watchStartedByDaemon() bool {
-	return os.Getenv(daemonChildEnvVar) == "1"
-}
-
-func (service InitCommandService) currentProjectAlreadyMonitored() (bool, error) {
-	if service.daemonRepo == nil {
-		return false, nil
-	}
-	projectRoot, err := service.currentProjectRoot()
-	if err != nil {
-		return false, err
-	}
-	return service.daemonRepo.IsProjectMonitored(projectRoot)
-}
-
-func (service InitCommandService) currentProjectRoot() (string, error) {
-	currentDir, err := service.projectTree.CurrentDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
-	}
-	return service.projectTree.FindGitRoot(currentDir)
 }
 
 func (service InitCommandService) validateDependencies() error {

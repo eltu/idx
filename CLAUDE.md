@@ -226,6 +226,7 @@ quality — a test that only exercises the happy path has low value.
 - ADR 0018: Codebase modularized by feature (`internal/features/<feature>/`); shared cross-cutting concerns in `internal/shared/`; CLI delivery in `internal/app/cli/`; features do not import Cobra.
 - ADR 0019: IPC via JSON-RPC 2.0 over Unix socket (`~/.idx/<project>.sock`); persistent `idx server` holds index in memory; all index-related CLI commands (init, sync, status, search, read, inspect, destroy) are clients; no in-process fallback — missing server is a clear error.
 - ADR 0020: `idx server` is a self-managing daemon (server + watch in one process); `idx server start/stop/status` manage the lifecycle; `idx daemon enable/disable` removed; DI cycle between InitCommandService and ServerDaemonService eliminated.
+- ADR 0021: `idx watch` removed; watch loop is internal to `idx server run` via `WatchWithContext`; `watch.debounce` config key retained.
 
 ## Formatting
 
