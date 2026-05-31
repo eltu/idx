@@ -152,6 +152,16 @@ func (w *captureWriter) WriteInline(text string) error {
 }
 ```
 
+### Coverage gate
+
+After every implementation, run `go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out`
+and check the total coverage. If the result is **below 89%**, inspect the uncovered lines
+(`go tool cover -html=coverage.out`) and add tests until the threshold is met.
+
+Focus new tests on the uncovered paths that carry the most risk: error branches, edge cases,
+and business rules — not trivial getters or generated code. Do not pad coverage with
+low-value assertions just to hit the number.
+
 ### What to test
 
 Prioritize: business rules, edge cases (zero / empty / max), every error path,
