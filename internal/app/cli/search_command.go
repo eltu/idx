@@ -14,6 +14,8 @@ import (
 const (
 	searchCmdName          = "idx search"
 	errMsgRelaxationFormat = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
+	flagNameAgentCompact   = "agent-compact"
+	flagNameJSONPretty     = "json-pretty"
 )
 
 const searchLongDescription = `Search indexed files using BM25 full-text ranking.
@@ -161,12 +163,12 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
 
 	// Deprecated aliases kept for backward compatibility.
-	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "")
-	_ = searchCommand.Flags().MarkHidden("agent-compact")
-	_ = searchCommand.Flags().MarkDeprecated("agent-compact", "use --compact instead")
-	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "")
-	_ = searchCommand.Flags().MarkHidden("json-pretty")
-	_ = searchCommand.Flags().MarkDeprecated("json-pretty", "use --pretty instead")
+	searchCommand.Flags().BoolVar(&config.agentCompact, flagNameAgentCompact, false, "")
+	_ = searchCommand.Flags().MarkHidden(flagNameAgentCompact)
+	_ = searchCommand.Flags().MarkDeprecated(flagNameAgentCompact, "use --compact instead")
+	searchCommand.Flags().BoolVar(&config.prettyJSON, flagNameJSONPretty, false, "")
+	_ = searchCommand.Flags().MarkHidden(flagNameJSONPretty)
+	_ = searchCommand.Flags().MarkDeprecated(flagNameJSONPretty, "use --pretty instead")
 	searchCommand.Flags().IntVar(&config.size, "size", cfg.Limit, "")
 	_ = searchCommand.Flags().MarkHidden("size")
 	_ = searchCommand.Flags().MarkDeprecated("size", "use --limit/-n instead")
