@@ -41,7 +41,8 @@ func (s *indexServer) handleRead(_ context.Context, params json.RawMessage) (any
 
 	capture := &captureWriter{}
 	streamer := featread.NewOSFileStreamer()
-	svc := featread.NewReadCommandService(s.deps.ProjectTree, streamer, capture)
+	svc := featread.NewReadCommandService(s.deps.ProjectTree, streamer, capture).
+		WithReadLog(s.deps.ReadLogRepo)
 	if err := svc.RunWithOptions(req.FilePath, req.FromLine, req.ToLine); err != nil {
 		return idxipc.ReadResponse{Lines: []string{}}, nil
 	}
@@ -60,7 +61,11 @@ func (s *indexServer) handleSync(_ context.Context, _ json.RawMessage) (any, err
 	capture := &captureWriter{}
 	svc := featindexing.NewInitCommandService(initDepsWithCapture(s.deps, capture))
 	err := svc.Sync()
-	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
+	out := capture.joined()
+	if err != nil && out == "" {
+		out = err.Error()
+	}
+	return idxipc.CommandResponse{Success: err == nil, Output: out}, nil
 }
 
 func (s *indexServer) handleStatus(_ context.Context, _ json.RawMessage) (any, error) {

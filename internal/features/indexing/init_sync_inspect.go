@@ -160,7 +160,13 @@ func (service InitCommandService) LoadInspectIndex(indexPath string) (*InvertedI
 		return service.loadAllProjectIndices(currentDir)
 	}
 
-	targetDirectory := filepath.Clean(filepath.Join(currentDir, filepath.FromSlash(path.Clean(trimmedIndexPath))))
+	cleaned := filepath.FromSlash(path.Clean(trimmedIndexPath))
+	var targetDirectory string
+	if filepath.IsAbs(cleaned) {
+		targetDirectory = cleaned
+	} else {
+		targetDirectory = filepath.Clean(filepath.Join(currentDir, cleaned))
+	}
 	targetIndexPath := indexFilePath(targetDirectory)
 	hasIndex, err := service.projectTree.Exists(targetIndexPath)
 	if err != nil {
