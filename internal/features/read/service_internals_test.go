@@ -10,6 +10,7 @@ import (
 
 	sharedfs "idx/internal/shared/filesystem"
 	sharedout "idx/internal/shared/output"
+	"idx/internal/shared/readlog"
 )
 
 func evalSymlinks(t *testing.T, path string) string {
@@ -111,6 +112,6 @@ func (r *recordingReadLog) RecordRead(projectRoot, rel string) error {
 	return nil
 }
 
-func (r *recordingReadLog) LoadAll(_ string) ([]LogEntry, error) {
+func (r *recordingReadLog) LoadAll(_ string) ([]readlog.LogEntry, error) {
 	return nil, nil
 }

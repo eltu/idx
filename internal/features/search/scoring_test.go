@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"idx/internal/features/read"
+	"idx/internal/shared/readlog"
 )
 
 const goSearchGuideLine = "go search guide"
@@ -180,21 +180,21 @@ func TestPopularityBonus(t *testing.T) {
 	t.Run("ZeroReadCount_ReturnsZero", func(t *testing.T) {
 		t.Parallel()
 
-		entry := read.LogEntry{ReadCount: 0, LastReadAt: now}
+		entry := readlog.LogEntry{ReadCount: 0, LastReadAt: now}
 		assert.Equal(t, 0.0, popularityBonus(entry, now, 0.3))
 	})
 
 	t.Run("ZeroWeight_ReturnsZero", func(t *testing.T) {
 		t.Parallel()
 
-		entry := read.LogEntry{ReadCount: 10, LastReadAt: now}
+		entry := readlog.LogEntry{ReadCount: 10, LastReadAt: now}
 		assert.Equal(t, 0.0, popularityBonus(entry, now, 0))
 	})
 
 	t.Run("TenReadsToday_ApproachesFullWeight", func(t *testing.T) {
 		t.Parallel()
 
-		entry := read.LogEntry{ReadCount: 10, LastReadAt: now}
+		entry := readlog.LogEntry{ReadCount: 10, LastReadAt: now}
 		got := popularityBonus(entry, now, 0.3)
 		assert.InDelta(t, 0.30, got, 0.01)
 	})
@@ -203,7 +203,7 @@ func TestPopularityBonus(t *testing.T) {
 		t.Parallel()
 
 		past := now.Add(-14 * 24 * time.Hour)
-		entry := read.LogEntry{ReadCount: 10, LastReadAt: past}
+		entry := readlog.LogEntry{ReadCount: 10, LastReadAt: past}
 		got := popularityBonus(entry, now, 0.3)
 		assert.InDelta(t, 0.15, got, 0.01)
 	})
@@ -211,7 +211,7 @@ func TestPopularityBonus(t *testing.T) {
 	t.Run("VeryHighReadCount_CappedAtWeight", func(t *testing.T) {
 		t.Parallel()
 
-		entry := read.LogEntry{ReadCount: 10000, LastReadAt: now}
+		entry := readlog.LogEntry{ReadCount: 10000, LastReadAt: now}
 		got := popularityBonus(entry, now, 0.3)
 		assert.LessOrEqual(t, got, 0.3+1e-9)
 	})
@@ -220,7 +220,7 @@ func TestPopularityBonus(t *testing.T) {
 		t.Parallel()
 
 		future := now.Add(24 * time.Hour)
-		entry := read.LogEntry{ReadCount: 5, LastReadAt: future}
+		entry := readlog.LogEntry{ReadCount: 5, LastReadAt: future}
 		got := popularityBonus(entry, now, 0.3)
 		assert.GreaterOrEqual(t, got, 0.0)
 	})

@@ -12,6 +12,7 @@ import (
 
 	"idx/internal/features/read"
 	"idx/internal/shared/filesystem"
+	"idx/internal/shared/readlog"
 )
 
 const (
@@ -497,6 +498,6 @@ func (r *capturingReadLogRepository) RecordRead(projectRoot, relativePath string
 	return r.err
 }
 
-func (r *capturingReadLogRepository) LoadAll(_ string) ([]read.LogEntry, error) {
+func (r *capturingReadLogRepository) LoadAll(_ string) ([]readlog.LogEntry, error) {
 	return nil, nil
 }

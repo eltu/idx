@@ -12,6 +12,7 @@ import (
 	sharedconfig "idx/internal/shared/config"
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
+	"idx/internal/shared/readlog"
 )
 
 func (s *indexServer) handleSearch(_ context.Context, params json.RawMessage) (any, error) {
@@ -195,7 +196,7 @@ type ServerDeps struct {
 	IndexRepo       featindexing.IndexRepository
 	ChecksumRepo    featindexing.DirectoryChecksumRepository
 	DaemonRepo      featindexing.ProjectMonitorChecker
-	ReadLogRepo     featread.LogRepository
+	ReadLogRepo     readlog.LogRepository
 	SearchTuning    featsearch.SearchServiceOptions
 	SocketPath      string
 	Config          sharedconfig.IdxConfig

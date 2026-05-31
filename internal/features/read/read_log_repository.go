@@ -10,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"idx/internal/shared/readlog"
 )
 
 const (
@@ -99,7 +101,7 @@ func (r *ReadLogRepository) RecordRead(projectRoot, relativePath string) error {
 // LoadAll returns a snapshot of all current read log entries for projectRoot.
 // Results are cached for readLogCacheTTL to avoid repeated disk reads during a
 // search session. Returns an empty slice (not an error) if the log does not exist.
-func (r *ReadLogRepository) LoadAll(projectRoot string) ([]LogEntry, error) {
+func (r *ReadLogRepository) LoadAll(projectRoot string) ([]readlog.LogEntry, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -117,10 +119,10 @@ func (r *ReadLogRepository) LoadAll(projectRoot string) ([]LogEntry, error) {
 	return toPortEntries(entries), nil
 }
 
-func toPortEntries(entries []readLogEntry) []LogEntry {
-	out := make([]LogEntry, len(entries))
+func toPortEntries(entries []readLogEntry) []readlog.LogEntry {
+	out := make([]readlog.LogEntry, len(entries))
 	for i, e := range entries {
-		out[i] = LogEntry{Path: e.path, ReadCount: e.readCount, LastReadAt: e.updatedAt}
+		out[i] = readlog.LogEntry{Path: e.path, ReadCount: e.readCount, LastReadAt: e.updatedAt}
 	}
 	return out
 }

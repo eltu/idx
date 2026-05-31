@@ -3,7 +3,6 @@ package search
 import (
 	"errors"
 	"fmt"
-	"idx/internal/features/read"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,12 +10,13 @@ import (
 	"time"
 
 	"idx/internal/features/indexing"
+	"idx/internal/shared/readlog"
 )
 
 // popularityContext bundles the popularity-boost inputs used throughout result scoring.
 type popularityContext struct {
 	weight  float64
-	entries map[string]read.LogEntry
+	entries map[string]readlog.LogEntry
 	now     time.Time
 }
 
@@ -26,7 +26,7 @@ type searchWorkerOutput struct {
 	errCh     chan<- error
 }
 
-func (service SearchCommandService) rankedResults(directories, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) rankedResults(directories, terms []string, options Options, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {
 	if err := service.validateDependencies(); err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (service SearchCommandService) rankedResults(directories, terms []string, o
 	return results, nil
 }
 
-func (service SearchCommandService) parallelDirectoryResults(directories, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) parallelDirectoryResults(directories, terms []string, options Options, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {
 	if len(directories) == 0 {
 		return []searchResult{}, nil
 	}
@@ -59,7 +59,7 @@ func (service SearchCommandService) parallelDirectoryResults(directories, terms 
 	return collectDirectoryResults(resultsCh, errCh)
 }
 
-func (service SearchCommandService) runDirectoryWorkers(workerCount int, jobs <-chan string, terms []string, options Options, out searchWorkerOutput, popularityMap map[string]read.LogEntry, now time.Time) {
+func (service SearchCommandService) runDirectoryWorkers(workerCount int, jobs <-chan string, terms []string, options Options, out searchWorkerOutput, popularityMap map[string]readlog.LogEntry, now time.Time) {
 	var workers sync.WaitGroup
 	for worker := 0; worker < workerCount; worker++ {
 		workers.Add(1)
@@ -132,7 +132,7 @@ func (service SearchCommandService) computeRankedResults(projectRoot string, ter
 	return service.rankedResults(directories, terms, options, popularityMap, now)
 }
 
-func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options Options, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options Options, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {
 	if err := service.validateDependencies(); err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func shouldRelaxSearch(terms []string, options Options) bool {
 	return len(terms) > options.RelaxationMinExclusive
 }
 
-func (service SearchCommandService) relaxedDirectoryResults(index *indexing.InvertedIndex, directoryPath string, terms []string, options Options, metadataMatches map[string]struct{}, popularityMap map[string]read.LogEntry, now time.Time) ([]searchResult, error) {
+func (service SearchCommandService) relaxedDirectoryResults(index *indexing.InvertedIndex, directoryPath string, terms []string, options Options, metadataMatches map[string]struct{}, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {
 	combined := make(map[string]searchResult)
 	candidates := relaxationCandidates(terms, options.RelaxationMinExclusive)
 	for _, candidateTerms := range candidates {

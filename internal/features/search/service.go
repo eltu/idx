@@ -6,10 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"idx/internal/features/indexing"
-	"idx/internal/features/read"
 	"idx/internal/shared/filesystem"
 	"idx/internal/shared/output"
+	"idx/internal/shared/readlog"
 )
 
 // SearchServiceOptions holds tuning parameters for the search service.
@@ -59,15 +58,10 @@ type SearchCommandService struct {
 	output       output.Writer
 	fileReader   filesystem.FileReader
 	indexRepo    IndexLoader
-	readLogRepo  read.LogRepository
+	readLogRepo  readlog.LogRepository
 	cache        *searchCache
 	cacheEnabled bool
 	tuning       searchTuning
-}
-
-// IndexLoader loads an inverted index from a directory path.
-type IndexLoader interface {
-	LoadIndex(directoryPath string) (*indexing.InvertedIndex, error)
 }
 
 type searchResult struct {
@@ -140,7 +134,7 @@ func (service SearchCommandService) WithTuning(opts SearchServiceOptions) Search
 // When not set, the popularity weight in SearchOptions is still applied but every
 // file gets a boost of zero (no read history available).
 // Example: service = service.WithReadLog(readLogRepo).
-func (service SearchCommandService) WithReadLog(repo read.LogRepository) SearchCommandService {
+func (service SearchCommandService) WithReadLog(repo readlog.LogRepository) SearchCommandService {
 	service.readLogRepo = repo
 	return service
 }
@@ -148,7 +142,7 @@ func (service SearchCommandService) WithReadLog(repo read.LogRepository) SearchC
 // loadPopularityMap loads all read log entries and indexes them by absolute file path
 // so buildSearchResult can do O(1) lookups by filepath.Join(directoryPath, fileName).
 // Returns nil when no repository is wired or on load error (silently degrades).
-func (service SearchCommandService) loadPopularityMap(projectRoot string) map[string]read.LogEntry {
+func (service SearchCommandService) loadPopularityMap(projectRoot string) map[string]readlog.LogEntry {
 	if service.readLogRepo == nil {
 		return nil
 	}
@@ -156,7 +150,7 @@ func (service SearchCommandService) loadPopularityMap(projectRoot string) map[st
 	if err != nil {
 		return nil
 	}
-	m := make(map[string]read.LogEntry, len(entries))
+	m := make(map[string]readlog.LogEntry, len(entries))
 	for _, e := range entries {
 		m[filepath.Join(projectRoot, e.Path)] = e
 	}

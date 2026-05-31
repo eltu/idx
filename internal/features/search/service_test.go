@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"idx/internal/features/indexing"
-	"idx/internal/features/read"
 	search "idx/internal/features/search"
+	"idx/internal/shared/readlog"
 )
 
 func TestSearchCommandService_Run_RanksResultsByBM25Score(t *testing.T) {
@@ -190,8 +190,8 @@ func TestSearchCommandService_Run_SearchesAllProjectIndices(t *testing.T) {
 
 type fakeReadLogRepo struct{}
 
-func (r fakeReadLogRepo) RecordRead(_, _ string) error              { return nil }
-func (r fakeReadLogRepo) LoadAll(_ string) ([]read.LogEntry, error) { return nil, nil }
+func (r fakeReadLogRepo) RecordRead(_, _ string) error                 { return nil }
+func (r fakeReadLogRepo) LoadAll(_ string) ([]readlog.LogEntry, error) { return nil, nil }
 
 func TestSearchCommandService_WithReadLog_StillWorksCorrectly(t *testing.T) {
 	t.Parallel()

@@ -3,18 +3,20 @@ package read
 import (
 	"bufio"
 	"fmt"
-	"idx/internal/shared/filesystem"
-	"idx/internal/shared/output"
 	"io"
 	"path/filepath"
 	"strings"
+
+	"idx/internal/shared/filesystem"
+	"idx/internal/shared/output"
+	"idx/internal/shared/readlog"
 )
 
 // noopReadLog is the default when no log repository is injected.
 type noopReadLog struct{}
 
-func (noopReadLog) RecordRead(_, _ string) error         { return nil }
-func (noopReadLog) LoadAll(_ string) ([]LogEntry, error) { return nil, nil }
+func (noopReadLog) RecordRead(_, _ string) error                 { return nil }
+func (noopReadLog) LoadAll(_ string) ([]readlog.LogEntry, error) { return nil, nil }
 
 // fileStreamer abstracts opening a file for sequential reading and checking if a path is a directory.
 type fileStreamer interface {
@@ -26,7 +28,7 @@ type ReadCommandService struct {
 	projectTree filesystem.ProjectTree
 	streamer    fileStreamer
 	output      output.Writer
-	logRepo     LogRepository
+	logRepo     readlog.LogRepository
 }
 
 // NewReadCommandService builds the read use case.
@@ -42,7 +44,7 @@ func NewReadCommandService(projectTree filesystem.ProjectTree, streamer fileStre
 
 // WithReadLog attaches a read log repository that records file access history.
 // Example: service = service.WithReadLog(readLogRepo).
-func (service ReadCommandService) WithReadLog(repo LogRepository) ReadCommandService {
+func (service ReadCommandService) WithReadLog(repo readlog.LogRepository) ReadCommandService {
 	service.logRepo = repo
 	return service
 }

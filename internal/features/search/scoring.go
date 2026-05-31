@@ -1,13 +1,13 @@
 package search
 
 import (
-	"idx/internal/features/read"
 	"math"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"idx/internal/features/indexing"
+	"idx/internal/shared/readlog"
 )
 
 func sortResults(results []searchResult) {
@@ -350,7 +350,7 @@ func fileNameTokens(fileName string) []string {
 // A file read 10+ times today receives the full weight as boost.
 // A file read 10+ times 14 days ago receives half the weight.
 // A file with no read history (ReadCount == 0) always returns 0.
-func popularityBonus(entry read.LogEntry, now time.Time, weight float64) float64 {
+func popularityBonus(entry readlog.LogEntry, now time.Time, weight float64) float64 {
 	if entry.ReadCount == 0 || weight == 0 {
 		return 0
 	}
