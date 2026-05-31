@@ -15,7 +15,7 @@ type IdxConfig struct {
 // SearchConfig controls default search behavior.
 type SearchConfig struct {
 	Format     string        `yaml:"format"`
-	Size       int           `yaml:"size"`
+	Limit      int           `yaml:"limit"`
 	Operator   string        `yaml:"operator"`
 	Context    int           `yaml:"context"`
 	Relaxation string        `yaml:"relaxation"`
@@ -54,7 +54,7 @@ func DefaultIdxConfig() IdxConfig {
 	return IdxConfig{
 		Search: SearchConfig{
 			Format:     "text",
-			Size:       0,
+			Limit:      0,
 			Operator:   "AND",
 			Context:    0,
 			Relaxation: "",

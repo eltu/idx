@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Initialize BM25 indexes for the current Git project.
+Build the full BM25 index for the current Git project. Safe to re-run: subsequent calls sync only changed directories.
 
 ## Usage
 

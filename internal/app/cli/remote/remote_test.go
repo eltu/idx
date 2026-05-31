@@ -601,3 +601,66 @@ func TestRemoteConfigCommand_Show_ServerNotRunning_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "server not running")
 }
+
+// ---- RemoteSearcher --count ----
+
+func TestRemoteSearcher_CountOnly_PrintsOnlyCount(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — server returns 7 results
+	const wantCount = 7
+	sockPath := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		results := make([]idxipc.SearchResult, wantCount)
+		for i := range results {
+			results[i] = idxipc.SearchResult{Path: fmt.Sprintf("file%d.go", i)}
+		}
+		return idxipc.SearchResponse{Count: wantCount, Results: results}
+	})
+	client := NewSocketClient(sockPath)
+	out := &fakeOutput{}
+
+	// Act
+	err := NewRemoteSearcher(client, out).RunWithOptions("query", featsearch.Options{
+		Format:    featsearch.OutputText,
+		Operator:  "AND",
+		CountOnly: true,
+		FilesOnly: true, // set by CLI when --count is used
+	})
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, out.lines, 1)
+	assert.Equal(t, "7", out.lines[0])
+}
+
+// ---- RemoteSearcher --time ----
+
+func TestRemoteSearcher_TimingEnabled_AppendsTimingLine(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — server returns one result
+	sockPath := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		return idxipc.SearchResponse{
+			Count: 1,
+			Results: []idxipc.SearchResult{
+				{Path: "service.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "func", Match: true}}},
+			},
+		}
+	})
+	client := NewSocketClient(sockPath)
+	out := &fakeOutput{}
+
+	// Act
+	err := NewRemoteSearcher(client, out).RunWithOptions("func", featsearch.Options{
+		Format:   featsearch.OutputText,
+		Operator: "AND",
+		Timing:   true,
+	})
+
+	// Assert
+	require.NoError(t, err)
+	require.NotEmpty(t, out.lines)
+	// Timing line is the last line and contains "ms".
+	last := out.lines[len(out.lines)-1]
+	assert.Contains(t, last, "ms")
+}

@@ -22,7 +22,7 @@ func TestValidateSearchConfig_ValidInput_NoError(t *testing.T) {
 		format:   search.OutputText,
 		operator: search.OperatorAND,
 	}
-	assert.NoError(t, validateSearchConfig(cfg, false))
+	assert.NoError(t, validateSearchConfig(cfg, false, false))
 }
 
 func TestValidateSearchConfig_InvalidInputs_ReturnErrors(t *testing.T) {
@@ -52,7 +52,7 @@ func TestValidateSearchConfig_InvalidInputs_ReturnErrors(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Error(t, validateSearchConfig(tc.cfg, false))
+			require.Error(t, validateSearchConfig(tc.cfg, false, false))
 		})
 	}
 }

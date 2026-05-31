@@ -163,7 +163,12 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v":
+	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v",
+		// Aliases added for discoverability and human-readable usage.
+		"find",   // alias for search
+		"open",   // alias for read
+		"cat",    // alias for read
+		"update": // alias for sync
 		return true
 	default:
 		return false

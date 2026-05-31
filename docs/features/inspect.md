@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Inspect index payloads either as JSON (single path) or in interactive TUI mode (all project indexes).
+Browse the BM25 index interactively (TUI) or dump a raw index payload as JSON for debugging ranking issues.
 
 ## Usage
 
@@ -14,7 +14,7 @@ idx inspect [path]
 
 - `path` (optional): relative or absolute path from the current directory.
 - At most one path is accepted.
-- Empty path and flag-like tokens (starting with `--`) are rejected.
+- Empty values and flag-like tokens (starting with `--`) are rejected.
 
 ## Flags
 
@@ -23,19 +23,17 @@ idx inspect [path]
 ## Behavior and Side Effects
 
 - Read-only command; does not modify indexes.
-- If `path` is provided:
-	- Resolves path against current working directory.
-	- Validates `<path>/.idx/index.idx` exists.
-	- Loads and prints JSON payload of that index.
-- If `path` is omitted:
-	- Resolves Git project root.
-	- Loads all indexed directories under the project.
-	- Opens interactive inspect TUI with merged data.
+- **Without `path`**: opens the interactive TUI to browse indexed directories, documents, and transaction logs.
+  - Navigate with `↑`/`↓` (or `k`/`j`), `PgUp`/`PgDn`.
+  - Filter with `/` prefix.
+  - Drill down with `Enter`.
+  - Quit with `q` or `Ctrl+C`.
+- **With `path`**: loads and prints the raw BM25 index for that directory as JSON — useful for debugging ranking issues.
 
 ## Output
 
-- With `path`: pretty JSON payload printed to stdout.
-- Without `path`: interactive inspect TUI starts.
+- With `path`: pretty JSON payload of the index printed to stdout.
+- Without `path`: interactive TUI starts in the terminal.
 
 ## Errors
 
@@ -47,7 +45,10 @@ idx inspect [path]
 ## Examples
 
 ```bash
+# Open interactive index browser
 idx inspect
+
+# Dump JSON index for a specific directory
+idx inspect internal/features/search
 idx inspect .
-idx inspect internal/
 ```

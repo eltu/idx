@@ -63,3 +63,23 @@ func TestFindProjectRoot_NestedDotIdx_StopsAtClosestAncestor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, inner, got)
 }
+
+// ---- server status --json flag ----
+
+func TestNewServerStatusCommand_HasJsonFlag(t *testing.T) {
+	t.Parallel()
+
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
+		WithServerManager(&stubServerManager{})
+	cmd := runner.newServerStatusCommand()
+	assert.NotNil(t, cmd.Flags().Lookup("json"), "expected --json flag on server status")
+}
+
+func TestNewServerStatusCommand_JsonShorthand_RegisteredAsJ(t *testing.T) {
+	t.Parallel()
+
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).
+		WithServerManager(&stubServerManager{})
+	cmd := runner.newServerStatusCommand()
+	assert.NotNil(t, cmd.Flags().ShorthandLookup("j"), "expected -j shorthand for --json")
+}

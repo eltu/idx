@@ -8,6 +8,8 @@ Print the contents of a project file to stdout. Accepts absolute or relative pat
 
 ```bash
 idx read <path> [flags]
+idx open <path> [flags]   # alias
+idx cat  <path> [flags]   # alias
 ```
 
 ## Arguments
@@ -18,11 +20,18 @@ idx read <path> [flags]
 
 ## Flags
 
-| Flag | Type | Default | Description |
-| --- | --- | --- | --- |
-| `--from` | int | `0` | First line to print (1-based). `0` means start of file. |
-| `--to` | int | `0` | Last line to print (1-based). `0` means end of file. |
-| `--quiet`, `-q` | bool | `false` | Suppress informational output. |
+| Flag | Shorthand | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--start` | `-s` | int | `0` | First line to print (1-based). `0` means start of file. |
+| `--end` | `-e` | int | `0` | Last line to print (1-based). `0` means end of file. |
+| `--quiet` | `-q` | bool | `false` | Suppress informational output. |
+
+### Deprecated flags (still functional, emit a deprecation warning)
+
+| Deprecated flag | Replacement |
+| --- | --- |
+| `--from` | `--start` / `-s` |
+| `--to` | `--end` / `-e` |
 
 ## Prerequisites
 
@@ -35,7 +44,7 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 - Rejects directories; only regular files are accepted.
 - Normalizes `..` segments in relative paths before resolution.
 - Streams the file line by line using buffered I/O — the whole file is never loaded into memory at once, which is safe for large files.
-- `--from` and `--to` are 1-based and inclusive. When `--from` exceeds the total number of lines, no output is produced (no error).
+- `--start` and `--end` are 1-based and inclusive. When `--start` exceeds the total number of lines, no output is produced (no error).
 - Files under `.git/` and `.idx/` are never logged (system directories are not content).
 - On each successful read, records the access to `.idx/read_log.idx` at the project root:
   - Format: `<timestamp>;<relative-path>;<read-count>;<inode>`
@@ -49,7 +58,7 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 
 - Each line of the file (or the requested range) is printed to stdout, one line per output line.
 - No headers, no line numbers, no syntax highlighting.
-- Empty output when `--from` exceeds the file length.
+- Empty output when `--start` exceeds the file length.
 
 ## Errors
 
@@ -66,25 +75,25 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 ```bash
 # Print a full file
 idx read internal/core/services/read/read_command_service.go
+idx open README.md          # alias
+idx cat go.mod              # alias
 
-# Relative path from current directory
-idx read main.go
-
-# Navigate with ..
-idx read ../sibling/pkg/util.go
-
-# Print lines 10 to 20 only
-idx read internal/core/services/read/read_command_service.go --from 10 --to 20
+# Print lines 10 to 20
+idx read main.go --start 10 --end 20
+idx open main.go -s 10 -e 20
 
 # Print from line 50 to end of file
-idx read main.go --from 50
+idx read main.go --start 50
 
 # Print only the first 5 lines
-idx read go.mod --to 5
+idx read go.mod --end 5
+
+# Legacy flags (still work, emit deprecation warning)
+idx read main.go --from 10 --to 20
 ```
 
 ## Notes
 
-- The read log at `.idx/read_log.idx` is written by `idx init` to `.gitignore` so it is never committed.
+- The read log at `.idx/read_log.idx` is written to `.gitignore` by `idx init` so it is never committed.
 - The log is used internally as a boost signal: files read frequently rank higher in `idx search` results over time.
 - The in-memory write cache has a 5-minute TTL. Concurrent reads within the TTL window are safe — an in-process mutex and a cross-process advisory lock (`flock`) serialize all disk writes.

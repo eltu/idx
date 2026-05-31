@@ -80,7 +80,7 @@ bm25:
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, "json", cfg.Search.Format)
-	assert.Equal(t, 20, cfg.Search.Size)
+	assert.Equal(t, 20, cfg.Search.Limit)
 	assert.Equal(t, "OR", cfg.Search.Operator)
 	assert.Equal(t, 1.2, cfg.BM25.K1)
 }
@@ -105,10 +105,52 @@ bm25:
 	// Assert
 	require.NoError(t, err)
 	overrideSet := overrideMap(overrides)
-	for _, expected := range []string{"search.format", "search.size", "bm25.k1"} {
+	for _, expected := range []string{"search.format", "search.limit", "bm25.k1"} {
 		assert.True(t, overrideSet[expected], "expected override %q to be tracked", expected)
 	}
 	assert.False(t, overrideSet["search.operator"], "search.operator should not be tracked when not in file")
+}
+
+func TestYAMLRepository_Load_SearchLimitKey_ParsesCorrectly(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — new canonical key name
+	repo := config.NewYAMLRepository()
+	dir := t.TempDir()
+	writeYAMLConfig(t, dir, `
+search:
+  limit: 15
+`)
+
+	// Act
+	cfg, overrides, err := repo.Load(dir)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 15, cfg.Search.Limit)
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["search.limit"], "expected search.limit to be tracked as override")
+}
+
+func TestYAMLRepository_Load_SearchSizeKey_BackwardCompat(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — old YAML key; must still be read after the rename to 'limit'
+	repo := config.NewYAMLRepository()
+	dir := t.TempDir()
+	writeYAMLConfig(t, dir, `
+search:
+  size: 7
+`)
+
+	// Act
+	cfg, overrides, err := repo.Load(dir)
+
+	// Assert — value read from old key, reported under new key name
+	require.NoError(t, err)
+	assert.Equal(t, 7, cfg.Search.Limit)
+	overrideSet := overrideMap(overrides)
+	assert.True(t, overrideSet["search.limit"], "deprecated size: key should be reported as search.limit override")
 }
 
 func TestYAMLRepository_Load_KeepsDefaultsForUnsetKeys(t *testing.T) {

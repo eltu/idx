@@ -41,7 +41,12 @@ func TestConfigTableColumnWidths_EmptyRows_ReturnsZeros(t *testing.T) {
 
 func TestCanExecuteWithCobra_KnownCommands_ReturnTrue(t *testing.T) {
 	t.Parallel()
-	known := []string{"sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v"}
+	known := []string{
+		"sync", "init", "status", "inspect", "read", "watch", "destroy", "search",
+		"version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v",
+		// Aliases added for human-readable and AI-friendly usage:
+		"find", "open", "cat", "update",
+	}
 	for _, cmd := range known {
 		cmd := cmd
 		t.Run(cmd, func(t *testing.T) {
@@ -175,20 +180,25 @@ func TestValidateSearchFlagValues_NegativeOrZeroInvalid_ReturnsError(t *testing.
 	cases := []struct {
 		name        string
 		context     int
+		skip        int
 		from        int
 		size        int
+		limit       int
 		sizeChanged bool
+		limitChg    bool
 	}{
-		{"negative context", -1, 0, 0, false},
-		{"negative from", 0, -1, 0, false},
-		{"negative size", 0, 0, -1, false},
-		{"zero size with sizeChanged", 0, 0, 0, true},
+		{"negative context", -1, 0, 0, 0, 0, false, false},
+		{"negative from", 0, 0, -1, 0, 0, false, false},
+		{"negative skip", 0, -1, 0, 0, 0, false, false},
+		{"negative size", 0, 0, 0, -1, 0, false, false},
+		{"zero size with sizeChanged", 0, 0, 0, 0, 0, true, false},
+		{"zero limit with limitChanged", 0, 0, 0, 0, 0, false, true},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateSearchFlagValues(tc.context, tc.from, tc.size, tc.sizeChanged)
+			err := validateSearchFlagValues(tc.context, tc.skip, tc.from, tc.size, tc.limit, tc.sizeChanged, tc.limitChg)
 			require.Error(t, err)
 		})
 	}
@@ -196,7 +206,7 @@ func TestValidateSearchFlagValues_NegativeOrZeroInvalid_ReturnsError(t *testing.
 
 func TestValidateSearchFlagValues_ValidInput_NoError(t *testing.T) {
 	t.Parallel()
-	assert.NoError(t, validateSearchFlagValues(2, 0, 10, true))
+	assert.NoError(t, validateSearchFlagValues(2, 0, 0, 10, 0, true, false))
 }
 
 // ---- validateSearchFormat ----

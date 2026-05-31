@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
+	"charm.land/lipgloss/v2"
 
 	featsearch "idx/internal/features/search"
 	idxipc "idx/internal/shared/ipc"
 	sharedoutput "idx/internal/shared/output"
 )
+
+var searchTimingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B"))
 
 // RemoteSearcher implements cli.Searcher by calling idx.search over the socket.
 type RemoteSearcher struct {
@@ -26,10 +31,25 @@ func NewRemoteSearcher(client *SocketClient, output sharedoutput.Writer) *Remote
 func (s *RemoteSearcher) RunWithOptions(query string, opts featsearch.Options) error {
 	req := searchRequestFromOptions(query, opts)
 	var resp idxipc.SearchResponse
+
+	start := time.Now()
 	if err := s.client.Call(idxipc.MethodSearch, req, &resp); err != nil {
 		return err
 	}
-	return writeSearchResults(resp, opts, s.output)
+	elapsed := time.Since(start)
+
+	if opts.CountOnly {
+		if err := s.output.WriteLine(fmt.Sprintf("%d", resp.Count)); err != nil {
+			return err
+		}
+	} else if err := writeSearchResults(resp, opts, s.output); err != nil {
+		return err
+	}
+
+	if opts.Timing {
+		return s.output.WriteLine(searchTimingStyle.Render(fmt.Sprintf("  ⏱  %dms", elapsed.Milliseconds())))
+	}
+	return nil
 }
 
 func searchRequestFromOptions(query string, opts featsearch.Options) idxipc.SearchRequest {
@@ -48,6 +68,8 @@ func searchRequestFromOptions(query string, opts featsearch.Options) idxipc.Sear
 		From:              opts.From,
 		RelaxationEnabled: opts.RelaxationEnabled,
 		RelaxationMin:     opts.RelaxationMinExclusive,
+		CountOnly:         opts.CountOnly,
+		Timing:            opts.Timing,
 	}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -62,7 +63,7 @@ func TestCLI_Search_Validation_RejectsInvalidFlags(t *testing.T) {
 		{
 			name:        "json_pretty_without_json_format",
 			args:        []string{"token", "--json-pretty"},
-			errContains: "--json-pretty requires --format json",
+			errContains: "--pretty requires",
 		},
 		{
 			name:        "invalid_operator",
@@ -608,4 +609,205 @@ func TestCLI_Search_NoResults_JSONFormat_ReturnsZeroCount(t *testing.T) {
 	resp := parseSearchJSON(t, out)
 	assert.Equal(t, 0, resp.Count)
 	assert.Empty(t, resp.Results)
+}
+
+// --- Group N: new UX flags (shorthands, aliases, --count, --relax, --compact, --any) ---
+
+func TestCLI_Search_FindAlias_SameResultsAsSearch(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act
+	var buf1, buf2 bytes.Buffer
+	require.NoError(t, run([]string{"idx", "find", "BM25Tokenizer", "--format", "json"}, &buf1))
+	require.NoError(t, run([]string{"idx", "search", "BM25Tokenizer", "--format", "json"}, &buf2))
+
+	// Assert — alias produces identical JSON
+	resp1 := parseSearchJSON(t, buf1.String())
+	resp2 := parseSearchJSON(t, buf2.String())
+	assert.Equal(t, resp2.Count, resp1.Count, "idx find and idx search should return the same count")
+}
+
+func TestCLI_Search_JsonShorthand_SameAsFormatJson(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act
+	out1, err1 := runSearch(t, "BM25Tokenizer", "-j")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "--format", "json")
+
+	// Assert — both produce valid JSON with matching counts
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	resp1 := parseSearchJSON(t, out1)
+	resp2 := parseSearchJSON(t, out2)
+	assert.Equal(t, resp2.Count, resp1.Count)
+}
+
+func TestCLI_Search_CompactFlag_SameAsAgentCompact(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act
+	out1, err1 := runSearch(t, "BM25Tokenizer", "--compact")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "--agent-compact")
+
+	// Assert — new and deprecated flag produce identical output
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, out2, out1)
+}
+
+func TestCLI_Search_CountFlag_ReturnsOnlyNumber(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act
+	out, err := runSearch(t, "BM25Tokenizer", "--count")
+
+	// Assert — output is a single integer on its own line, no header
+	require.NoError(t, err)
+	trimmed := strings.TrimSpace(out)
+	assert.NotContains(t, out, "Found", "--count should suppress the result header")
+	// Verify the output is parseable as a number
+	var n int
+	_, scanErr := fmt.Sscanf(trimmed, "%d", &n)
+	require.NoError(t, scanErr, "expected integer output from --count, got: %q", trimmed)
+	assert.GreaterOrEqual(t, n, 1, "expected at least one match for BM25Tokenizer")
+}
+
+func TestCLI_Search_ExtShorthand_SameAsExtFlag(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act — both -e and --ext filter by Go files
+	out1, err1 := runSearch(t, "BM25Tokenizer", "-j", "-e", "go")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "--format", "json", "--ext", "go")
+
+	// Assert
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	resp1 := parseSearchJSON(t, out1)
+	resp2 := parseSearchJSON(t, out2)
+	assert.Equal(t, resp2.Count, resp1.Count)
+}
+
+func TestCLI_Search_FilesOnlyShorthand_SameAsFilesOnly(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act
+	out1, err1 := runSearch(t, "BM25Tokenizer", "-l", "-j")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "--files-only", "--format", "json")
+
+	// Assert — both return the same path array
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	paths1 := parseFilesOnlyJSON(t, out1)
+	paths2 := parseFilesOnlyJSON(t, out2)
+	assert.Equal(t, paths2, paths1)
+}
+
+func TestCLI_Search_AnyFlag_SameAsOperatorOR(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act — BM25Tokenizer OR BM25 to force OR behavior
+	out1, err1 := runSearch(t, "BM25Tokenizer", "hello", "--any", "-j")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "hello", "--operator", "OR", "-j")
+
+	// Assert — same count
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	resp1 := parseSearchJSON(t, out1)
+	resp2 := parseSearchJSON(t, out2)
+	assert.Equal(t, resp2.Count, resp1.Count)
+}
+
+func TestCLI_Search_RelaxFlag_SameAsRelaxationString(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act — relax 1 = must match at least 1 of 3 terms
+	out1, err1 := runSearch(t, "BM25Tokenizer", "hello", "world", "--relax", "1", "-j")
+	out2, err2 := runSearch(t, "BM25Tokenizer", "hello", "world", "--relaxation", ">1", "-j")
+
+	// Assert — same count
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	resp1 := parseSearchJSON(t, out1)
+	resp2 := parseSearchJSON(t, out2)
+	assert.Equal(t, resp2.Count, resp1.Count)
+}
+
+func TestCLI_Search_ValidationRejectsNewFlags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		args        []string
+		errContains string
+	}{
+		{
+			name:        "pretty_without_json",
+			args:        []string{"token", "--pretty"},
+			errContains: "--pretty requires",
+		},
+		{
+			name:        "negative_skip",
+			args:        []string{"token", "--skip", "-1"},
+			errContains: "invalid --skip",
+		},
+		{
+			name:        "zero_limit_explicitly_set",
+			args:        []string{"token", "--limit", "0"},
+			errContains: "invalid --limit",
+		},
+		{
+			name:        "relax_with_operator_OR",
+			args:        []string{"token", "--operator", "OR", "--relax", "1"},
+			errContains: "invalid --relaxation with --operator",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			var buf bytes.Buffer
+
+			// Act
+			err := run(append([]string{"idx", "search"}, tc.args...), &buf)
+
+			// Assert
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.errContains)
+		})
+	}
 }

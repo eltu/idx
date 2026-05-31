@@ -36,6 +36,12 @@ type serverManagerCommand interface {
 	Status(projectPath string) error
 }
 
+// serverStatusJSONProvider is an optional enhancement — implementations that support
+// structured JSON output for 'idx server status --json' can satisfy this interface.
+type serverStatusJSONProvider interface {
+	StatusJSON(projectPath string) ([]byte, error)
+}
+
 func (runner CommandRunner) newServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
@@ -86,7 +92,9 @@ func (runner CommandRunner) newServerStopCommand() *cobra.Command {
 }
 
 func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show the idx server daemon status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -95,9 +103,29 @@ func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
 				return fmt.Errorf("")
 			}
+			if jsonOut {
+				return runner.runServerStatusJSON(cmd, root)
+			}
 			return runner.serverManager.Status(root)
 		},
 	}
+
+	cmd.Flags().BoolVarP(&jsonOut, "json", "j", false, "Output status as JSON")
+	return cmd
+}
+
+func (runner CommandRunner) runServerStatusJSON(cmd *cobra.Command, root string) error {
+	jp, ok := runner.serverManager.(serverStatusJSONProvider)
+	if !ok {
+		// Fall back to text output when the impl does not support JSON.
+		return runner.serverManager.Status(root)
+	}
+	data, err := jp.StatusJSON(root)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+	return nil
 }
 
 // resolveServerRoot returns the pre-resolved project root when available,

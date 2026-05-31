@@ -8,37 +8,71 @@ Search indexed project content using BM25 ranking and optional metadata filters.
 
 ```bash
 idx search [query terms] [flags]
+idx find   [query terms] [flags]   # alias
 ```
 
 ## Arguments
 
-- `query terms` (optional only when at least one `--path` or `--ext` is provided).
+- `query terms` — optional **only** when at least one `--path` or `--ext` is provided.
 
 ## Flags
 
-| Flag | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `--format` | string | `text`¹ | Allowed: `text`, `json` |
-| `--json-pretty` | bool | `false` | Requires `--format json` |
-| `--explain` | bool | `false` | Includes ranking score |
-| `--agent-compact` | bool | `false` | Compact text output for agents (no header/footer spacing, simplified lines) |
-| `--context` | int | `0`¹ | Must be `>= 0` |
-| `--matches-only` | bool | `false` | Keeps only matching lines |
-| `--files-only` | bool | `false` | Returns only file paths |
-| `--path` | string array | `[]` | Repeatable metadata-path filter |
-| `--ext` | string array | `[]` | Repeatable file-extension filter (`go` or `.go`) |
-| `--from` | int | `0` | Pagination offset, must be `>= 0` |
-| `--size` | int | `0`¹ (unlimited) | If set, must be `> 0` |
-| `--operator` | string | `AND`¹ | Boolean operator for multi-term queries: `AND` or `OR` |
-| `--relaxation` | string | `""`¹ | Only with `--operator AND`. Format `>N`; activates relaxation only when query has more than `N` terms, then removes trailing terms progressively |
-| `--popularity-weight` | float | `0.3`¹ | Boost weight for files frequently read via `idx read`. `0` disables the boost |
-| `--quiet`, `-q` | bool | `false` | Suppress informational output |
+### Output flags
 
-¹ Default is sourced from `.idx.yml` (`search.format`, `search.context`, `search.size`, `search.operator`, `search.relaxation`, `bm25.popularity_weight`) when the file exists. CLI flags always take precedence over `.idx.yml`.
+| Flag | Shorthand | Type | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `--format` | | string | `text`¹ | `text` or `json` |
+| `--json` | `-j` | bool | `false` | Shorthand for `--format json` |
+| `--pretty` | | bool | `false` | Pretty-print JSON; requires `--json` or `--format json` |
+| `--explain` | | bool | `false` | Include BM25 score in output |
+| `--compact` | | bool | `false` | Compact text output for AI agents (no header/footer spacing) |
+| `--context` | `-c` | int | `0`¹ | Context lines around each match. Must be `>= 0` |
+| `--hits` | | bool | `false` | Show only lines that directly match the query |
+| `--matches-only` | | bool | `false` | Alias for `--hits` |
+| `--files-only` | `-l` | bool | `false` | Return only file paths |
+| `--count` | | bool | `false` | Print only the number of matching files |
+| `--time` | | bool | `false` | Show query execution time |
 
-Compatibility alias:
+### Filtering flags
 
-- Hidden flag `--macthes-only` maps to `--matches-only`.
+| Flag | Shorthand | Type | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `--path` | `-p` | string array | `[]` | Repeatable metadata-path filter |
+| `--ext` | `-e` | string array | `[]` | Repeatable extension filter — accepts `go` or `.go` |
+
+### Ranking flags
+
+| Flag | Shorthand | Type | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `--operator` | | string | `AND`¹ | `AND` or `OR` |
+| `--any` | | bool | `false` | Match any term — shorthand for `--operator OR` |
+| `--relax` | | int | (off) | Relax AND: require at least N matching terms. Activates only when query has more terms than N |
+| `--relaxation` | | string | `""`¹ | `>N` format — long-form equivalent of `--relax N` |
+| `--popularity-weight` | | float | `0.3`¹ | Boost weight for files frequently read via `idx read`. `0` disables |
+
+### Pagination flags
+
+| Flag | Shorthand | Type | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `--skip` | | int | `0` | Skip the first N ranked results |
+| `--limit` | `-n` | int | `0`¹ | Limit results to top N files; `0` = unlimited |
+
+### Global
+
+| Flag | Shorthand | Notes |
+| --- | --- | --- |
+| `--quiet` | `-q` | Suppress informational output |
+
+¹ Default sourced from `.idx.yml` (`search.format`, `search.context`, `search.limit`, `search.operator`, `search.relaxation`, `bm25.popularity_weight`) when the file exists. CLI flags always take precedence.
+
+### Deprecated flags (still functional, emit a deprecation warning)
+
+| Deprecated flag | Replacement |
+| --- | --- |
+| `--agent-compact` | `--compact` |
+| `--json-pretty` | `--pretty` |
+| `--size` | `--limit` / `-n` |
+| `--from` | `--skip` |
 
 ## Prerequisites
 
@@ -49,62 +83,89 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 - Resolves project root and searches all indexed directories.
 - Tokenizes and deduplicates query terms.
 - Files accessed via `idx read` accumulate a read-count in `.idx/read_log.idx`; this count is used as a ranking boost signal — frequently-read files score higher. The boost uses 14-day exponential decay and is configurable via `bm25.popularity_weight` in `.idx.yml` or `--popularity-weight` (set to `0` to disable).
-- Supports metadata-only search when query is empty and at least one metadata filter is set (`--path` and/or `--ext`).
+- Supports metadata-only search when query is empty and at least one `--path` or `--ext` filter is set.
 - Applies BM25 + normalization for ranking.
-- `--operator AND` (default): a document must contain **all** query terms to be ranked.
-- `--operator AND` + `--relaxation >N`: activates only when the query has more than `N` terms, then evaluates decreasing term prefixes (removing tokens from right to left) down to a single term, ranking results by largest matched term count first.
-- `--operator OR`: a document must contain **at least one** query term; broadens recall at the cost of precision. Proximity bonus is skipped for terms absent from a given document.
-- Applies output filters in this order: `files-only` or `matches-only`, then pagination (`from`, `size`).
-- `--files-only` has priority over `--matches-only`.
-- Uses in-memory cache for ranked results (TTL: 1 minute) and renews TTL on cache hits.
+- **`--operator AND`** (default): a document must contain **all** query terms to be ranked.
+- **`--any`** (or `--operator OR`): a document must contain **at least one** query term. Proximity bonus is skipped for terms absent from a given document.
+- **`--relax N`** (or `--relaxation >N`): only active with `AND` operator. When the query has more than N terms, evaluates decreasing term prefixes (removing tokens right to left) down to a single term, ranking by largest matched term count.
+- **`--count`**: forces `--files-only` internally and prints only the integer file count to stdout. No headers.
+- **`--time`**: appends a muted timing line after results showing the RPC round-trip duration.
+- Applies output filters in this order: `files-only` / `count`, then `matches-only` / `hits`, then pagination (`skip`, `limit`).
+- `--files-only` and `--count` take priority over `--hits`.
+- Uses in-memory cache for ranked results (TTL: configurable via `search.cache_ttl`, default 1 minute).
 - Read-only command; no filesystem writes.
 
 ## Output
 
-- Text mode with results:
-	- Header: `📁 Found <total> file(s) matching your search`
-	- Or paginated header: `📁 Found <total> file(s) matching your search (showing <displayed> with pagination)`
-- With `--agent-compact`, header/footer spacing is omitted and lines are printed as `<line>:<content>`.
-- Text mode without results: `No results found.`
-- JSON mode without results:
-	- `{"count":0,"results":[]}` (pretty when `--json-pretty` is enabled)
-- JSON mode with results:
-	- Object with `count` and `results`.
-	- `score` only appears when `--explain` is true.
-- JSON + `--files-only`:
-	- Returns an array of file paths only.
+- Text mode (default):
+  - Header: `📁 Found <total> file(s) matching your search`
+  - With `--compact`: header omitted; simplified line format `<path>\n  <line>: <content>`
+  - No results: `No results found.`
+- JSON mode (`--json` / `--format json`):
+  - Object: `{"count": N, "results": [...]}`
+  - With `--files-only`: array of path strings `["a.go", "b.go"]`
+  - With `--explain`: each result includes `"score"` field
+  - With `--pretty`: indented JSON
+- `--count`: prints a single integer to stdout (e.g. `7`). No other output.
+- `--time`: appends `  ⏱  Nms` after the last result line.
+
+## Errors
+
+| Condition | Message |
+| --- | --- |
+| Missing query (no terms, no `--path`, no `--ext`) | `⚠  Missing search query` with usage hint |
+| Unsupported format | `unsupported --format value ... expected one of [text json]` |
+| `--pretty` without JSON format | `--pretty requires --format json (or -j)` |
+| Negative `--context` | `invalid --context value ... expected a non-negative integer` |
+| Negative `--skip` | `invalid --skip value ... expected a non-negative integer` |
+| Negative `--from` (deprecated) | `invalid --from value ... expected a non-negative integer` |
+| `--size` zero when explicitly set | `invalid --size value ... expected a positive integer` |
+| `--limit` zero when explicitly set | `invalid --limit value ... expected a positive integer` |
+| Unsupported operator | `unsupported --operator value ... expected one of [AND OR]` |
+| Invalid `--relax` / `--relaxation` with OR operator | `invalid --relaxation with --operator "OR": expected "AND"` |
+| Invalid `--relaxation` format | `invalid --relaxation value ... expected format >N where N is a non-negative integer` |
+| Server not running | `✗ idx server not running` |
 
 ## Examples
 
 ```bash
-idx search auth token
-idx search auth token --format json --json-pretty
-idx search auth token --explain
-idx search auth token --format json --explain
-idx search auth token --agent-compact
-idx search auth token --context 2
-idx search --path internal/core
+# Basic search
+idx search "error handling"
+idx find "error handling"           # alias
+
+# JSON output
+idx search -j "error handling"
+idx search -j --pretty "config"
+
+# Filter by extension and path
+idx search -e go "func main"
+idx search -e go -e ts "func main"
+idx search -p internal logger
+
+# OR mode (match any term)
+idx search --any "Logger TokenHandler"
+idx search --operator OR "Logger TokenHandler"
+
+# AND relaxation (match at least 1 of 3 terms)
+idx search --relax 1 "init sync destroy"
+
+# Compact output (AI agents / piping)
+idx search --compact "BM25"
+idx search --count "TODO"
+idx search -l -e md "installation"  # list markdown files only
+
+# Context lines and match-only
+idx search -c 3 "BM25Tokenizer"
+idx search --hits "BM25Tokenizer"
+
+# Pagination
+idx search --skip 10 -n 5 "handler"
+
+# Score and timing
+idx search --explain "BM25 scoring"
+idx search --time --explain "BM25 scoring"
+
+# Metadata-only (no query)
 idx search --ext go
-idx search --path internal/core --ext go
-idx search auth token --from 10 --size 5
-idx search auth token --files-only
-idx search auth token --matches-only
-idx search auth token --operator OR
-idx search auth token --operator AND
-idx search func abc x y int 10 --operator AND --relaxation '>2'
+idx search --path internal/core
 ```
-
-## Errors
-
-- Missing input contract: `missing search query... expected idx search <terms>`
-- Unsupported format: `unsupported --format value ... expected one of [text json]`
-- Invalid pretty/json combination: `--json-pretty requires --format json`
-- Invalid numeric constraints:
-	- `invalid --context value ... expected a non-negative integer`
-	- `invalid --from value ... expected a non-negative integer`
-	- `invalid --size value ... expected a positive integer`
-- Unsupported operator: `unsupported --operator value ... expected one of [AND OR]`
-- Invalid relaxation format/operator combination:
-	- `invalid --relaxation value ... expected format >N where N is a non-negative integer`
-	- `invalid --relaxation with --operator ... expected AND`
-- Index/file access errors when loading indexes or source files.

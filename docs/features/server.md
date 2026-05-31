@@ -26,7 +26,17 @@ idx server <subcommand>
 
 ## Flags
 
-- Global: `--quiet`, `-q`.
+### `idx server status`
+
+| Flag | Shorthand | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--json` | `-j` | bool | `false` | Output status as JSON instead of formatted text |
+
+### Global
+
+| Flag | Shorthand | Description |
+| --- | --- | --- |
+| `--quiet` | `-q` | Suppress informational output |
 
 ## Behavior and Side Effects
 
@@ -35,7 +45,7 @@ idx server <subcommand>
 - Resolves the Git project root from the current directory by walking up until a `.idx` directory is found.
 - Fails immediately with a styled error when not inside an initialized idx project.
 - Spawns `idx server run` as a detached background process.
-- `idx server run` binds a Unix domain socket at `~/.idx/<sanitized-project-name>.sock`.
+- `idx server run` binds a Unix domain socket at `<project-root>/.idx/server.sock`.
 - Registers JSON-RPC 2.0 handlers for:
   - `idx.init` → runs `idx init`, returns `{success, output}`
   - `idx.sync` → runs `idx sync`, returns `{success, output}`
@@ -44,6 +54,7 @@ idx server <subcommand>
   - `idx.search` → executes BM25 search, returns structured results
   - `idx.read` → streams file lines, returns `{lines: [...]}`
   - `idx.destroy` → removes index metadata, returns `{success, output}`
+  - `idx.config` → returns formatted config table
 - Runs the file-watch loop concurrently inside the same process. Watch errors are logged but do not stop the server.
 - Handles `SIGINT` and `SIGTERM` for graceful shutdown (closes socket, waits for in-flight requests).
 - The socket file is removed on clean shutdown. Stale sockets are overwritten on the next start.
@@ -58,21 +69,43 @@ idx server <subcommand>
 ### `idx server status`
 
 - Resolves the Git project root.
-- Prints the current server process status (running / stopped), PID, and uptime.
+- Default (text): prints formatted status with process information (running/stopped, PID, uptime, socket path).
+- With `--json` / `-j`: prints a JSON object to stdout.
+
+## JSON output — `idx server status --json`
+
+```json
+{
+  "running": true,
+  "pid": 12345,
+  "uptime_seconds": 300,
+  "socket_path": "/home/user/myproject/.idx/server.sock"
+}
+```
+
+When the server is not running:
+
+```json
+{
+  "running": false,
+  "socket_path": "/home/user/myproject/.idx/server.sock"
+}
+```
+
+Fields `pid` and `uptime_seconds` are omitted when `running` is `false`.
 
 ## Socket path
 
 ```
-~/.idx/<sanitized-project-name>.sock
+<project-root>/.idx/server.sock
 ```
-
-`<sanitized-project-name>` is the basename of the Git project root with non-alphanumeric characters replaced by underscores and leading/trailing `._-` stripped.
 
 ## Output
 
 - `start`: no output on success; styled error on failure.
 - `stop`: no output on success; error if server is not running.
-- `status`: formatted status panel with process information.
+- `status` (text): formatted status panel with process information.
+- `status --json`: JSON object (see above).
 - `run` (internal): no stdout. Log output goes to the rotating log file only.
 
 ## Errors
@@ -101,7 +134,7 @@ When `idx server` is **not running**, every command that routes through the sock
   start with: idx server start
 ```
 
-Commands that remain in-process and do NOT require the server: `watch`, `skills`, `config`, `version`.
+Commands that remain in-process and do NOT require the server: `skills`, `config`, `version`.
 
 ## Examples
 
@@ -109,8 +142,12 @@ Commands that remain in-process and do NOT require the server: `watch`, `skills`
 # Start the server daemon in the background
 idx server start
 
-# Check server status
+# Check status (human-readable)
 idx server status
+
+# Check status (machine-readable / AI agents)
+idx server status --json
+idx server status -j
 
 # Stop the server daemon
 idx server stop
@@ -123,5 +160,5 @@ idx server start
 idx status
 
 # Search via the running server
-idx search "BM25" --size 5 --agent-compact
+idx search "BM25" -n 5 --compact
 ```

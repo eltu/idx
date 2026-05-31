@@ -28,6 +28,8 @@ type SearchRequest struct {
 	From              int      `json:"from,omitempty"`
 	RelaxationEnabled bool     `json:"relaxation_enabled,omitempty"`
 	RelaxationMin     int      `json:"relaxation_min,omitempty"`
+	CountOnly         bool     `json:"count_only,omitempty"`
+	Timing            bool     `json:"timing,omitempty"`
 }
 
 // SearchResponse carries structured search results.

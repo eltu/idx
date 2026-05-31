@@ -10,7 +10,7 @@ import (
 // Key* constants are the canonical display names for all 13 configurable fields.
 const (
 	KeySearchFormat     = "search.format"
-	KeySearchSize       = "search.size"
+	KeySearchLimit      = "search.limit"
 	KeySearchOperator   = "search.operator"
 	KeySearchContext    = "search.context"
 	KeySearchRelaxation = "search.relaxation"
@@ -28,7 +28,7 @@ const (
 // Example: for _, key := range config.AllKeys() { ... }.
 func AllKeys() []string {
 	return []string{
-		KeySearchFormat, KeySearchSize, KeySearchOperator, KeySearchContext,
+		KeySearchFormat, KeySearchLimit, KeySearchOperator, KeySearchContext,
 		KeySearchRelaxation, KeySearchCacheTTL, KeySearchMaxWorkers,
 		KeyWatchDebounce, KeyIndexIgnore,
 		KeyBM25K1, KeyBM25B, KeyBM25ProxWeight,
@@ -43,8 +43,8 @@ func FieldValue(cfg IdxConfig, key string) string {
 	switch key {
 	case KeySearchFormat:
 		return cfg.Search.Format
-	case KeySearchSize:
-		return fmt.Sprintf("%d", cfg.Search.Size)
+	case KeySearchLimit:
+		return fmt.Sprintf("%d", cfg.Search.Limit)
 	case KeySearchOperator:
 		return cfg.Search.Operator
 	case KeySearchContext:
@@ -77,7 +77,7 @@ func FieldValue(cfg IdxConfig, key string) string {
 func DefaultFieldValue(key string) string {
 	defaults := map[string]string{
 		KeySearchFormat:     "text",
-		KeySearchSize:       "0",
+		KeySearchLimit:      "0",
 		KeySearchOperator:   "AND",
 		KeySearchContext:    "0",
 		KeySearchRelaxation: "",

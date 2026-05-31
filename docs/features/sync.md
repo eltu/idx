@@ -2,12 +2,13 @@
 
 ## Purpose
 
-Synchronize existing project indexes with the current filesystem state.
+Synchronize existing project indexes with the current filesystem state. Only directories with modified content are re-indexed — unchanged directories are skipped via checksum comparison.
 
 ## Usage
 
 ```bash
 idx sync
+idx update   # alias
 ```
 
 ## Arguments
@@ -46,4 +47,5 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 
 ```bash
 idx sync
+idx update   # alias
 ```

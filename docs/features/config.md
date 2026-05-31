@@ -2,25 +2,26 @@
 
 ## Purpose
 
-Show and inspect the resolved project configuration sourced from `.idx.yml` at the Git project root.
+Show and manage the resolved project configuration sourced from `.idx.yml` at the Git project root.
 
 ## Usage
 
 ```bash
-idx config
 idx config show
+idx config get <key>
 ```
 
 ## Subcommands
 
 | Subcommand | Description |
 | --- | --- |
-| `show` | Display the full resolved configuration table and flag which values come from `.idx.yml` |
+| `show` | Display the full resolved configuration table, flagging values that come from `.idx.yml` |
+| `get <key>` | Print the resolved value of a single configuration key |
 
 ## Arguments
 
-- `config` (no subcommand): displays usage.
 - `show`: no positional arguments.
+- `get`: one required argument — the configuration key (e.g. `search.operator`).
 
 ## Flags
 
@@ -31,8 +32,17 @@ idx config show
 - Read-only command; no filesystem writes.
 - Config is resolved from `.idx.yml` at the Git project root.
 - Precedence chain: built-in defaults → `.idx.yml` → CLI flags.
-- 13 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
 - `bm25.popularity_weight` is accepted in `.idx.yml` and applied to search ranking, but is not shown in `idx config show`; use `idx search --popularity-weight <value>` to override it at the CLI level.
+
+### `idx config show`
+
+- 13 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
+
+### `idx config get <key>`
+
+- Resolves the key against the current config (built-in defaults merged with `.idx.yml`).
+- Prints the value as a plain string to stdout.
+- Returns an error for unrecognized keys and lists all valid keys in the error message.
 
 ## Output — `idx config show`
 
@@ -42,7 +52,7 @@ When `.idx.yml` exists:
   Config  /home/user/my-project/.idx.yml
 
   search.format         json     ← .idx.yml   (default: text)
-  search.size           0        · default
+  search.limit          0        · default
   search.operator       AND      · default
   search.context        0        · default
   search.relaxation              · default
@@ -66,16 +76,26 @@ When no `.idx.yml` exists:
   Tip: create .idx.yml at the project root to customize defaults.
 ```
 
+## Output — `idx config get <key>`
+
+```bash
+$ idx config get search.operator
+AND
+
+$ idx config get bm25.k1
+1.5
+```
+
 ## Errors
 
-- No command-specific runtime errors.
+- `get` with unknown key: `unknown config key "<key>" — valid keys: search.format, search.limit, ...`
 
 ## Reference — All Configurable Keys
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `search.format` | string | `text` | `text` or `json` |
-| `search.size` | int | `0` | `0` = unlimited |
+| `search.limit` | int | `0` | `0` = unlimited; maps to `--limit`/`-n` |
 | `search.operator` | string | `AND` | `AND` or `OR` |
 | `search.context` | int | `0` | Context lines around matches |
 | `search.relaxation` | string | `""` | Format `>N`; activates AND relaxation |
@@ -86,7 +106,7 @@ When no `.idx.yml` exists:
 | `bm25.k1` | float | `1.5` | BM25 term-frequency saturation |
 | `bm25.b` | float | `0.75` | BM25 document-length normalization |
 | `bm25.proximity_weight` | float | `3.0` | BM25 proximity bonus weight |
-| `bm25.popularity_weight` | float | `0.3` | Read-popularity boost weight; `0` disables the boost |
+| `bm25.popularity_weight` | float | `0.3` | Read-popularity boost weight; `0` disables |
 | `log.level` | string | `error` | `debug`, `info`, `warn`, `error` |
 
 ## `.idx.yml` Format
@@ -95,7 +115,7 @@ When no `.idx.yml` exists:
 # .idx.yml — place at the Git project root
 search:
   format: json        # text | json
-  size: 20            # 0 = unlimited
+  limit: 20           # 0 = unlimited (was: size, still accepted for backward compat)
   operator: AND       # AND | OR
   context: 0
   relaxation: ""      # "" = off | ">3" = relax when >3 terms
@@ -125,9 +145,16 @@ Notes:
 - `index.ignore` values are glob patterns matched against relative paths from the project root.
 - `log.level` is also overridable via the `IDX_LOG_LEVEL` environment variable; env takes precedence over `.idx.yml`.
 - Only project-level config is supported. There is no global `~/.idx/config.yml`.
+- **Migration note**: the key `search.size` was renamed to `search.limit`. Old `.idx.yml` files using `search.size` continue to work without changes, but new files should use `search.limit`.
 
 ## Examples
 
 ```bash
+# Show full resolved configuration
 idx config show
+
+# Read a single key
+idx config get search.operator
+idx config get search.limit
+idx config get bm25.k1
 ```

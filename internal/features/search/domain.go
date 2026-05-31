@@ -21,6 +21,8 @@ type Options struct {
 	AgentCompact           bool
 	MatchesOnly            bool
 	FilesOnly              bool
+	CountOnly              bool
+	Timing                 bool
 	PathQuery              string
 	PathQueries            []string
 	ExtensionQuery         string

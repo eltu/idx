@@ -56,7 +56,7 @@ func TestCLI_ConfigShow_WithFile_ShowsAllThirteenKeys(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	expectedKeys := []string{
-		"search.format", "search.size", "search.operator", "search.context",
+		"search.format", "search.limit", "search.operator", "search.context",
 		"search.relaxation", "search.cache_ttl", "search.max_workers",
 		"watch.debounce", "index.ignore",
 		"bm25.k1", "bm25.b", "bm25.proximity_weight",
@@ -187,4 +187,36 @@ func TestCLI_Config_PopularityWeightFromFile_SearchSucceeds(t *testing.T) {
 	resp := parseSearchJSON(t, out)
 	assert.GreaterOrEqual(t, resp.Count, 1,
 		"expected search to succeed with popularity_weight set via .idx.yml")
+}
+
+// --- New UX: config get subcommand ---
+
+func TestCLI_Config_Get_KnownKey_Succeeds(t *testing.T) {
+	// Arrange — config get is a local command; no server required
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+
+	// Act
+	// cmd.OutOrStdout() goes to os.Stdout in the E2E context (not the io.Discard writer),
+	// so we verify correct behavior via the error return, not buffer capture.
+	// Value correctness is covered by unit tests for runConfigGetTo.
+	err := run([]string{"idx", "config", "get", "search.operator"}, io.Discard)
+
+	// Assert — known key succeeds without error
+	require.NoError(t, err)
+}
+
+func TestCLI_Config_Get_UnknownKey_ReturnsError(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+
+	// Act
+	err := run([]string{"idx", "config", "get", "nonexistent.key"}, io.Discard)
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "unknown config key")
 }

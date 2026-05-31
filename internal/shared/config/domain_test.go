@@ -17,7 +17,7 @@ func TestDefaultIdxConfig_Search_ReturnsExpectedDefaults(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "text", cfg.Search.Format)
-	assert.Equal(t, 0, cfg.Search.Size)
+	assert.Equal(t, 0, cfg.Search.Limit)
 	assert.Equal(t, "AND", cfg.Search.Operator)
 	assert.Equal(t, 0, cfg.Search.Context)
 	assert.Equal(t, "", cfg.Search.Relaxation)

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Remove `.idx` metadata recursively from the current project and stop the running server daemon.
+Remove `.idx` metadata recursively from the current project and stop the running server daemon. Run `idx init` afterwards to rebuild.
 
 ## Usage
 
@@ -42,5 +42,8 @@ idx destroy
 ## Examples
 
 ```bash
+# Remove index and stop server, then rebuild
 idx destroy
+idx init
+idx server start
 ```

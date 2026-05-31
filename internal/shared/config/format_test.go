@@ -21,7 +21,7 @@ func TestAllKeys_ReturnsFourteenKeys(t *testing.T) {
 func TestAllKeys_ContainsAllExpectedKeys(t *testing.T) {
 	t.Parallel()
 	keys := config.AllKeys()
-	for _, required := range []string{"search.format", "search.size", "bm25.k1", "bm25.b", "log.level"} {
+	for _, required := range []string{"search.format", "search.limit", "bm25.k1", "bm25.b", "log.level"} {
 		assert.Contains(t, keys, required)
 	}
 }

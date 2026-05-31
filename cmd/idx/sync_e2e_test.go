@@ -125,3 +125,19 @@ func (f writerFunc) Write(p []byte) (int, error) {
 	f(string(p))
 	return len(p), nil
 }
+
+// --- New UX: update alias ---
+
+func TestCLI_Sync_UpdateAlias_RunsSync(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+
+	// Act — idx update is an alias for idx sync
+	err := run([]string{"idx", "update"}, io.Discard)
+
+	// Assert — alias succeeds without error
+	require.NoError(t, err)
+}

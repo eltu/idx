@@ -155,3 +155,56 @@ func TestCLI_Read_WithoutServer_ReturnsServerNotRunningError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "server not running")
 }
+
+// --- New UX: open alias, --start/--end flags ---
+
+func TestCLI_Read_OpenAlias_SameAsRead(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+	target := filepath.Join(projectRoot, "main.go")
+
+	// Act
+	var buf1, buf2 bytes.Buffer
+	require.NoError(t, run([]string{"idx", "open", target}, &buf1))
+	require.NoError(t, run([]string{"idx", "read", target}, &buf2))
+
+	// Assert — alias produces identical output
+	assert.Equal(t, buf2.String(), buf1.String())
+}
+
+func TestCLI_Read_StartEndFlags_SameLineRange(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+	target := filepath.Join(projectRoot, "main.go")
+
+	// Act — new flags vs deprecated flags
+	out1, err1 := runRead(t, target, "--start", "1", "--end", "3")
+	out2, err2 := runRead(t, target, "--from", "1", "--to", "3")
+
+	// Assert — same content for the same line range
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, out2, out1)
+}
+
+func TestCLI_Read_StartShorthand_Works(t *testing.T) {
+	// Arrange
+	projectRoot := newTestProject(t)
+	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
+	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
+	target := filepath.Join(projectRoot, "main.go")
+
+	// Act — -s for --start, -e for --end
+	out, err := runRead(t, target, "-s", "1", "-e", "2")
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, out)
+}

@@ -16,12 +16,51 @@ const (
 	errMsgRelaxationFormat = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
 )
 
+const searchLongDescription = `Search indexed files using BM25 full-text ranking.
+
+Output flags:
+  -j, --json           Output as JSON
+      --pretty         Pretty-print JSON
+  -c, --context N      Show N context lines around each match
+  -l, --files-only     List only file paths
+      --hits           Show only matched lines
+      --compact        Compact output for AI agents (fewer tokens)
+      --count          Print only the number of matching files
+      --explain        Include BM25 score per result
+      --time           Show query execution time
+
+Filtering flags:
+  -e, --ext .go        Filter by file extension (repeatable)
+  -p, --path internal  Filter by path prefix (repeatable)
+
+Ranking flags:
+      --any            Match any term (OR mode)
+      --operator AND   Boolean mode: AND (default) or OR
+      --relax N        Relax AND: require at least N terms to match
+      --popularity-weight 0.3  Boost files read via 'idx read'
+
+Pagination:
+      --skip N         Skip first N results
+  -n, --limit N        Show at most N results
+
+Examples:
+  idx search "error handling"
+  idx find -e go -e ts "func main"
+  idx search -p internal logger --any
+  idx search -j --pretty "config"
+  idx search --count "TODO"
+  idx search --relax 2 "init sync destroy context"
+  idx search -l -e md "installation"
+  idx search --time --explain "BM25 scoring"`
+
 func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	config := &searchCommandConfig{}
 	var searchCommand *cobra.Command
 	searchCommand = &cobra.Command{
-		Use:   "search [query terms]",
-		Short: "Search indexed content",
+		Use:     "search [query terms]",
+		Aliases: []string{"find"},
+		Short:   "Search indexed content",
+		Long:    searchLongDescription,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runner.runSearchCommand(searchCommand, args, config)
 		},
@@ -36,24 +75,43 @@ type searchCommandConfig struct {
 	format            string
 	contextLines      int
 	prettyJSON        bool
+	pretty            bool
+	jsonShorthand     bool
 	explain           bool
 	agentCompact      bool
+	compact           bool
 	matchesOnly       bool
+	hitsOnly          bool
 	legacyMatchesOnly bool
 	filesOnly         bool
+	countOnly         bool
+	timing            bool
 	pathQueries       []string
 	extensionQueries  []string
 	from              int
+	skip              int
 	size              int
+	limit             int
 	operator          string
+	anyMode           bool
 	relaxation        string
+	relaxInt          int
+	relaxIntSet       bool
 	relaxationMin     int
 	relaxationEnabled bool
 	popularityWeight  float64
 }
 
 func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args []string, config *searchCommandConfig) error {
-	if err := validateSearchConfig(config, searchCommand.Flags().Changed("size")); err != nil {
+	applySearchAliasFlags(config)
+	config.relaxIntSet = searchCommand.Flags().Changed("relax")
+	// --size is deprecated; when explicitly set, forward its value to --limit so that
+	// options() can use a single field. Only override when --limit was not also set.
+	if searchCommand.Flags().Changed("size") && !searchCommand.Flags().Changed("limit") {
+		config.limit = config.size
+	}
+
+	if err := validateSearchConfig(config, searchCommand.Flags().Changed("size"), searchCommand.Flags().Changed("limit")); err != nil {
 		return err
 	}
 
@@ -66,32 +124,64 @@ func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args 
 	return runner.searchCommand.RunWithOptions(query, config.options())
 }
 
-func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
-	cfg := runner.config.Search
-	searchCommand.Flags().StringVar(&config.format, "format", cfg.Format, "Output format: text|json")
-	searchCommand.Flags().IntVar(&config.contextLines, "context", cfg.Context, "Number of context lines around matches")
-	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "Pretty-print JSON output")
-	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
-	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "Use compact text output optimized for agents (fewer tokens)")
-	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
-	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
-	_ = searchCommand.Flags().MarkHidden("macthes-only")
-	searchCommand.Flags().BoolVar(&config.filesOnly, "files-only", false, "Show only matched file paths")
-	searchCommand.Flags().StringArrayVar(&config.pathQueries, "path", []string{}, "Filter results by metadata path (repeatable)")
-	searchCommand.Flags().StringArrayVar(&config.extensionQueries, "ext", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
-	searchCommand.Flags().IntVar(&config.from, "from", 0, "Skip the first N ranked files")
-	searchCommand.Flags().IntVar(&config.size, "size", cfg.Size, "Limit results to top N files")
-	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
-	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", cfg.Relaxation, "Relax AND query with trailing-term fallback. Format: >N")
-	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
+// applySearchAliasFlags resolves alias flags into their canonical counterparts before validation.
+func applySearchAliasFlags(config *searchCommandConfig) {
+	if config.jsonShorthand {
+		config.format = search.OutputJSON
+	}
+	if config.anyMode {
+		config.operator = search.OperatorOR
+	}
 }
 
-func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {
-	if err := validateSearchFlagValues(config.contextLines, config.from, config.size, sizeChanged); err != nil {
+func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
+	cfg := runner.config.Search
+
+	searchCommand.Flags().StringVar(&config.format, "format", cfg.Format, "Output format: text|json")
+	searchCommand.Flags().BoolVarP(&config.jsonShorthand, "json", "j", false, "Output results as JSON (shorthand for --format json)")
+	searchCommand.Flags().IntVarP(&config.contextLines, "context", "c", cfg.Context, "Number of context lines around matches")
+	searchCommand.Flags().BoolVar(&config.pretty, "pretty", false, "Pretty-print JSON output (requires --json or --format json)")
+	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
+	searchCommand.Flags().BoolVar(&config.compact, "compact", false, "Compact output with fewer tokens (good for AI agents)")
+	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
+	searchCommand.Flags().BoolVar(&config.hitsOnly, "hits", false, "Show only lines that directly match the query")
+	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
+	_ = searchCommand.Flags().MarkHidden("macthes-only")
+	searchCommand.Flags().BoolVarP(&config.filesOnly, "files-only", "l", false, "Show only matched file paths")
+	searchCommand.Flags().BoolVar(&config.countOnly, "count", false, "Print only the number of matching files")
+	searchCommand.Flags().BoolVar(&config.timing, "time", false, "Show query execution time")
+	searchCommand.Flags().StringArrayVarP(&config.pathQueries, "path", "p", []string{}, "Filter results by metadata path (repeatable)")
+	searchCommand.Flags().StringArrayVarP(&config.extensionQueries, "ext", "e", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
+	searchCommand.Flags().IntVar(&config.skip, "skip", 0, "Skip the first N ranked results")
+	searchCommand.Flags().IntVarP(&config.limit, "limit", "n", cfg.Limit, "Limit results to top N files")
+	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
+	searchCommand.Flags().BoolVar(&config.anyMode, "any", false, "Match files containing ANY query term (shorthand for --operator OR)")
+	searchCommand.Flags().IntVar(&config.relaxInt, "relax", 0, "Relax AND: require at least N matching terms (e.g. --relax 2)")
+	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", cfg.Relaxation, "Relax AND query with trailing-term fallback. Format: >N")
+	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
+
+	// Deprecated aliases kept for backward compatibility.
+	searchCommand.Flags().BoolVar(&config.agentCompact, "agent-compact", false, "")
+	_ = searchCommand.Flags().MarkHidden("agent-compact")
+	_ = searchCommand.Flags().MarkDeprecated("agent-compact", "use --compact instead")
+	searchCommand.Flags().BoolVar(&config.prettyJSON, "json-pretty", false, "")
+	_ = searchCommand.Flags().MarkHidden("json-pretty")
+	_ = searchCommand.Flags().MarkDeprecated("json-pretty", "use --pretty instead")
+	searchCommand.Flags().IntVar(&config.size, "size", cfg.Limit, "")
+	_ = searchCommand.Flags().MarkHidden("size")
+	_ = searchCommand.Flags().MarkDeprecated("size", "use --limit/-n instead")
+	searchCommand.Flags().IntVar(&config.from, "from", 0, "")
+	_ = searchCommand.Flags().MarkHidden("from")
+	_ = searchCommand.Flags().MarkDeprecated("from", "use --skip instead")
+}
+
+func validateSearchConfig(config *searchCommandConfig, sizeChanged, limitChanged bool) error {
+	if err := validateSearchFlagValues(config.contextLines, config.skip, config.from, config.size, config.limit, sizeChanged, limitChanged); err != nil {
 		return err
 	}
 
-	if err := validateSearchFormat(config.format, config.prettyJSON); err != nil {
+	prettyActive := config.prettyJSON || config.pretty
+	if err := validateSearchFormat(config.format, prettyActive); err != nil {
 		return err
 	}
 
@@ -102,9 +192,13 @@ func validateSearchConfig(config *searchCommandConfig, sizeChanged bool) error {
 	return validateSearchRelaxation(config)
 }
 
-func validateSearchFlagValues(contextLines, from, size int, sizeChanged bool) error {
+func validateSearchFlagValues(contextLines, skip, from, size, limit int, sizeChanged, limitChanged bool) error {
 	if contextLines < 0 {
 		return fmt.Errorf("invalid --context value %d: expected a non-negative integer", contextLines)
+	}
+
+	if skip < 0 {
+		return fmt.Errorf("invalid --skip value %d: expected a non-negative integer", skip)
 	}
 
 	if from < 0 {
@@ -115,16 +209,20 @@ func validateSearchFlagValues(contextLines, from, size int, sizeChanged bool) er
 		return fmt.Errorf("invalid --size value %d: expected a positive integer", size)
 	}
 
+	if limit < 0 || (limit == 0 && limitChanged) {
+		return fmt.Errorf("invalid --limit value %d: expected a positive integer", limit)
+	}
+
 	return nil
 }
 
-func validateSearchFormat(format string, prettyJSON bool) error {
+func validateSearchFormat(format string, prettyActive bool) error {
 	if format != search.OutputText && format != search.OutputJSON {
 		return fmt.Errorf("unsupported --format value %q: expected one of [%s %s]", format, search.OutputText, search.OutputJSON)
 	}
 
-	if prettyJSON && format != search.OutputJSON {
-		return fmt.Errorf("--json-pretty requires --format %s: got format %q", search.OutputJSON, format)
+	if prettyActive && format != search.OutputJSON {
+		return fmt.Errorf("--pretty requires --format %s (or -j): got format %q", search.OutputJSON, format)
 	}
 
 	return nil
@@ -141,6 +239,11 @@ func validateSearchOperator(operator string) error {
 func validateSearchRelaxation(config *searchCommandConfig) error {
 	config.relaxationEnabled = false
 	config.relaxationMin = 0
+
+	// --relax N synthesizes the '>N' string format only when the flag was explicitly set.
+	if config.relaxIntSet {
+		config.relaxation = fmt.Sprintf(">%d", config.relaxInt)
+	}
 
 	if strings.TrimSpace(config.relaxation) == "" {
 		return nil
@@ -175,17 +278,20 @@ func validateSearchInput(query string, pathQueries, extensionQueries, arguments 
 
 func (config searchCommandConfig) options() search.Options {
 	options := search.Options{
-		Format:                 config.format,
-		Context:                config.contextLines,
-		PrettyJSON:             config.prettyJSON,
-		Explain:                config.explain,
-		AgentCompact:           config.agentCompact,
-		MatchesOnly:            config.matchesOnly || config.legacyMatchesOnly,
-		FilesOnly:              config.filesOnly,
-		PathQueries:            config.pathQueries,
-		ExtensionQueries:       config.extensionQueries,
-		From:                   config.from,
-		Size:                   config.size,
+		Format:           config.format,
+		Context:          config.contextLines,
+		PrettyJSON:       config.prettyJSON || config.pretty,
+		Explain:          config.explain,
+		AgentCompact:     config.agentCompact || config.compact,
+		MatchesOnly:      config.matchesOnly || config.legacyMatchesOnly || config.hitsOnly,
+		FilesOnly:        config.filesOnly || config.countOnly,
+		CountOnly:        config.countOnly,
+		Timing:           config.timing,
+		PathQueries:      config.pathQueries,
+		ExtensionQueries: config.extensionQueries,
+		From:             config.from + config.skip,
+		// runSearchCommand forwards --size into config.limit before this is called.
+		Size:                   config.limit,
 		Operator:               config.operator,
 		RelaxationEnabled:      config.relaxationEnabled,
 		RelaxationMinExclusive: config.relaxationMin,
@@ -214,8 +320,8 @@ func writeSearchMissingQueryError(cmd *cobra.Command) {
 	usage := searchErrorActionStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("<terms>")
 	examples := []string{
 		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("error handling"),
-		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("--ext go func main"),
-		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("--path internal logger"),
+		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("-e go func main"),
+		searchErrorMutedStyle.Render(searchCmdName) + " " + searchErrorPathStyle.Render("-p internal logger"),
 	}
 
 	msg := fmt.Sprintf("\n%s\n\n  Usage:  %s\n\n  Examples:\n    %s\n",

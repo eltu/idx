@@ -69,8 +69,15 @@ func addCommandToGroup(parent *cobra.Command, groupID string, cmds ...*cobra.Com
 
 func (runner CommandRunner) newSyncCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "sync",
-		Short: "Synchronize project indices",
+		Use:     "sync",
+		Aliases: []string{"update"},
+		Short:   "Synchronize project indices",
+		Long: `Incrementally re-index changed directories using file checksums.
+Only directories with modified content are re-processed — unchanged dirs are skipped.
+
+Examples:
+  idx sync
+  idx update`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runner.indexCommand.Sync()
 		},
@@ -81,6 +88,11 @@ func (runner CommandRunner) newInitCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize project index",
+		Long: `Build the full BM25 index for the current project.
+Safe to re-run: subsequent calls sync only changed directories.
+
+Examples:
+  idx init`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runner.indexCommand.Run()
 		},
@@ -119,7 +131,16 @@ func (runner CommandRunner) newStatusCommand() *cobra.Command {
 func (runner CommandRunner) newInspectCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "inspect [path]",
-		Short: "Inspect an index payload (JSON with path, interactive without path)",
+		Short: "Browse the BM25 index (interactive TUI without args, JSON dump with path)",
+		Long: `Without arguments: opens an interactive TUI to browse indexed directories, documents,
+and transaction logs. Use / to filter, Enter to drill down, q to quit.
+
+With a path argument: dumps the raw BM25 index for that directory as JSON,
+useful for debugging ranking issues.
+
+Examples:
+  idx inspect
+  idx inspect internal/features/search`,
 		Args: func(_ *cobra.Command, args []string) error {
 			_, err := parseInspectArguments(args)
 			return err
@@ -139,6 +160,11 @@ func (runner CommandRunner) newDestroyCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "destroy",
 		Short: "Destroy index metadata",
+		Long: `Remove all .idx index files and stop the server daemon.
+Useful for a clean rebuild: run 'idx init' afterwards to re-index.
+
+Examples:
+  idx destroy`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			// Run destroy first so the RPC reaches the server while it is still alive.
 			// stopServerForDestroy sends SIGTERM after, which is a no-op when the server

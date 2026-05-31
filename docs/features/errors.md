@@ -20,13 +20,19 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 
 - `missing search query: got ... expected idx search <terms>`
 - `unsupported --format value "...": expected one of [text json]`
-- `--json-pretty requires --format json: got format "..."`
+- `--pretty requires --format json (or -j): got format "..."`
 - `invalid --context value ...: expected a non-negative integer`
-- `invalid --from value ...: expected a non-negative integer`
-- `invalid --size value ...: expected a positive integer`
+- `invalid --skip value ...: expected a non-negative integer`
+- `invalid --from value ...: expected a non-negative integer` (deprecated flag)
+- `invalid --limit value ...: expected a positive integer`
+- `invalid --size value ...: expected a positive integer` (deprecated flag)
 - `unsupported --operator value "...": expected one of [AND OR]`
 - `invalid --relaxation value "...": expected format >N where N is a non-negative integer`
 - `invalid --relaxation with --operator "...": expected "AND"`
+
+## Config flag validation
+
+- `unknown config key "<key>" — valid keys: search.format, search.limit, ...` (from `idx config get`)
 
 ## Skills flag validation
 

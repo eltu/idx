@@ -238,3 +238,42 @@ func TestNewInspectCommand_RunE_MultipleArgs_ReturnsError(t *testing.T) {
 	cmd := runner.newInspectCommand()
 	require.Error(t, cmd.RunE(cmd, []string{"path1", "path2"}))
 }
+
+// ---- Long descriptions ----
+
+func TestNewInspectCommand_HasLongDescription(t *testing.T) {
+	t.Parallel()
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInspectCommand()
+	assert.NotEmpty(t, cmd.Long)
+}
+
+func TestNewSyncCommand_HasLongDescription(t *testing.T) {
+	t.Parallel()
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newSyncCommand()
+	assert.NotEmpty(t, cmd.Long)
+}
+
+// ---- Aliases ----
+
+func TestNewSyncCommand_UpdateAlias_Registered(t *testing.T) {
+	t.Parallel()
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newSyncCommand()
+	assert.Contains(t, cmd.Aliases, "update")
+}
+
+func TestNewInitCommand_HasLongDescription(t *testing.T) {
+	t.Parallel()
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newInitCommand()
+	assert.NotEmpty(t, cmd.Long)
+}
+
+func TestNewDestroyCommand_HasLongDescription(t *testing.T) {
+	t.Parallel()
+	runner := newRunnerWithStubIndex()
+	cmd := runner.newDestroyCommand()
+	assert.NotEmpty(t, cmd.Long)
+}

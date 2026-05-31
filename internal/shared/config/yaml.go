@@ -66,7 +66,8 @@ type yamlIdxConfig struct {
 
 type yamlSearchConfig struct {
 	Format     *string `yaml:"format"`
-	Size       *int    `yaml:"size"`
+	Limit      *int    `yaml:"limit"`
+	Size       *int    `yaml:"size"` // deprecated: use limit
 	Operator   *string `yaml:"operator"`
 	Context    *int    `yaml:"context"`
 	Relaxation *string `yaml:"relaxation"`
@@ -134,9 +135,14 @@ func applySearchOverrides(cfg *SearchConfig, s *yamlSearchConfig) ([]string, err
 		cfg.Format = *s.Format
 		keys = append(keys, "search.format")
 	}
-	if s.Size != nil {
-		cfg.Size = *s.Size
-		keys = append(keys, "search.size")
+	if s.Limit != nil {
+		cfg.Limit = *s.Limit
+		keys = append(keys, KeySearchLimit)
+	} else if s.Size != nil {
+		// Backward compat: search.size was renamed to search.limit in the config schema.
+		// Read the old key and map it to the new field so existing .idx.yml files still work.
+		cfg.Limit = *s.Size
+		keys = append(keys, KeySearchLimit)
 	}
 	if s.Operator != nil {
 		cfg.Operator = *s.Operator

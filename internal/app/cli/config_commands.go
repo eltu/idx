@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"io"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
@@ -26,8 +28,32 @@ func (runner CommandRunner) newConfigCommand() *cobra.Command {
 		Use:   "config",
 		Short: "Show or manage project configuration (.idx.yml)",
 	}
-	configCommand.AddCommand(runner.newConfigShowCommand())
+	configCommand.AddCommand(runner.newConfigShowCommand(), runner.newConfigGetCommand())
 	return configCommand
+}
+
+func (runner CommandRunner) newConfigGetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <key>",
+		Short: "Get the resolved value of a single config key",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runner.runConfigGetTo(cmd.OutOrStdout(), args[0])
+		},
+	}
+}
+
+// runConfigGetTo writes the resolved value of key to out.
+// Returns an error when key is not a recognized configuration field.
+// Example: runner.runConfigGetTo(buf, "search.operator") → writes "AND\n" to buf.
+func (runner CommandRunner) runConfigGetTo(out io.Writer, key string) error {
+	value := sharedconfig.FieldValue(runner.config, key)
+	if value == "" {
+		keys := sharedconfig.AllKeys()
+		return fmt.Errorf("unknown config key %q — valid keys: %s", key, strings.Join(keys, ", "))
+	}
+	_, err := fmt.Fprintln(out, value)
+	return err
 }
 
 func (runner CommandRunner) newConfigShowCommand() *cobra.Command {
