@@ -9,6 +9,7 @@ const (
 	MethodRead    = "idx.read"
 	MethodInspect = "idx.inspect"
 	MethodDestroy = "idx.destroy"
+	MethodConfig  = "idx.config"
 )
 
 // SearchRequest carries all search parameters over RPC.

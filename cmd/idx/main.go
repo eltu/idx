@@ -309,16 +309,19 @@ func runServer(arguments []string, output io.Writer) error {
 
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	indexServer := appserver.NewServer(appserver.ServerDeps{
-		ProjectTree:    d.projectTree,
-		MatcherFactory: d.matcherFactory,
-		FileReader:     d.fileReader,
-		Indexer:        indexer,
-		IndexRepo:      d.indexRepo,
-		ChecksumRepo:   d.checksumRepo,
-		DaemonRepo:     serverDaemon,
-		ReadLogRepo:    readLogRepo,
-		SearchTuning:   tuning,
-		SocketPath:     socketPath,
+		ProjectTree:     d.projectTree,
+		MatcherFactory:  d.matcherFactory,
+		FileReader:      d.fileReader,
+		Indexer:         indexer,
+		IndexRepo:       d.indexRepo,
+		ChecksumRepo:    d.checksumRepo,
+		DaemonRepo:      serverDaemon,
+		ReadLogRepo:     readLogRepo,
+		SearchTuning:    tuning,
+		SocketPath:      socketPath,
+		Config:          d.cfg,
+		ConfigFilePath:  d.configFilePath,
+		ConfigOverrides: d.overrides,
 	})
 
 	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand).
@@ -356,6 +359,7 @@ func runClient(arguments []string, output io.Writer) error {
 	readService := remote.NewRemoteReader(client, d.writer)
 	indexCmd := remote.NewRemoteIndexCommand(client, d.writer, inspectRunner)
 	destroyCommand := remote.NewRemoteDestroyCommand(client, d.writer)
+	configCommand := remote.NewRemoteConfigCommand(client, d.writer)
 	serverDaemonAdapter := appcli.NewServerDaemonAdapter(serverDaemon)
 
 	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand).
@@ -365,7 +369,8 @@ func runClient(arguments []string, output io.Writer) error {
 		WithReadCommand(readService).
 		WithServerManager(serverDaemonAdapter).
 		WithConfig(d.cfg, d.configFilePath, d.overrides).
-		WithProjectRoot(d.projectRoot)
+		WithProjectRoot(d.projectRoot).
+		WithConfigCommand(configCommand)
 
 	return runner.Run()
 }

@@ -37,7 +37,7 @@
 
 ## Tests
 
-- Tests run with a single command: `make test`.
+- Every change must pass `make check` (runs `gofmt` + `golangci-lint` + `go test ./...`).
 - Every new function gets a test. Bug fixes get a regression test.
 - Tests must be F.I.R.S.T: fast, independent, repeatable, self-validating, timely.
 

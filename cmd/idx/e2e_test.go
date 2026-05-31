@@ -19,6 +19,7 @@ import (
 	idxstorage "idx/internal/features/indexing/storage"
 	featread "idx/internal/features/read"
 	featsearch "idx/internal/features/search"
+	sharedconfig "idx/internal/shared/config"
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 	sharedoutput "idx/internal/shared/output"
@@ -58,10 +59,15 @@ func newTestProject(t *testing.T) string {
 
 // startTestServer mirrors the DI from runServer() but uses a cancellable context
 // so tests can shut down the server without OS signals. Creates .idx/ if absent.
+// Loads .idx.yml from projectRoot so idx.config requests return correct data.
 // The server goroutine is guaranteed to exit before t.Cleanup returns.
 func startTestServer(t *testing.T, projectRoot string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".idx"), 0o750))
+
+	configRepo := sharedconfig.NewYAMLRepository()
+	cfg, overrides, _ := configRepo.Load(projectRoot)
+	configFilePath := configRepo.FilePath(projectRoot)
 
 	indexRepo := idxstorage.NewBinaryIndexRepository()
 	checksumRepo := idxstorage.NewDirectoryChecksumRepository()
@@ -73,16 +79,19 @@ func startTestServer(t *testing.T, projectRoot string) {
 
 	socketPath := idxipc.SocketPath(projectRoot)
 	srv := appserver.NewServer(appserver.ServerDeps{
-		ProjectTree:    sharedfs.NewOSProjectTree(),
-		MatcherFactory: sharedfs.IgnoreMatcherBuilder(sharedfs.NewGitIgnoreMatcherFactory()),
-		FileReader:     sharedfs.NewOSFileReader(),
-		Indexer:        featindexing.NewBM25IndexService(),
-		IndexRepo:      indexRepo,
-		ChecksumRepo:   checksumRepo,
-		DaemonRepo:     serverDaemon,
-		ReadLogRepo:    readLogRepo,
-		SearchTuning:   tuning,
-		SocketPath:     socketPath,
+		ProjectTree:     sharedfs.NewOSProjectTree(),
+		MatcherFactory:  sharedfs.IgnoreMatcherBuilder(sharedfs.NewGitIgnoreMatcherFactory()),
+		FileReader:      sharedfs.NewOSFileReader(),
+		Indexer:         featindexing.NewBM25IndexService(),
+		IndexRepo:       indexRepo,
+		ChecksumRepo:    checksumRepo,
+		DaemonRepo:      serverDaemon,
+		ReadLogRepo:     readLogRepo,
+		SearchTuning:    tuning,
+		SocketPath:      socketPath,
+		Config:          cfg,
+		ConfigFilePath:  configFilePath,
+		ConfigOverrides: overrides,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -205,10 +214,10 @@ func TestCLI_Read_StreamsFileContents(t *testing.T) {
 }
 
 func TestCLI_ConfigShow_CompletesWithoutError(t *testing.T) {
-	// Arrange — config show outputs through cobra's Out (os.Stdout), not d.writer.
-	// We verify the command completes without error as a smoke test.
+	// Arrange — idx config show now routes through the server.
 	projectRoot := newTestProject(t)
 	t.Chdir(projectRoot)
+	startTestServer(t, projectRoot)
 
 	// Act
 	err := run([]string{"idx", "config", "show"}, io.Discard)

@@ -567,3 +567,51 @@ func (w *writeAfterNOutput) WriteLine(_ string) error {
 
 // Ensure strings is used (referenced in TestSocketClientCall_ServerNotReachable_ReturnsError).
 var _ = strings.Contains
+
+// --- RemoteConfigCommand ---
+
+func TestRemoteConfigCommand_Show_WritesOutput(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — serve a CommandResponse with a config text payload
+	sockPath := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		return idxipc.CommandResponse{Success: true, Output: "  search.format  text  · default\n"}
+	})
+	client := NewSocketClient(sockPath)
+	out := &fakeOutput{}
+
+	// Act
+	err := NewRemoteConfigCommand(client, out).Show()
+
+	// Assert
+	require.NoError(t, err)
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "search.format")
+}
+
+func TestRemoteConfigCommand_Show_EmptyOutput_NoWrite(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — server returns empty output (no .idx.yml scenario)
+	sockPath := fakeJSONRPCServer(t, func(_ string, _ []byte) any {
+		return idxipc.CommandResponse{Success: true, Output: ""}
+	})
+	client := NewSocketClient(sockPath)
+	out := &fakeOutput{}
+
+	// Act
+	err := NewRemoteConfigCommand(client, out).Show()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, out.lines)
+}
+
+func TestRemoteConfigCommand_Show_ServerNotRunning_ReturnsError(t *testing.T) {
+	t.Parallel()
+	client := NewSocketClient("/tmp/idx-nonexistent-config-test.sock")
+	out := &fakeOutput{}
+	err := NewRemoteConfigCommand(client, out).Show()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "server not running")
+}

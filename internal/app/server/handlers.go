@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	featindexing "idx/internal/features/indexing"
 	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
 	featsearch "idx/internal/features/search"
+	sharedconfig "idx/internal/shared/config"
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 )
@@ -83,6 +85,14 @@ func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, 
 	svc := featlifecycle.NewDestroyCommandService(s.deps.ProjectTree, capture)
 	err := svc.Run()
 	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
+}
+
+func (s *indexServer) handleConfig(_ context.Context, _ json.RawMessage) (any, error) {
+	var sb strings.Builder
+	if err := sharedconfig.FormatOutput(&sb, s.deps.Config, s.deps.ConfigFilePath, s.deps.ConfigOverrides); err != nil {
+		return nil, err
+	}
+	return idxipc.CommandResponse{Success: true, Output: sb.String()}, nil
 }
 
 func initDepsWithCapture(deps ServerDeps, capture *captureWriter) featindexing.InitCommandServiceDeps {
@@ -173,14 +183,17 @@ func parseSearchJSON(line string) (idxipc.SearchResponse, error) {
 
 // ServerDeps groups all collaborators for the index server.
 type ServerDeps struct {
-	ProjectTree    sharedfs.ProjectTree
-	MatcherFactory sharedfs.IgnoreMatcherBuilder
-	FileReader     sharedfs.FileReader
-	Indexer        featindexing.Indexer
-	IndexRepo      featindexing.IndexRepository
-	ChecksumRepo   featindexing.DirectoryChecksumRepository
-	DaemonRepo     featindexing.ProjectMonitorChecker
-	ReadLogRepo    featread.LogRepository
-	SearchTuning   featsearch.SearchServiceOptions
-	SocketPath     string
+	ProjectTree     sharedfs.ProjectTree
+	MatcherFactory  sharedfs.IgnoreMatcherBuilder
+	FileReader      sharedfs.FileReader
+	Indexer         featindexing.Indexer
+	IndexRepo       featindexing.IndexRepository
+	ChecksumRepo    featindexing.DirectoryChecksumRepository
+	DaemonRepo      featindexing.ProjectMonitorChecker
+	ReadLogRepo     featread.LogRepository
+	SearchTuning    featsearch.SearchServiceOptions
+	SocketPath      string
+	Config          sharedconfig.IdxConfig
+	ConfigFilePath  string
+	ConfigOverrides []string
 }

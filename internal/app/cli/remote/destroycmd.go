@@ -19,12 +19,5 @@ func NewRemoteDestroyCommand(client *SocketClient, output sharedoutput.Writer) *
 
 // Run sends idx.destroy to the server and prints the output.
 func (c *RemoteDestroyCommand) Run() error {
-	var resp idxipc.CommandResponse
-	if err := c.client.Call(idxipc.MethodDestroy, struct{}{}, &resp); err != nil {
-		return err
-	}
-	if resp.Output != "" {
-		return c.output.WriteLine(resp.Output)
-	}
-	return nil
+	return sendCommandResponse(c.client, c.output, idxipc.MethodDestroy)
 }

@@ -46,6 +46,7 @@ type CommandRunner struct {
 	serverManager   serverManagerCommand
 	skillsCommand   Installer
 	indexServer     ServerRunner
+	configCommand   ConfigShower
 	buildInfo       BuildInfo
 	quietToggle     interface{ SetQuiet(bool) }
 	config          config.IdxConfig
@@ -126,6 +127,13 @@ func (runner CommandRunner) WithConfig(cfg config.IdxConfig, filePath string, ov
 // Example: runner = runner.WithProjectRoot("/home/user/myproject").
 func (runner CommandRunner) WithProjectRoot(root string) CommandRunner {
 	runner.projectRoot = root
+	return runner
+}
+
+// WithConfigCommand wires the config displayer so 'idx config show' goes through the server.
+// Example: runner = runner.WithConfigCommand(remoteConfigCommand).
+func (runner CommandRunner) WithConfigCommand(c ConfigShower) CommandRunner {
+	runner.configCommand = c
 	return runner
 }
 

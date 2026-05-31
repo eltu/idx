@@ -14,46 +14,8 @@ import (
 	"idx/internal/shared/config"
 )
 
-// ---- padRight ----
-
-func TestPadRight_ShortString_PaddedToWidth(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "ab   ", padRight("ab", 5))
-}
-
-func TestPadRight_AlreadyWide_NotTrimmed(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "abcde", padRight("abcde", 3))
-}
-
-func TestPadRight_ExactWidth_Unchanged(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "abc", padRight("abc", 3))
-}
-
-// ---- formatConfigFloat ----
-
-func TestFormatConfigFloat_Decimal_RendersCorrectly(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "1.5", formatConfigFloat(1.5))
-}
-
-func TestFormatConfigFloat_Zero_RendersZero(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "0", formatConfigFloat(0))
-}
-
-// ---- formatIgnorePatterns ----
-
-func TestFormatIgnorePatterns_NilSlice_ReturnsBrackets(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "[]", formatIgnorePatterns(nil))
-}
-
-func TestFormatIgnorePatterns_MultiplePatterns_FormatsCorrectly(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "[vendor, *.tmp]", formatIgnorePatterns([]string{"vendor", "*.tmp"}))
-}
+// padRight, formatConfigFloat, formatIgnorePatterns moved to shared/config.
+// Tests for those functions are in internal/shared/config/format_test.go.
 
 // ---- configTableColumnWidths ----
 
@@ -318,24 +280,21 @@ func TestFormatVersionDate_Invalid_PassesThrough(t *testing.T) {
 	assert.Equal(t, raw, formatVersionDate(raw))
 }
 
-// ---- defaultConfigValues ----
-
-func TestDefaultConfigValues_HasExpectedKeys(t *testing.T) {
-	t.Parallel()
-	def := defaultConfigValues()
-	required := []string{"search.format", "search.size", "bm25.k1", "bm25.b", "log.level"}
-	for _, key := range required {
-		assert.Contains(t, def, key)
-	}
-}
+// defaultConfigValues removed — use sharedconfig.DefaultFieldValue per key.
 
 // ---- buildConfigRows ----
 
-func TestBuildConfigRows_ReturnsAllKeys_IncludingSearchFormat(t *testing.T) {
+func TestBuildConfigRows_ReturnsAllThirteenKeys(t *testing.T) {
 	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	rows := buildConfigRows(runner)
-	require.NotEmpty(t, rows)
+	assert.Len(t, rows, 13, "expected one row per configurable key")
+}
+
+func TestBuildConfigRows_ContainsSearchFormat(t *testing.T) {
+	t.Parallel()
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
+	rows := buildConfigRows(runner)
 	found := false
 	for _, r := range rows {
 		if r.key == "search.format" {

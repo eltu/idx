@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
+
+	sharedconfig "idx/internal/shared/config"
 )
 
 var (
@@ -16,28 +16,16 @@ var (
 	configActionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6366F1"))
 )
 
-const (
-	configKeySearchFormat     = "search.format"
-	configKeySearchSize       = "search.size"
-	configKeySearchOperator   = "search.operator"
-	configKeySearchContext    = "search.context"
-	configKeySearchRelaxation = "search.relaxation"
-	configKeySearchCacheTTL   = "search.cache_ttl"
-	configKeySearchMaxWorkers = "search.max_workers"
-	configKeyWatchDebounce    = "watch.debounce"
-	configKeyIndexIgnore      = "index.ignore"
-	configKeyBM25K1           = "bm25.k1"
-	configKeyBM25B            = "bm25.b"
-	configKeyBM25ProxWeight   = "bm25.proximity_weight"
-	configKeyLogLevel         = "log.level"
-)
+// ConfigShower is the single capability required to display the resolved configuration.
+type ConfigShower interface {
+	Show() error
+}
 
 func (runner CommandRunner) newConfigCommand() *cobra.Command {
 	configCommand := &cobra.Command{
 		Use:   "config",
 		Short: "Show or manage project configuration (.idx.yml)",
 	}
-
 	configCommand.AddCommand(runner.newConfigShowCommand())
 	return configCommand
 }
@@ -47,7 +35,11 @@ func (runner CommandRunner) newConfigShowCommand() *cobra.Command {
 		Use:   "show",
 		Short: "Display resolved configuration and which values come from .idx.yml",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runner.writeConfigDetails()
+			if runner.configCommand == nil {
+				// fallback for server-mode or unit-test contexts without RPC wiring
+				return runner.writeConfigDetails()
+			}
+			return runner.configCommand.Show()
 		},
 	}
 }
@@ -75,7 +67,8 @@ func (runner CommandRunner) showConfigBanner() {
 	fmt.Printf("\n  ⚙  %s  %s%s\n", label, file, overrideSuffix)
 }
 
-// writeConfigDetails writes the full config table for idx config show.
+// writeConfigDetails writes the styled config table directly to os.Stdout.
+// Used as a fallback when configCommand is nil and by showConfigBanner tests.
 func (runner CommandRunner) writeConfigDetails() error {
 	overrideSet := make(map[string]bool, len(runner.configOverrides))
 	for _, k := range runner.configOverrides {
@@ -110,8 +103,8 @@ func printConfigTable(rows []configRow, overrideSet map[string]bool) {
 				configMutedStyle.Render(fmt.Sprintf("  (default: %s)", r.defaultValue))
 		}
 		fmt.Printf("  %s  %s  %s\n",
-			keyStyle.Render(padRight(r.key, maxKey)),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0")).Render(padRight(r.value, maxVal)),
+			keyStyle.Render(sharedconfig.PadRight(r.key, maxKey)),
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0")).Render(sharedconfig.PadRight(r.value, maxVal)),
 			sourceLabel,
 		)
 	}
@@ -139,57 +132,14 @@ type configRow struct {
 
 func buildConfigRows(runner CommandRunner) []configRow {
 	cfg := runner.config
-	def := defaultConfigValues()
-
-	return []configRow{
-		{configKeySearchFormat, cfg.Search.Format, def[configKeySearchFormat]},
-		{configKeySearchSize, fmt.Sprintf("%d", cfg.Search.Size), def[configKeySearchSize]},
-		{configKeySearchOperator, cfg.Search.Operator, def[configKeySearchOperator]},
-		{configKeySearchContext, fmt.Sprintf("%d", cfg.Search.Context), def[configKeySearchContext]},
-		{configKeySearchRelaxation, cfg.Search.Relaxation, def[configKeySearchRelaxation]},
-		{configKeySearchCacheTTL, cfg.Search.CacheTTL.String(), def[configKeySearchCacheTTL]},
-		{configKeySearchMaxWorkers, fmt.Sprintf("%d", cfg.Search.MaxWorkers), def[configKeySearchMaxWorkers]},
-		{configKeyWatchDebounce, cfg.Watch.Debounce.String(), def[configKeyWatchDebounce]},
-		{configKeyIndexIgnore, formatIgnorePatterns(cfg.Index.Ignore), def[configKeyIndexIgnore]},
-		{configKeyBM25K1, formatConfigFloat(cfg.BM25.K1), def[configKeyBM25K1]},
-		{configKeyBM25B, formatConfigFloat(cfg.BM25.B), def[configKeyBM25B]},
-		{configKeyBM25ProxWeight, formatConfigFloat(cfg.BM25.ProximityWeight), def[configKeyBM25ProxWeight]},
-		{configKeyLogLevel, cfg.Log.Level, def[configKeyLogLevel]},
+	keys := sharedconfig.AllKeys()
+	rows := make([]configRow, 0, len(keys))
+	for _, key := range keys {
+		rows = append(rows, configRow{
+			key:          key,
+			value:        sharedconfig.FieldValue(cfg, key),
+			defaultValue: sharedconfig.DefaultFieldValue(key),
+		})
 	}
-}
-
-func defaultConfigValues() map[string]string {
-	return map[string]string{
-		configKeySearchFormat:     "text",
-		configKeySearchSize:       "0",
-		configKeySearchOperator:   "AND",
-		configKeySearchContext:    "0",
-		configKeySearchRelaxation: "",
-		configKeySearchCacheTTL:   time.Minute.String(),
-		configKeySearchMaxWorkers: "4",
-		configKeyWatchDebounce:    (750 * time.Millisecond).String(),
-		configKeyIndexIgnore:      "[]",
-		configKeyBM25K1:           "1.5",
-		configKeyBM25B:            "0.75",
-		configKeyBM25ProxWeight:   "3",
-		configKeyLogLevel:         "error",
-	}
-}
-
-func formatConfigFloat(f float64) string {
-	return fmt.Sprintf("%.4g", f)
-}
-
-func formatIgnorePatterns(patterns []string) string {
-	if len(patterns) == 0 {
-		return "[]"
-	}
-	return "[" + strings.Join(patterns, ", ") + "]"
-}
-
-func padRight(s string, width int) string {
-	if len(s) >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-len(s))
+	return rows
 }

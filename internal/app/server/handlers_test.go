@@ -155,6 +155,16 @@ func TestHandleStatus_NilDeps_ReturnsCommandResponse(t *testing.T) {
 	assert.Nil(t, resp.Error, "expected success CommandResponse")
 }
 
+// --- handleConfig ---
+
+func TestHandleConfig_NilDeps_ReturnsNoFileMessage(t *testing.T) {
+	t.Parallel()
+	s := NewServer(ServerDeps{}).(*indexServer)
+	resp := dispatchToServer(t, s, idxipc.MethodConfig, struct{}{})
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success response, not RPC error")
+}
+
 // --- initDepsWithCapture ---
 
 func TestInitDepsWithCapture_WiresOutput(t *testing.T) {

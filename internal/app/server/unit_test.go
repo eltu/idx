@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	featsearch "idx/internal/features/search"
+	sharedconfig "idx/internal/shared/config"
 	idxipc "idx/internal/shared/ipc"
 	sharedjsonrpc "idx/internal/shared/jsonrpc"
 )
@@ -176,6 +177,79 @@ func TestSearchOptionsFromRequest_EmptyOperator_DefaultsToAND(t *testing.T) {
 	t.Parallel()
 	opts := searchOptionsFromRequest(idxipc.SearchRequest{})
 	assert.Equal(t, featsearch.OperatorAND, opts.Operator)
+}
+
+// --- handleConfig ---
+
+func TestHandleConfig_NoFile_OutputContainsNoFileMessage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — deps with empty ConfigFilePath
+	s := NewServer(ServerDeps{}).(*indexServer)
+
+	// Act
+	resp := dispatchToServer(t, s, idxipc.MethodConfig, struct{}{})
+
+	// Assert
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.Error)
+	resultBytes, err := json.Marshal(resp.Result)
+	require.NoError(t, err)
+	var cr idxipc.CommandResponse
+	require.NoError(t, json.Unmarshal(resultBytes, &cr))
+	assert.True(t, cr.Success)
+	assert.Contains(t, cr.Output, "No .idx.yml")
+}
+
+func TestHandleConfig_WithFile_OutputContainsAllKeys(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cfg := sharedconfig.DefaultIdxConfig()
+	s := NewServer(ServerDeps{
+		Config:         cfg,
+		ConfigFilePath: "/project/.idx.yml",
+	}).(*indexServer)
+
+	// Act
+	resp := dispatchToServer(t, s, idxipc.MethodConfig, struct{}{})
+
+	// Assert
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.Error)
+	resultBytes, err := json.Marshal(resp.Result)
+	require.NoError(t, err)
+	var cr idxipc.CommandResponse
+	require.NoError(t, json.Unmarshal(resultBytes, &cr))
+	assert.True(t, cr.Success)
+	for _, key := range sharedconfig.AllKeys() {
+		assert.Contains(t, cr.Output, key, "expected key %q in config output", key)
+	}
+}
+
+func TestHandleConfig_WithOverride_OutputContainsSourceMarker(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cfg := sharedconfig.DefaultIdxConfig()
+	cfg.Search.Format = "json"
+	s := NewServer(ServerDeps{
+		Config:          cfg,
+		ConfigFilePath:  "/project/.idx.yml",
+		ConfigOverrides: []string{sharedconfig.KeySearchFormat},
+	}).(*indexServer)
+
+	// Act
+	resp := dispatchToServer(t, s, idxipc.MethodConfig, struct{}{})
+
+	// Assert
+	require.NotNil(t, resp)
+	resultBytes, err := json.Marshal(resp.Result)
+	require.NoError(t, err)
+	var cr idxipc.CommandResponse
+	require.NoError(t, json.Unmarshal(resultBytes, &cr))
+	assert.Contains(t, cr.Output, "← .idx.yml")
+	assert.Contains(t, cr.Output, "· default")
 }
 
 // --- handleConn ---
