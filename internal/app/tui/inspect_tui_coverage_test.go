@@ -309,8 +309,7 @@ func TestUpdateInspectLogSearchMode_CtrlC_Quits(t *testing.T) {
 // --- autocompleteInspectCommand multi-match path ---
 
 func TestAutocompleteInspectCommand_MultiMatch_ExpandsCommonPrefix(t *testing.T) {
-	t.Parallel()
-
+	// no t.Parallel(): mutates package-level inspectAvailableCommands
 	// Temporarily add a second command with a common prefix to trigger multi-match path.
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"inspect", "index"}
@@ -323,8 +322,7 @@ func TestAutocompleteInspectCommand_MultiMatch_ExpandsCommonPrefix(t *testing.T)
 }
 
 func TestAutocompleteInspectCommand_MultiMatch_ExtendsPrefix(t *testing.T) {
-	t.Parallel()
-
+	// no t.Parallel(): mutates package-level inspectAvailableCommands
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"inspect", "inspector"}
 	defer func() { inspectAvailableCommands = original }()
@@ -335,8 +333,7 @@ func TestAutocompleteInspectCommand_MultiMatch_ExtendsPrefix(t *testing.T) {
 }
 
 func TestAutocompleteInspectCommand_MultiMatch_NoCommonPrefix(t *testing.T) {
-	t.Parallel()
-
+	// no t.Parallel(): mutates package-level inspectAvailableCommands
 	original := inspectAvailableCommands
 	inspectAvailableCommands = []string{"alpha", "beta"}
 	defer func() { inspectAvailableCommands = original }()
