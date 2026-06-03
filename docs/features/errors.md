@@ -54,13 +54,6 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 - `unindexed directories found` — preceded by a styled warning panel listing the unindexed directories
 - `stale index` — preceded by the status overview panel showing `❌ N directory/ies stale — run idx sync`
 
-## Watch errors
-
-- `invalid --debounce value ...: expected a duration greater than 0`
-- `failed to run watch command: got invalid debounce ..., expected duration greater than 0`
-- Watcher initialization or runtime watcher errors.
-- Directory read/sync/indexing errors during watch batches.
-
 ## Server lifecycle errors
 
 - Not inside an idx project (no `.idx` directory found):
