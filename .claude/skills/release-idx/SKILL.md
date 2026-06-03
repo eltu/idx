@@ -16,20 +16,36 @@ All commands run from the **repo root**.
 
 ---
 
-## Phase 1 — Doc audit
+## Phase 1 — Doc gap analysis
 
-Run the audit script to check feature docs, ADR files, and the releases index:
+Collect what changed since the last release:
 
 ```bash
 bash .claude/skills/release-idx/check-docs.sh
 ```
 
-**If it exits 1:** fix the gaps before continuing.
+The script prints commits, changed source files, changed CLI files, ADR
+changes, and changed feature docs since the last tag. Use this output to
+drive the analysis below — do not skip to Phase 2 until every gap is resolved.
 
-Common gaps:
-- New command shipped but `docs/features/<command>.md` not created → regenerate with `/regenerate-cli-docs`.
-- New ADR recorded in `CLAUDE.md` but file missing in `docs/adr/` → create the ADR file.
-- Release note file exists but not listed in `docs/releases/index.md` → add the row.
+**For each Go source file listed under "CLI command files changed":**
+- Read the file and identify any new flags, commands, or changed behaviour.
+- Read the corresponding `docs/features/<command>.md`.
+- If the doc does not reflect the code change, update it.
+
+**For each feature file listed under "internal/features/" in the diff stat:**
+- Identify whether the change is user-visible (new behaviour, changed defaults,
+  removed capability).
+- If yes, check whether `docs/features/<feature>.md` covers it.
+- Update or create the doc if needed. Use `/regenerate-cli-docs` for full
+  command regen.
+
+**For each ADR line in "CLAUDE.md changed":**
+- Confirm the corresponding `docs/adr/<NNNN>-*.md` file exists and matches
+  the decision recorded in `CLAUDE.md`.
+- Create the ADR file if missing.
+
+**Resolve all gaps before Phase 2.**
 
 ---
 
