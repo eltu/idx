@@ -194,6 +194,15 @@ func isPathSafeChar(char byte) bool {
 	return char == '-' || char == '_' || char == '.'
 }
 
+func firstNonFlagArg(arguments []string) string {
+	for _, arg := range arguments[1:] {
+		if arg != "" && arg[0] != '-' {
+			return arg
+		}
+	}
+	return ""
+}
+
 func isServerCommand(arguments []string) bool {
 	nonFlagArgs := make([]string, 0, len(arguments))
 	for _, arg := range arguments[1:] {
@@ -204,8 +213,16 @@ func isServerCommand(arguments []string) bool {
 	return len(nonFlagArgs) >= 2 && nonFlagArgs[0] == "server" && nonFlagArgs[1] == "run"
 }
 
+// isInitCommand returns true for "idx init [flags]".
+// idx init is a bootstrap operation that must run before the server exists,
+// so it executes in-process rather than delegating to the server via RPC.
+// See ADR-0022 for rationale.
+func isInitCommand(arguments []string) bool {
+	return firstNonFlagArg(arguments) == "init"
+}
+
 func run(arguments []string, output io.Writer) error {
-	if isServerCommand(arguments) {
+	if isServerCommand(arguments) || isInitCommand(arguments) {
 		return runServer(arguments, output)
 	}
 	return runClient(arguments, output)

@@ -27,7 +27,10 @@ func (service InitCommandService) runIndex() error {
 	if hasIndex {
 		return service.output.WriteLine("ℹ️ This project is already indexed. You can run idx search.")
 	}
-	return service.initIndexing(currentDir, projectRoot)
+	if err := service.initIndexing(currentDir, projectRoot); err != nil {
+		return err
+	}
+	return service.output.WriteLine("   💡 Run `idx server start` to enable search")
 }
 
 func (service InitCommandService) resolveIndexPaths() (string, string, error) {

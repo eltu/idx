@@ -1,8 +1,6 @@
 package daemon_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,14 +13,6 @@ import (
 	"idx/internal/features/daemon/mocks"
 	sharedoutput "idx/internal/shared/output"
 )
-
-// makeInitializedProject creates the .idx/index.idx sentinel so Start does not reject the dir.
-func makeInitializedProject(t *testing.T, dir string) {
-	t.Helper()
-	idxDir := filepath.Join(dir, ".idx")
-	require.NoError(t, os.MkdirAll(idxDir, 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(idxDir, "index.idx"), []byte{}, 0o600))
-}
 
 // newTestService builds a service with fully controllable socket and process checks.
 // socketAlive is called for all isSocketAlive checks; use a stateful closure to
@@ -66,7 +56,6 @@ func TestServerDaemonService_Start_SpawnsAndSavesState(t *testing.T) {
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
 	projectPath := t.TempDir()
-	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
 	spawner.EXPECT().SpawnServerProcess(projectPath).Return(1234, nil)
 	repo.EXPECT().SaveState(projectPath, gomock.Any()).Return(nil)
@@ -89,7 +78,6 @@ func TestServerDaemonService_Start_IdempotentWhenSocketAlive(t *testing.T) {
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
 	projectPath := t.TempDir()
-	makeInitializedProject(t, projectPath)
 
 	svc, buf := newTestService(t, repo, spawner,
 		func(_ int) bool { return true },
@@ -112,7 +100,6 @@ func TestServerDaemonService_Start_KillsStaleProcessBeforeSpawning(t *testing.T)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
 	projectPath := t.TempDir()
-	makeInitializedProject(t, projectPath)
 
 	// State file has a live PID, but socket is dead (stale process)
 	staleState := &daemon.ServerState{PID: 1, ProjectPath: projectPath}
@@ -142,7 +129,6 @@ func TestServerDaemonService_Start_ErrorsWhenSocketNeverReady(t *testing.T) {
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
 	projectPath := t.TempDir()
-	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
 	spawner.EXPECT().SpawnServerProcess(projectPath).Return(1234, nil)
 
@@ -167,7 +153,6 @@ func TestServerDaemonService_Start_KillsOrphanOnStateSaveFailure(t *testing.T) {
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
 	projectPath := t.TempDir()
-	makeInitializedProject(t, projectPath)
 	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
 	spawner.EXPECT().SpawnServerProcess(projectPath).Return(1, nil) // PID 1 is signal-safe
 	repo.EXPECT().SaveState(projectPath, gomock.Any()).Return(assert.AnError)
@@ -184,26 +169,26 @@ func TestServerDaemonService_Start_KillsOrphanOnStateSaveFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestServerDaemonService_Start_ReturnsErrNotInitializedWhenNoIndex(t *testing.T) {
+func TestServerDaemonService_Start_SucceedsWithoutIndex(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
+	// Arrange — no .idx/index.idx; server should start and self-initialize via ensureRootIndex
 	ctrl := gomock.NewController(t)
 	repo := mocks.NewMockStateRepository(ctrl)
 	spawner := mocks.NewMockServerSpawner(ctrl)
-	projectPath := t.TempDir() // no .idx/index.idx
+	projectPath := t.TempDir()
+	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
+	spawner.EXPECT().SpawnServerProcess(projectPath).Return(1234, nil)
+	repo.EXPECT().SaveState(projectPath, gomock.Any()).Return(nil)
 
-	svc, _ := newTestService(t, repo, spawner,
-		func(_ int) bool { return false },
-		func(_ string) bool { return false },
-	)
+	svc, buf := newTestService(t, repo, spawner, func(_ int) bool { return false }, socketAliveAfterSpawn())
 
 	// Act
 	err := svc.Start(projectPath)
 
 	// Assert
-	require.Error(t, err)
-	assert.ErrorIs(t, err, daemon.ErrNotInitialized)
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "1234")
 }
 
 func TestServerDaemonService_Stop_SendsSIGTERMAndRemovesState(t *testing.T) {

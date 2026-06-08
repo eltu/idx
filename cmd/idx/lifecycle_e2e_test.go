@@ -155,20 +155,20 @@ func TestCLI_Init_Idempotent_SecondRunOutputsAlreadyIndexedMessage(t *testing.T)
 	assert.Contains(t, buf.String(), "already indexed")
 }
 
-func TestCLI_Init_WithoutGitRepo_NoIndexCreated(t *testing.T) {
-	// Arrange — temp dir with NO git init
+func TestCLI_Init_WithoutGitRepo_ReturnsError(t *testing.T) {
+	// Arrange — temp dir with NO git init; idx init now runs in-process (no server needed)
 	root, err := os.MkdirTemp("/tmp", "idx-e2e-nogit")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	t.Chdir(root)
-	startTestServer(t, root)
 
 	// Act
 	err = run([]string{"idx", "init"}, io.Discard)
 
-	// Assert — current behavior: server returns success:false but client returns nil
-	require.NoError(t, err)
-	// The key observable: no index file was created because FindGitRoot failed server-side
+	// Assert — init properly propagates the FindGitRoot error since it runs locally
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "git")
+	// No index file should have been created
 	_, statErr := os.Stat(filepath.Join(root, ".idx", "index.idx"))
 	assert.True(t, os.IsNotExist(statErr), "expected no index.idx when project has no git repo")
 }

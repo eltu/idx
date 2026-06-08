@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -14,8 +13,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/spf13/cobra"
-
-	"idx/internal/features/daemon"
 )
 
 var (
@@ -66,12 +63,7 @@ func (runner CommandRunner) newServerStartCommand() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInProjectMessage())
 				return fmt.Errorf("")
 			}
-			if err := runner.serverManager.Start(root); errors.Is(err, daemon.ErrNotInitialized) {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), serverNotInitializedMessage())
-				return fmt.Errorf("")
-			} else {
-				return err
-			}
+			return runner.serverManager.Start(root)
 		},
 	}
 }
@@ -190,14 +182,6 @@ func serverNotInProjectMessage() string {
 	return fmt.Sprintf("\n%s\n  %s\n  %s\n",
 		serverErrTitleStyle.Render("✗ Not inside an idx project"),
 		serverErrActionStyle.Render("cd <project-root>"),
-		serverErrHintStyle.Render("then: idx server start"),
-	)
-}
-
-func serverNotInitializedMessage() string {
-	return fmt.Sprintf("\n%s\n  %s\n  %s\n",
-		serverErrTitleStyle.Render("✗ Project not initialized"),
-		serverErrActionStyle.Render("idx init"),
 		serverErrHintStyle.Render("then: idx server start"),
 	)
 }

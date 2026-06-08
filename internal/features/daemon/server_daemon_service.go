@@ -15,14 +15,10 @@ import (
 	"idx/internal/shared/output"
 )
 
-// ErrNotInitialized is returned by Start when the project has no idx index.
-var ErrNotInitialized = errors.New("project not initialized")
-
 const (
 	defaultReadinessTimeout = 5 * time.Second
 	socketPollInterval      = 100 * time.Millisecond
 	socketDialTimeout       = 300 * time.Millisecond
-	rootIndexRelPath        = ".idx/index.idx"
 )
 
 // ServerDaemonServiceDeps holds injectable dependencies for testing.
@@ -108,14 +104,10 @@ func defaultSocketAlive(socketPath string) bool {
 
 // Start spawns the idx server daemon for the given project path.
 // Uses socket connectivity as the source of truth for liveness.
-// Returns ErrNotInitialized if the project has no idx index.
+// The server self-initializes via ensureRootIndex on first watch event when no index exists.
 func (s *ServerDaemonService) Start(projectPath string) error {
 	absPath, err := resolveAbsPath(projectPath)
 	if err != nil {
-		return err
-	}
-
-	if err := requireIndexExists(absPath); err != nil {
 		return err
 	}
 
@@ -261,14 +253,6 @@ func (s *ServerDaemonService) waitForSocket(socketPath string) bool {
 		time.Sleep(socketPollInterval)
 	}
 	return false
-}
-
-func requireIndexExists(absPath string) error {
-	indexPath := filepath.Join(absPath, rootIndexRelPath)
-	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-		return fmt.Errorf("%w: no index found at %q", ErrNotInitialized, indexPath)
-	}
-	return nil
 }
 
 func resolveAbsPath(projectPath string) (string, error) {

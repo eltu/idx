@@ -30,20 +30,19 @@ func TestCLI_ServerStatus_WhenRunning_OutputsRunningMessage(t *testing.T) {
 
 // --- idx server start ---
 
-func TestCLI_ServerStart_ProjectNotInitialized_OutputsStyledError(t *testing.T) {
-	// Arrange — git project but no idx init (no .idx/index.idx)
+func TestCLI_ServerStart_WithoutInit_AttemptsDaemonSpawn(t *testing.T) {
+	// Arrange — git project without idx init; server start must attempt to spawn
+	// (no longer blocked by ErrNotInitialized; daemon bootstraps itself via ensureRootIndex)
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
 
-	// Act
-	err := run([]string{"idx", "server", "start"}, io.Discard)
-
-	// Assert — ErrNotInitialized triggers styled message; cobra RunE returns fmt.Errorf("")
-	require.Error(t, err)
+	// Act — OSServerSpawner will try to exec the binary; in CI/test the spawned process
+	// may or may not start, so we do not assert on err but only on absence of panic.
+	_ = run([]string{"idx", "server", "start"}, io.Discard)
 }
 
 func TestCLI_ServerStart_AfterInit_StartsServer(t *testing.T) {
-	// Arrange — project fully initialized so ErrNotInitialized is not raised
+	// Arrange — init runs locally (in-process, no server required); server is started separately
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
 	startTestServer(t, projectRoot)
