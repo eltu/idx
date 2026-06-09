@@ -119,3 +119,17 @@ func renderHighlightedLine(line string, spans []highlightSpan) string {
 	builder.WriteString(line[position:])
 	return builder.String()
 }
+
+// ColoredFilePath wraps path in the idx file-path color for terminal display when useANSI is true.
+// Example: ColoredFilePath("internal/main.go", true).
+func ColoredFilePath(path string, useANSI bool) string { return coloredFilePath(path, useANSI) }
+
+// ColoredLineNumber wraps n in the idx line-number color for terminal display when useANSI is true.
+// Example: ColoredLineNumber(42, true).
+func ColoredLineNumber(n int, useANSI bool) string { return coloredLineNumber(n, useANSI) }
+
+// HighlightTermsInLine wraps whole-word matches of terms in the idx accent color when useANSI is true.
+// Example: HighlightTermsInLine("func main()", []string{"main"}, true).
+func HighlightTermsInLine(line string, terms []string, useANSI bool) string {
+	return highlightTermsInLine(line, terms, useANSI)
+}

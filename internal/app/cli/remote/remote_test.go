@@ -377,12 +377,12 @@ func TestWriteSearchResultsJSON_FilesOnly_WritesStringArray(t *testing.T) {
 func TestWriteSearchResultsText_NoResults_WritesNoResultsMessage(t *testing.T) {
 	t.Parallel()
 	out := &fakeOutput{}
-	require.NoError(t, writeSearchResultsText(idxipc.SearchResponse{}, featsearch.Options{}, out))
+	require.NoError(t, writeSearchResultsText(idxipc.SearchResponse{}, "", featsearch.Options{}, out))
 	require.NotEmpty(t, out.lines)
 	assert.Contains(t, out.lines[0], "No results")
 }
 
-func TestWriteSearchResultsText_WithResults_WritesOutput(t *testing.T) {
+func TestWriteSearchResultsText_WithResults_PrintsHeader(t *testing.T) {
 	t.Parallel()
 	resp := idxipc.SearchResponse{
 		Count: 1,
@@ -393,11 +393,42 @@ func TestWriteSearchResultsText_WithResults_WritesOutput(t *testing.T) {
 		},
 	}
 	out := &fakeOutput{}
-	require.NoError(t, writeSearchResultsText(resp, featsearch.Options{}, out))
-	assert.NotEmpty(t, out.lines)
+	require.NoError(t, writeSearchResultsText(resp, "main", featsearch.Options{}, out))
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "Found 1 file")
 }
 
-func TestWriteSearchResultsText_PathWriteError_Propagates(t *testing.T) {
+func TestWriteSearchResultsText_AgentCompact_NoHeader(t *testing.T) {
+	t.Parallel()
+	resp := idxipc.SearchResponse{
+		Count: 1,
+		Results: []idxipc.SearchResult{
+			{Path: "/src/main.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "package main", Match: true}}},
+		},
+	}
+	out := &fakeOutput{}
+	require.NoError(t, writeSearchResultsText(resp, "main", featsearch.Options{AgentCompact: true}, out))
+	require.NotEmpty(t, out.lines)
+	assert.NotContains(t, out.lines[0], "Found")
+}
+
+func TestWriteSearchResultsText_Paginated_PrintsPaginatedHeader(t *testing.T) {
+	t.Parallel()
+	// total=5 but only 2 results returned (paginated)
+	resp := idxipc.SearchResponse{
+		Count: 5,
+		Results: []idxipc.SearchResult{
+			{Path: "/src/a.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "x", Match: true}}},
+			{Path: "/src/b.go", Matches: []idxipc.MatchedLine{{Line: 2, Content: "x", Match: true}}},
+		},
+	}
+	out := &fakeOutput{}
+	require.NoError(t, writeSearchResultsText(resp, "x", featsearch.Options{}, out))
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "pagination")
+}
+
+func TestWriteSearchResultsText_HeaderWriteError_Propagates(t *testing.T) {
 	t.Parallel()
 	resp := idxipc.SearchResponse{
 		Count: 1,
@@ -405,21 +436,21 @@ func TestWriteSearchResultsText_PathWriteError_Propagates(t *testing.T) {
 			{Path: "/src/main.go", Matches: []idxipc.MatchedLine{{Line: 1, Content: "hello", Match: true}}},
 		},
 	}
-	require.Error(t, writeSearchResultsText(resp, featsearch.Options{}, &errorOutput{}))
+	require.Error(t, writeSearchResultsText(resp, "hello", featsearch.Options{}, &errorOutput{}))
 }
 
-// --- writeTextResult ---
+// --- writeRichTextResult ---
 
-func TestWriteTextResult_FilesOnly_WritesPathOnly(t *testing.T) {
+func TestWriteRichTextResult_FilesOnly_WritesPathOnly(t *testing.T) {
 	t.Parallel()
 	r := idxipc.SearchResult{Path: "/src/main.go"}
 	out := &fakeOutput{}
-	require.NoError(t, writeTextResult(r, featsearch.Options{FilesOnly: true}, out))
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{FilesOnly: true}, out))
 	require.Len(t, out.lines, 1)
 	assert.Equal(t, "/src/main.go", out.lines[0])
 }
 
-func TestWriteTextResult_MatchesOnly_FiltersContextLines(t *testing.T) {
+func TestWriteRichTextResult_MatchesOnly_FiltersContextLines(t *testing.T) {
 	t.Parallel()
 	r := idxipc.SearchResult{
 		Path: "/src/foo.go",
@@ -429,34 +460,80 @@ func TestWriteTextResult_MatchesOnly_FiltersContextLines(t *testing.T) {
 		},
 	}
 	out := &fakeOutput{}
-	require.NoError(t, writeTextResult(r, featsearch.Options{MatchesOnly: true}, out))
-	// path line + only matched lines
-	assert.Len(t, out.lines, 2)
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{MatchesOnly: true}, out))
+	// path + only matched line + empty separator
+	assert.Len(t, out.lines, 3)
+	assert.Contains(t, out.lines[1], "match line")
 }
 
-func TestWriteTextResult_AllMatches_WritesAll(t *testing.T) {
+func TestWriteRichTextResult_TreePrefixes_UsedForMatches(t *testing.T) {
 	t.Parallel()
 	r := idxipc.SearchResult{
 		Path: "/src/bar.go",
 		Matches: []idxipc.MatchedLine{
-			{Line: 1, Content: "line one\r\n", Match: true},
+			{Line: 1, Content: "line one", Match: true},
 			{Line: 2, Content: "line two", Match: false},
 		},
 	}
 	out := &fakeOutput{}
-	require.NoError(t, writeTextResult(r, featsearch.Options{}, out))
-	// path + 2 match lines
-	assert.Len(t, out.lines, 3)
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{}, out))
+	// path + 2 match lines + empty separator
+	require.Len(t, out.lines, 4)
+	assert.Contains(t, out.lines[1], "├──")
+	assert.Contains(t, out.lines[2], "└──")
+	assert.Equal(t, "", out.lines[3])
 }
 
-func TestWriteTextResult_MatchLineWriteError_Propagates(t *testing.T) {
+func TestWriteRichTextResult_Stale_PrintsStaleWarning(t *testing.T) {
+	t.Parallel()
+	r := idxipc.SearchResult{Path: "/src/gone.go", Stale: true}
+	out := &fakeOutput{}
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{}, out))
+	require.Len(t, out.lines, 2)
+	assert.Contains(t, out.lines[1], "file not found")
+}
+
+func TestWriteRichTextResult_AgentCompact_NoTreeAndNoSeparator(t *testing.T) {
+	t.Parallel()
+	r := idxipc.SearchResult{
+		Path:    "/src/foo.go",
+		Matches: []idxipc.MatchedLine{{Line: 1, Content: "hello\r\n", Match: true}},
+	}
+	out := &fakeOutput{}
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{AgentCompact: true}, out))
+	// path + compact match line only (no separator)
+	require.Len(t, out.lines, 2)
+	assert.NotContains(t, out.lines[1], "├──")
+	assert.NotContains(t, out.lines[1], "└──")
+}
+
+func TestWriteRichTextResult_Explain_AppendScore(t *testing.T) {
+	t.Parallel()
+	score := 0.9876
+	r := idxipc.SearchResult{Path: "/src/foo.go", Score: &score}
+	out := &fakeOutput{}
+	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{Explain: true}, out))
+	require.NotEmpty(t, out.lines)
+	assert.Contains(t, out.lines[0], "score:")
+}
+
+func TestWriteRichTextResult_PathWriteError_Propagates(t *testing.T) {
+	t.Parallel()
+	r := idxipc.SearchResult{
+		Path:    "/src/foo.go",
+		Matches: []idxipc.MatchedLine{{Line: 1, Content: "match line", Match: true}},
+	}
+	require.Error(t, writeRichTextResult(r, nil, featsearch.Options{}, &errorOutput{}))
+}
+
+func TestWriteRichTextResult_MatchLineWriteError_Propagates(t *testing.T) {
 	t.Parallel()
 	r := idxipc.SearchResult{
 		Path:    "/src/foo.go",
 		Matches: []idxipc.MatchedLine{{Line: 1, Content: "match line", Match: true}},
 	}
 	// maxWrites=1: path write succeeds, match line write fails.
-	require.Error(t, writeTextResult(r, featsearch.Options{}, &writeAfterNOutput{maxWrites: 1}))
+	require.Error(t, writeRichTextResult(r, nil, featsearch.Options{}, &writeAfterNOutput{maxWrites: 1}))
 }
 
 // --- RemoteSearcher ---

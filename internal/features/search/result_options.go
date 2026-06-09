@@ -380,3 +380,15 @@ func formattedMatchedLine(index, total int, line matchedLine, terms []string, us
 
 	return fmt.Sprintf("%s %s: %s", prefix, coloredLineNumber(line.lineNumber, useANSI), lineContent)
 }
+
+// FormattedMatchedLine formats one search result line with a ├──/└── tree prefix.
+// Example: FormattedMatchedLine(0, 2, 42, "func main()", true, []string{"main"}, true).
+func FormattedMatchedLine(index, total, lineNumber int, content string, isMatch bool, terms []string, useANSI bool) string {
+	return formattedMatchedLine(index, total, matchedLine{lineNumber: lineNumber, content: content, isMatch: isMatch}, terms, useANSI)
+}
+
+// FormattedMatchedLineCompact formats a search result line as "lineNum:content" without a tree prefix.
+// Example: FormattedMatchedLineCompact(42, "func main()").
+func FormattedMatchedLineCompact(lineNumber int, content string) string {
+	return formattedMatchedLineCompact(matchedLine{lineNumber: lineNumber, content: content})
+}
