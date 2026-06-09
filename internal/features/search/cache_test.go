@@ -148,7 +148,6 @@ func TestCacheKeyFor_IgnoresPaginationOnly(t *testing.T) {
 	base := Options{
 		Format:      OutputJSON,
 		Context:     2,
-		MatchesOnly: true,
 		FilesOnly:   false,
 		PathQueries: []string{"internal/core", "docs"},
 		From:        0,

@@ -370,16 +370,6 @@ func TestSearchCommandConfig_Options_MapsAllFields(t *testing.T) {
 			searchCommandConfig{format: search.OutputText, operator: search.OperatorOR},
 			func(t *testing.T, opts search.Options) { assert.Equal(t, search.OperatorOR, opts.Operator) },
 		},
-		{
-			"maps matchesOnly",
-			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, matchesOnly: true},
-			func(t *testing.T, opts search.Options) { assert.True(t, opts.MatchesOnly) },
-		},
-		{
-			"maps legacyMatchesOnly",
-			searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, legacyMatchesOnly: true},
-			func(t *testing.T, opts search.Options) { assert.True(t, opts.MatchesOnly) },
-		},
 	}
 	for _, tc := range cases {
 		tc := tc

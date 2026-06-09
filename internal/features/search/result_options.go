@@ -13,7 +13,6 @@ func cacheKeyFor(query string, options Options) string {
 		fmt.Sprintf("q:%s", query),
 		fmt.Sprintf("fmt:%s", options.Format),
 		fmt.Sprintf("ctx:%d", options.Context),
-		fmt.Sprintf("mo:%v", options.MatchesOnly),
 		fmt.Sprintf("fo:%v", options.FilesOnly),
 		fmt.Sprintf("pq:%s", strings.Join(options.PathQueries, ":")),
 		fmt.Sprintf("eq:%s", strings.Join(options.ExtensionQueries, ":")),
@@ -122,12 +121,10 @@ func normalizedFilterQueries(queries []string, fallback string) []string {
 	return normalized
 }
 
-func applySearchResultOptions(results []searchResult, options Options, hasContentTerms bool) []searchResult {
+func applySearchResultOptions(results []searchResult, options Options) []searchResult {
 	filtered := results
 	if options.FilesOnly {
 		filtered = filesOnlyResults(filtered)
-	} else if options.MatchesOnly && hasContentTerms {
-		filtered = matchesOnlyResults(filtered)
 	}
 
 	return paginatedResults(filtered, options.From, options.Size)
@@ -175,38 +172,6 @@ func filesOnlyResults(results []searchResult) []searchResult {
 	})
 
 	return filtered
-}
-
-func matchesOnlyResults(results []searchResult) []searchResult {
-	filtered := make([]searchResult, 0, len(results))
-	for _, result := range results {
-		if result.stale {
-			filtered = append(filtered, result)
-			continue
-		}
-
-		matchedLines := onlyMatchedLines(result.matchedLines)
-		if len(matchedLines) == 0 {
-			continue
-		}
-
-		filtered = append(filtered, searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: matchedLines, score: result.score})
-	}
-
-	return filtered
-}
-
-func onlyMatchedLines(lines []matchedLine) []matchedLine {
-	matched := make([]matchedLine, 0, len(lines))
-	for _, line := range lines {
-		if !line.isMatch {
-			continue
-		}
-
-		matched = append(matched, line)
-	}
-
-	return matched
 }
 
 func limitedResults(results []searchResult, limit int) []searchResult {

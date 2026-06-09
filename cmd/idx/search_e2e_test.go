@@ -205,23 +205,6 @@ func TestCLI_Search_AgentCompact_NoDoubleBlankLines(t *testing.T) {
 
 // --- Group C: content filter flags ---
 
-func TestCLI_Search_MatchesOnly_FewerLinesThanDefault(t *testing.T) {
-	// Arrange
-	projectRoot := newTestProject(t)
-	t.Chdir(projectRoot)
-	startTestServer(t, projectRoot)
-	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
-
-	// Act
-	outDefault, err := runSearch(t, "BM25Tokenizer", "--context", "3")
-	require.NoError(t, err)
-	outFiltered, err := runSearch(t, "BM25Tokenizer", "--context", "3", "--matches-only")
-	require.NoError(t, err)
-
-	// Assert — matches-only should suppress context lines, producing shorter output
-	assert.LessOrEqual(t, len(outFiltered), len(outDefault))
-}
-
 func TestCLI_Search_FilesOnly_ReturnsPathsWithoutLineNumbers(t *testing.T) {
 	// Arrange
 	projectRoot := newTestProject(t)

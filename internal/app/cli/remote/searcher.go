@@ -159,17 +159,12 @@ func writeRichTextResult(r idxipc.SearchResult, terms []string, opts featsearch.
 		return out.WriteLine(msgStaleResult)
 	}
 
-	matches := r.Matches
-	if opts.MatchesOnly {
-		matches = onlyMatchedLines(matches)
-	}
-
-	for i, m := range matches {
+	for i, m := range r.Matches {
 		var line string
 		if opts.AgentCompact {
 			line = featsearch.FormattedMatchedLineCompact(m.Line, strings.TrimRight(m.Content, "\r\n"))
 		} else {
-			line = featsearch.FormattedMatchedLine(i, len(matches), m.Line, m.Content, m.Match, terms, useANSI)
+			line = featsearch.FormattedMatchedLine(i, len(r.Matches), m.Line, m.Content, m.Match, terms, useANSI)
 		}
 		if err := out.WriteLine(line); err != nil {
 			return err
@@ -180,16 +175,6 @@ func writeRichTextResult(r idxipc.SearchResult, terms []string, opts featsearch.
 		return out.WriteLine("")
 	}
 	return nil
-}
-
-func onlyMatchedLines(matches []idxipc.MatchedLine) []idxipc.MatchedLine {
-	filtered := make([]idxipc.MatchedLine, 0, len(matches))
-	for _, m := range matches {
-		if m.Match {
-			filtered = append(filtered, m)
-		}
-	}
-	return filtered
 }
 
 func queryTerms(query string) []string {

@@ -69,29 +69,6 @@ func TestSearchCommandService_RunWithOptions_IncludesContextLines(t *testing.T) 
 	assert.Equal(t, "├── 1: alpha", stripANSICodes(out.lines[2]))
 }
 
-func TestSearchCommandService_RunWithOptions_MatchesOnlyFiltersContextLines(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	rootDir := filepath.Join(string(filepath.Separator), "repo")
-	tree := searchTreeWithIndexes(rootDir, nil)
-	out := &capturingTextOutput{}
-	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
-	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "alpha\nmodule idx\nomega"}}
-	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
-
-	// Act
-	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputJSON, Context: 1, MatchesOnly: true}))
-
-	// Assert
-	var response map[string]any
-	require.NoError(t, json.Unmarshal([]byte(out.lines[0]), &response))
-	results := response["results"].([]any)
-	file := results[0].(map[string]any)
-	matches := file["matches"].([]any)
-	assert.Len(t, matches, 1)
-}
-
 func TestSearchCommandService_RunWithOptions_SizeRestrictsResultCount(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +171,7 @@ func TestSearchCommandService_RunWithOptions_AgentCompact_OutputsTokenEfficientT
 	service := newSearchCommandServiceForFunctionalTests(tree, out, fileReader, repo)
 
 	// Act
-	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputText, MatchesOnly: true, AgentCompact: true}))
+	require.NoError(t, service.RunWithOptions("module idx", search.Options{Format: search.OutputText, AgentCompact: true}))
 
 	// Assert
 	require.Len(t, out.lines, 2)

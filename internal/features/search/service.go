@@ -192,7 +192,7 @@ func (service SearchCommandService) RunWithOptions(query string, options Options
 	}
 
 	totalMatches := len(results)
-	results = applySearchResultOptions(results, normalizedOptions, len(terms) > 0)
+	results = applySearchResultOptions(results, normalizedOptions)
 
 	if len(results) == 0 {
 		return service.writeEmptySearchResults(normalizedOptions)

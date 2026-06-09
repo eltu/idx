@@ -19,7 +19,6 @@ type Options struct {
 	PrettyJSON             bool
 	Explain                bool
 	AgentCompact           bool
-	MatchesOnly            bool
 	FilesOnly              bool
 	CountOnly              bool
 	Timing                 bool

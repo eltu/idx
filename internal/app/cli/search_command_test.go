@@ -65,7 +65,7 @@ func TestConfigureSearchFlags_NewAliasFlags_Registered(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newSearchCommand()
 
-	newFlags := []string{"compact", "pretty", "limit", "skip", "any", "relax", "hits", "count", "time"}
+	newFlags := []string{"compact", "pretty", "limit", "skip", "any", "relax", "count", "time"}
 	for _, name := range newFlags {
 		name := name
 		t.Run(name, func(t *testing.T) {
@@ -109,13 +109,6 @@ func TestSearchOptions_PrettyFlag_SetsPrettyJSON(t *testing.T) {
 
 	cfg := &searchCommandConfig{pretty: true, format: search.OutputText, operator: search.OperatorAND}
 	assert.True(t, cfg.options().PrettyJSON)
-}
-
-func TestSearchOptions_HitsFlag_SetsMatchesOnly(t *testing.T) {
-	t.Parallel()
-
-	cfg := &searchCommandConfig{hitsOnly: true, format: search.OutputText, operator: search.OperatorAND}
-	assert.True(t, cfg.options().MatchesOnly)
 }
 
 func TestSearchOptions_SkipAndFrom_AreAdditive(t *testing.T) {

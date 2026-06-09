@@ -257,40 +257,6 @@ func TestFilesOnlyResults_LowerScoreIsNotUpgraded(t *testing.T) {
 	assert.Equal(t, 3.0, got[0].score)
 }
 
-// --- matchesOnlyResults ---
-
-func TestMatchesOnlyResults_DropsResultsWithNoMatchedLines(t *testing.T) {
-	t.Parallel()
-
-	results := []searchResult{{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{{lineNumber: 1, isMatch: false}}}}
-	assert.Empty(t, matchesOnlyResults(results))
-}
-
-func TestMatchesOnlyResults_KeepsStaleEntries(t *testing.T) {
-	t.Parallel()
-
-	results := []searchResult{{directoryPath: "/a", fileName: "stale.go", stale: true}}
-	assert.Len(t, matchesOnlyResults(results), 1)
-}
-
-func TestMatchesOnlyResults_FiltersNonMatchLines(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	results := []searchResult{{directoryPath: "/a", fileName: "a.go", matchedLines: []matchedLine{
-		{lineNumber: 1, isMatch: false},
-		{lineNumber: 2, isMatch: true},
-	}}}
-
-	// Act
-	got := matchesOnlyResults(results)
-
-	// Assert
-	require.Len(t, got, 1)
-	require.Len(t, got[0].matchedLines, 1)
-	assert.True(t, got[0].matchedLines[0].isMatch)
-}
-
 // --- encodeOutputJSON ---
 
 func TestEncodeOutputJSON_Compact_NoNewlines(t *testing.T) {

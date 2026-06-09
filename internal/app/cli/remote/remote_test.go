@@ -450,22 +450,6 @@ func TestWriteRichTextResult_FilesOnly_WritesPathOnly(t *testing.T) {
 	assert.Equal(t, "/src/main.go", out.lines[0])
 }
 
-func TestWriteRichTextResult_MatchesOnly_FiltersContextLines(t *testing.T) {
-	t.Parallel()
-	r := idxipc.SearchResult{
-		Path: "/src/foo.go",
-		Matches: []idxipc.MatchedLine{
-			{Line: 1, Content: "context line", Match: false},
-			{Line: 2, Content: "match line", Match: true},
-		},
-	}
-	out := &fakeOutput{}
-	require.NoError(t, writeRichTextResult(r, nil, featsearch.Options{MatchesOnly: true}, out))
-	// path + only matched line + empty separator
-	assert.Len(t, out.lines, 3)
-	assert.Contains(t, out.lines[1], "match line")
-}
-
 func TestWriteRichTextResult_TreePrefixes_UsedForMatches(t *testing.T) {
 	t.Parallel()
 	r := idxipc.SearchResult{

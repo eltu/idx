@@ -25,7 +25,6 @@ Output flags:
       --pretty         Pretty-print JSON
   -c, --context N      Show N context lines around each match
   -l, --files-only     List only file paths
-      --hits           Show only matched lines
       --compact        Compact output for AI agents (fewer tokens)
       --count          Print only the number of matching files
       --explain        Include BM25 score per result
@@ -82,9 +81,6 @@ type searchCommandConfig struct {
 	explain           bool
 	agentCompact      bool
 	compact           bool
-	matchesOnly       bool
-	hitsOnly          bool
-	legacyMatchesOnly bool
 	filesOnly         bool
 	countOnly         bool
 	timing            bool
@@ -145,10 +141,6 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().BoolVar(&config.pretty, "pretty", false, "Pretty-print JSON output (requires --json or --format json)")
 	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
 	searchCommand.Flags().BoolVar(&config.compact, "compact", false, "Compact output with fewer tokens (good for AI agents)")
-	searchCommand.Flags().BoolVar(&config.matchesOnly, "matches-only", false, "Show only directly matched lines")
-	searchCommand.Flags().BoolVar(&config.hitsOnly, "hits", false, "Show only lines that directly match the query")
-	searchCommand.Flags().BoolVar(&config.legacyMatchesOnly, "macthes-only", false, "Legacy typo alias for matches-only")
-	_ = searchCommand.Flags().MarkHidden("macthes-only")
 	searchCommand.Flags().BoolVarP(&config.filesOnly, "files-only", "l", false, "Show only matched file paths")
 	searchCommand.Flags().BoolVar(&config.countOnly, "count", false, "Print only the number of matching files")
 	searchCommand.Flags().BoolVar(&config.timing, "time", false, "Show query execution time")
@@ -285,7 +277,6 @@ func (config searchCommandConfig) options() search.Options {
 		PrettyJSON:       config.prettyJSON || config.pretty,
 		Explain:          config.explain,
 		AgentCompact:     config.agentCompact || config.compact,
-		MatchesOnly:      config.matchesOnly || config.legacyMatchesOnly || config.hitsOnly,
 		FilesOnly:        config.filesOnly || config.countOnly,
 		CountOnly:        config.countOnly,
 		Timing:           config.timing,
