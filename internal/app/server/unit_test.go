@@ -149,10 +149,8 @@ func TestSearchOptionsFromRequest_MapsAllFields(t *testing.T) {
 	req := idxipc.SearchRequest{
 		Size:              10,
 		Operator:          "OR",
-		Format:            "json",
 		Context:           3,
 		FilesOnly:         true, // intentionally not forwarded; applied client-side
-		AgentCompact:      true,
 		Explain:           true,
 		From:              5,
 		PopularityWeight:  0.5,
@@ -166,7 +164,6 @@ func TestSearchOptionsFromRequest_MapsAllFields(t *testing.T) {
 	assert.Equal(t, "OR", opts.Operator)
 	assert.Equal(t, featsearch.OutputJSON, opts.Format)
 	assert.False(t, opts.FilesOnly, "FilesOnly is filtered client-side, not forwarded to server service")
-	assert.True(t, opts.AgentCompact)
 	assert.True(t, opts.Explain)
 	assert.Equal(t, 5, opts.From)
 	assert.True(t, opts.RelaxationEnabled)

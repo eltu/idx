@@ -317,10 +317,8 @@ func TestSearchRequestFromOptions_MapsAllFields(t *testing.T) {
 	opts := featsearch.Options{
 		Size:             5,
 		Operator:         "OR",
-		Format:           "json",
 		Context:          2,
 		FilesOnly:        true,
-		AgentCompact:     true,
 		Explain:          true,
 		From:             3,
 		PopularityWeight: 0.7,
@@ -331,9 +329,7 @@ func TestSearchRequestFromOptions_MapsAllFields(t *testing.T) {
 	assert.Equal(t, "hello", req.Query)
 	assert.Equal(t, 5, req.Size)
 	assert.Equal(t, "OR", req.Operator)
-	assert.Equal(t, "json", req.Format)
 	assert.True(t, req.FilesOnly)
-	assert.True(t, req.AgentCompact)
 	assert.True(t, req.Explain)
 	assert.Equal(t, 3, req.From)
 	assert.Equal(t, 0.7, req.PopularityWeight)

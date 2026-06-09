@@ -57,19 +57,15 @@ func searchRequestFromOptions(query string, opts featsearch.Options) idxipc.Sear
 		Query:             query,
 		Size:              opts.Size,
 		Operator:          opts.Operator,
-		Format:            opts.Format,
 		Context:           opts.Context,
 		ExtensionQueries:  opts.ExtensionQueries,
 		PathQueries:       opts.PathQueries,
 		PopularityWeight:  opts.PopularityWeight,
 		FilesOnly:         opts.FilesOnly,
-		AgentCompact:      opts.AgentCompact,
 		Explain:           opts.Explain,
 		From:              opts.From,
 		RelaxationEnabled: opts.RelaxationEnabled,
 		RelaxationMin:     opts.RelaxationMinExclusive,
-		CountOnly:         opts.CountOnly,
-		Timing:            opts.Timing,
 	}
 }
 

@@ -17,19 +17,15 @@ type SearchRequest struct {
 	Query             string   `json:"query"`
 	Size              int      `json:"size,omitempty"`
 	Operator          string   `json:"operator,omitempty"`
-	Format            string   `json:"format,omitempty"`
 	Context           int      `json:"context,omitempty"`
 	ExtensionQueries  []string `json:"ext,omitempty"`
 	PathQueries       []string `json:"path,omitempty"`
 	PopularityWeight  float64  `json:"popularity_weight,omitempty"`
 	FilesOnly         bool     `json:"files_only,omitempty"`
-	AgentCompact      bool     `json:"agent_compact,omitempty"`
 	Explain           bool     `json:"explain,omitempty"`
 	From              int      `json:"from,omitempty"`
 	RelaxationEnabled bool     `json:"relaxation_enabled,omitempty"`
 	RelaxationMin     int      `json:"relaxation_min,omitempty"`
-	CountOnly         bool     `json:"count_only,omitempty"`
-	Timing            bool     `json:"timing,omitempty"`
 }
 
 // SearchResponse carries structured search results.
