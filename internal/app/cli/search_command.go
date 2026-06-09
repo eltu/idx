@@ -13,7 +13,7 @@ import (
 
 const (
 	searchCmdName          = "idx search"
-	errMsgRelaxationFormat = "invalid --relaxation value %q: expected format >N where N is a non-negative integer"
+	errMsgRelaxationFormat = "invalid search.relaxation value %q: expected format >N where N is a non-negative integer"
 	flagNameAgentCompact   = "agent-compact"
 	flagNameJSONPretty     = "json-pretty"
 )
@@ -151,7 +151,7 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
 	searchCommand.Flags().BoolVar(&config.anyMode, "any", false, "Match files containing ANY query term (shorthand for --operator OR)")
 	searchCommand.Flags().IntVar(&config.relaxInt, "relax", 0, "Relax AND: require at least N matching terms (e.g. --relax 2)")
-	searchCommand.Flags().StringVar(&config.relaxation, "relaxation", cfg.Relaxation, "Relax AND query with trailing-term fallback. Format: >N")
+	config.relaxation = cfg.Relaxation
 	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
 
 	// Deprecated aliases kept for backward compatibility.
@@ -234,27 +234,31 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 	config.relaxationEnabled = false
 	config.relaxationMin = 0
 
-	// --relax N synthesizes the '>N' string format only when the flag was explicitly set.
 	if config.relaxIntSet {
-		config.relaxation = fmt.Sprintf(">%d", config.relaxInt)
+		if config.operator != search.OperatorAND {
+			return fmt.Errorf("--relax requires --operator %s, got %q", search.OperatorAND, config.operator)
+		}
+		config.relaxationEnabled = true
+		config.relaxationMin = config.relaxInt
+		return nil
 	}
 
-	if strings.TrimSpace(config.relaxation) == "" {
+	value := strings.TrimSpace(config.relaxation)
+	if value == "" {
 		return nil
 	}
 
 	if config.operator != search.OperatorAND {
-		return fmt.Errorf("invalid --relaxation with --operator %q: expected %q", config.operator, search.OperatorAND)
+		return fmt.Errorf("invalid search.relaxation with --operator %q: expected %q", config.operator, search.OperatorAND)
 	}
 
-	value := strings.TrimSpace(config.relaxation)
 	if !strings.HasPrefix(value, ">") || len(value) == 1 {
-		return fmt.Errorf(errMsgRelaxationFormat, config.relaxation)
+		return fmt.Errorf(errMsgRelaxationFormat, value)
 	}
 
 	parsed, err := strconv.Atoi(value[1:])
 	if err != nil || parsed < 0 {
-		return fmt.Errorf(errMsgRelaxationFormat, config.relaxation)
+		return fmt.Errorf(errMsgRelaxationFormat, value)
 	}
 
 	config.relaxationEnabled = true

@@ -168,9 +168,9 @@ func TestRunSearchCommand_AnyFlag_SetsOperatorOR(t *testing.T) {
 	assert.Equal(t, search.OperatorOR, cfg.operator)
 }
 
-// ---- --relax N synthesizes '>N' format ----
+// ---- --relax N sets relaxation directly ----
 
-func TestValidateSearchRelaxation_RelaxInt_SynthesizesGreaterThanFormat(t *testing.T) {
+func TestValidateSearchRelaxation_RelaxInt_EnablesRelaxation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -209,7 +209,7 @@ func TestValidateSearchRelaxation_RelaxInt_SynthesizesGreaterThanFormat(t *testi
 func TestValidateSearchRelaxation_RelaxIntNotSet_IsNoop(t *testing.T) {
 	t.Parallel()
 
-	// relaxIntSet=false means --relax was not passed; synthesize nothing
+	// relaxIntSet=false means --relax was not passed; no relaxation enabled
 	cfg := &searchCommandConfig{
 		operator:    search.OperatorAND,
 		relaxInt:    0,

@@ -85,16 +85,6 @@ func TestCLI_Search_Validation_RejectsInvalidFlags(t *testing.T) {
 			args:        []string{"token", "--size", "0"},
 			errContains: "invalid --size",
 		},
-		{
-			name:        "relaxation_with_operator_OR",
-			args:        []string{"token", "--operator", "OR", "--relaxation", ">1"},
-			errContains: "invalid --relaxation with --operator",
-		},
-		{
-			name:        "relaxation_format_missing_gt",
-			args:        []string{"token", "--relaxation", "2"},
-			errContains: "expected format >N",
-		},
 	}
 
 	for _, tc := range tests {
@@ -518,7 +508,7 @@ func TestCLI_Search_Relaxation_FindsResultsWhenStrictANDWouldFail(t *testing.T) 
 	require.NoError(t, err)
 
 	// Act — relaxed AND (remove trailing terms until a match is found)
-	outRelaxed, err := runSearch(t, "hello", "BM25", "scoring", "--operator", "AND", "--relaxation", ">1", "--format", "json")
+	outRelaxed, err := runSearch(t, "hello", "BM25", "scoring", "--operator", "AND", "--relax", "1", "--format", "json")
 	require.NoError(t, err)
 
 	// Assert
@@ -728,25 +718,6 @@ func TestCLI_Search_AnyFlag_SameAsOperatorOR(t *testing.T) {
 	assert.Equal(t, resp2.Count, resp1.Count)
 }
 
-func TestCLI_Search_RelaxFlag_SameAsRelaxationString(t *testing.T) {
-	// Arrange
-	projectRoot := newTestProject(t)
-	t.Chdir(projectRoot)
-	startTestServer(t, projectRoot)
-	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
-
-	// Act — relax 1 = must match at least 1 of 3 terms
-	out1, err1 := runSearch(t, "BM25Tokenizer", "hello", "world", "--relax", "1", "-j")
-	out2, err2 := runSearch(t, "BM25Tokenizer", "hello", "world", "--relaxation", ">1", "-j")
-
-	// Assert — same count
-	require.NoError(t, err1)
-	require.NoError(t, err2)
-	resp1 := parseSearchJSON(t, out1)
-	resp2 := parseSearchJSON(t, out2)
-	assert.Equal(t, resp2.Count, resp1.Count)
-}
-
 func TestCLI_Search_ValidationRejectsNewFlags(t *testing.T) {
 	t.Parallel()
 
@@ -773,7 +744,7 @@ func TestCLI_Search_ValidationRejectsNewFlags(t *testing.T) {
 		{
 			name:        "relax_with_operator_OR",
 			args:        []string{"token", "--operator", "OR", "--relax", "1"},
-			errContains: "invalid --relaxation with --operator",
+			errContains: "--relax requires --operator",
 		},
 	}
 
