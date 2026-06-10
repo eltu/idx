@@ -294,11 +294,11 @@ func TestFormatVersionDate_Invalid_PassesThrough(t *testing.T) {
 
 // ---- buildConfigRows ----
 
-func TestBuildConfigRows_ReturnsAllFourteenKeys(t *testing.T) {
+func TestBuildConfigRows_ReturnsAllThirteenKeys(t *testing.T) {
 	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	rows := buildConfigRows(runner)
-	assert.Len(t, rows, 14, "expected one row per configurable key")
+	assert.Len(t, rows, 13, "expected one row per configurable key")
 }
 
 func TestBuildConfigRows_ContainsSearchFormat(t *testing.T) {
