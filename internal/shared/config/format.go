@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Key* constants are the canonical display names for all 13 configurable fields.
+// Key* constants are the canonical display names for all 14 configurable fields.
 const (
 	KeySearchFormat     = "search.format"
 	KeySearchLimit      = "search.limit"
@@ -21,17 +21,18 @@ const (
 	KeyBM25K1           = "bm25.k1"
 	KeyBM25B            = "bm25.b"
 	KeyBM25ProxWeight   = "bm25.proximity_weight"
+	KeyBM25PopWeight    = "bm25.popularity_weight" //nolint:gosec // config key, not a credential
 	KeyLogLevel         = "log.level"
 )
 
-// AllKeys returns the 13 configurable keys in display order.
+// AllKeys returns the 14 configurable keys in display order.
 // Example: for _, key := range config.AllKeys() { ... }.
 func AllKeys() []string {
 	return []string{
 		KeySearchFormat, KeySearchLimit, KeySearchOperator, KeySearchContext,
 		KeySearchRelaxation, KeySearchCacheTTL, KeySearchMaxWorkers,
 		KeyWatchDebounce, KeyIndexIgnore,
-		KeyBM25K1, KeyBM25B, KeyBM25ProxWeight,
+		KeyBM25K1, KeyBM25B, KeyBM25ProxWeight, KeyBM25PopWeight,
 		KeyLogLevel,
 	}
 }
@@ -65,6 +66,8 @@ func FieldValue(cfg IdxConfig, key string) string {
 		return FormatFloat(cfg.BM25.B)
 	case KeyBM25ProxWeight:
 		return FormatFloat(cfg.BM25.ProximityWeight)
+	case KeyBM25PopWeight:
+		return FormatFloat(cfg.BM25.PopularityWeight)
 	case KeyLogLevel:
 		return cfg.Log.Level
 	default:
@@ -88,6 +91,7 @@ func DefaultFieldValue(key string) string {
 		KeyBM25K1:           "1.5",
 		KeyBM25B:            "0.75",
 		KeyBM25ProxWeight:   "3",
+		KeyBM25PopWeight:    "0.3",
 		KeyLogLevel:         "error",
 	}
 	return defaults[key]

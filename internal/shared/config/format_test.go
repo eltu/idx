@@ -15,7 +15,7 @@ import (
 
 func TestAllKeys_ReturnsFourteenKeys(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, config.AllKeys(), 13)
+	assert.Len(t, config.AllKeys(), 14)
 }
 
 func TestAllKeys_ContainsAllExpectedKeys(t *testing.T) {
@@ -173,11 +173,11 @@ func TestFormatOutput_Duration_FormatsCorrectly(t *testing.T) {
 	assert.Contains(t, sb.String(), "250ms")
 }
 
-func TestFormatOutput_PopularityWeightNotShown(t *testing.T) {
+func TestFormatOutput_PopularityWeightShown(t *testing.T) {
 	t.Parallel()
 	var sb strings.Builder
 	require.NoError(t, config.FormatOutput(&sb, config.DefaultIdxConfig(), "/project/.idx.yml", nil))
-	assert.NotContains(t, sb.String(), "popularity_weight")
+	assert.Contains(t, sb.String(), "bm25.popularity_weight")
 }
 
 func TestFormatOutput_ReturnsNoError(t *testing.T) {

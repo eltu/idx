@@ -43,7 +43,7 @@ func TestCLI_ConfigShow_WithoutFile_OutputsNoFileMessage(t *testing.T) {
 	assert.Contains(t, out, "Tip:")
 }
 
-func TestCLI_ConfigShow_WithFile_ShowsAllThirteenKeys(t *testing.T) {
+func TestCLI_ConfigShow_WithFile_ShowsAllFourteenKeys(t *testing.T) {
 	// Arrange
 	projectRoot := newTestProject(t)
 	t.Chdir(projectRoot)
@@ -59,7 +59,7 @@ func TestCLI_ConfigShow_WithFile_ShowsAllThirteenKeys(t *testing.T) {
 		"search.format", "search.limit", "search.operator", "search.context",
 		"search.relaxation", "search.cache_ttl", "search.max_workers",
 		"watch.debounce", "index.ignore",
-		"bm25.k1", "bm25.b", "bm25.proximity_weight",
+		"bm25.k1", "bm25.b", "bm25.proximity_weight", "bm25.popularity_weight",
 		"log.level",
 	}
 	for _, key := range expectedKeys {
@@ -99,8 +99,8 @@ func TestCLI_ConfigShow_WithMultipleOverrides_CountInPath(t *testing.T) {
 	assert.Equal(t, 2, overrideCount, "expected exactly 2 keys marked as overridden")
 }
 
-func TestCLI_ConfigShow_PopularityWeightNotDisplayed(t *testing.T) {
-	// Arrange — popularity_weight is valid in .idx.yml but not in the 13 displayed keys
+func TestCLI_ConfigShow_PopularityWeightDisplayedWithOverride(t *testing.T) {
+	// Arrange — popularity_weight set in .idx.yml should appear marked as overridden
 	projectRoot := newTestProject(t)
 	t.Chdir(projectRoot)
 	writeIdxYml(t, projectRoot, "bm25:\n  popularity_weight: 0.9\n")
@@ -111,8 +111,9 @@ func TestCLI_ConfigShow_PopularityWeightNotDisplayed(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.NotContains(t, out, "popularity_weight",
-		"bm25.popularity_weight must not appear in config show output")
+	assert.Contains(t, out, "bm25.popularity_weight", "bm25.popularity_weight must appear in config show output")
+	assert.Contains(t, out, "0.9", "overridden value must be shown")
+	assert.Contains(t, out, "← .idx.yml", "override marker must be present")
 }
 
 func TestCLI_ConfigShow_WithoutServer_ReturnsError(t *testing.T) {
