@@ -1,15 +1,16 @@
 # Common Errors
 
-## Server not running
+## Agent not running
 
-All commands that route through the server (`search`, `init`, `sync`, `status`, `read`, `inspect`, `destroy`) require `idx server` to be running. If the socket is absent or refuses the connection, the command fails immediately with a styled message:
+All commands that route through the agent (`search`, `init`, `sync`, `status`, `read`, `inspect`, `destroy`) require the background agent to be running. If the socket is absent or refuses the connection, the command fails immediately with a styled message:
 
 ```
-✗ idx server not running
-  start with: idx server start
+✗ idx agent is not running
+  start with: idx agent start
+  then retry your command
 ```
 
-**Recovery:** run `idx server start` to start the daemon, then retry.
+**Recovery:** run `idx agent start` to start the background agent, then retry.
 
 ## Command dispatch and argument contract
 
@@ -27,8 +28,7 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 - `invalid --limit value ...: expected a positive integer`
 - `invalid --size value ...: expected a positive integer` (deprecated flag)
 - `unsupported --operator value "...": expected one of [AND OR]`
-- `invalid --relaxation value "...": expected format >N where N is a non-negative integer`
-- `invalid --relaxation with --operator "...": expected "AND"`
+- `invalid search.relaxation with --operator "...": expected "AND"`
 
 ## Config flag validation
 
@@ -54,21 +54,20 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 - `unindexed directories found` — preceded by a styled warning panel listing the unindexed directories
 - `stale index` — preceded by the status overview panel showing `❌ N directory/ies stale — run idx sync`
 
-## Server lifecycle errors
+## Agent lifecycle errors
 
-- Not inside an idx project (no `.idx` directory found):
-  ```
-  ✗ Not inside an idx project
-    cd <project-root>
-    then: idx server start
-  ```
-- Project not initialized:
-  ```
-  ✗ Project not initialized
-    idx init
-    then: idx server start
-  ```
-- `failed to start watch for "...": got error ..., expected process to start`
+Not inside an idx project (no `.idx` directory found):
+
+```
+✗ Not inside an idx project
+  cd <project-root>
+  then: idx agent start
+```
+
+Agent process failed to start or become ready within the readiness timeout:
+
+- `failed to start server for "...": got error ..., expected process to start`
+- `server process (PID: ...) did not become ready within ...`
 
 ## Skills install errors
 
@@ -80,7 +79,7 @@ All commands that route through the server (`search`, `init`, `sync`, `status`, 
 
 ## Recovery Quick Guide
 
-1. Run `idx server start` before running `search`, `init`, `sync`, `status`, `read`, `inspect`, or `destroy`.
+1. Run `idx agent start` before running `search`, `init`, `sync`, `status`, `read`, `inspect`, or `destroy`.
 2. Run `idx init` to bootstrap indexes on first use.
 3. Run root-scoped commands (`sync`, `destroy`) from the project root.
 4. Validate flags and positional arguments.

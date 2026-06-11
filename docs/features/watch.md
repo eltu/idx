@@ -1,16 +1,15 @@
 # watch
 
-> **Removed.** `idx watch` was removed in favour of `idx server start`, which runs the
-> file-watch loop internally as part of the server process.
+> **Removed.** `idx watch` was removed in favour of `idx agent start`, which runs the file-watch loop internally as part of the background agent process.
 
 ## Migration
 
 | Before | After |
 |---|---|
-| `idx watch` | `idx server start` (watch is automatic) |
+| `idx watch` | `idx agent start` (watch is automatic) |
 | `idx watch --debounce 500ms` | Set `watch.debounce: 500ms` in `.idx.yml` |
 
-The `watch.debounce` configuration key is still honoured by the server's internal watch loop.
+The `watch.debounce` configuration key is still honoured by the agent's internal watch loop.
 
 ## Background
 

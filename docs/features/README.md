@@ -13,11 +13,12 @@ Detailed end-user command reference, organized by command.
 - [destroy](destroy.md)
 - [version](version.md)
 - [skills](skills.md)
-- [server](server.md)
+- [agent](agent.md)
 - [config](config.md)
 - [errors](errors.md)
 - [watch](watch.md) *(removed — see watch.md for migration)*
 - [daemon](daemon.md) *(removed in v0.5.0 — see daemon.md for migration)*
+- [server](server.md) *(renamed to `agent` — see server.md for migration)*
 
 ## Global flags
 
@@ -33,7 +34,7 @@ All commands inherit the root global flags:
 | Index Sync | `sync` / `update`, `status` |
 | Search | `search` / `find`, `inspect`, `read` / `open` / `cat` |
 | About | `version` |
-| Tools | `skills`, `server` |
+| Tools | `skills`, `agent` |
 | Config | `config show`, `config get` |
 
 ## Command aliases
@@ -44,12 +45,13 @@ All commands inherit the root global flags:
 | `open` | `read` | Familiar from macOS / editors |
 | `cat` | `read` | Familiar from Unix |
 | `update` | `sync` | Alternative vocabulary |
+| `server` | `agent` | Retained for backward compatibility |
 
 ## Recommended usage flow
 
 1. Run `idx init` once per project to build the initial index.
-2. Run `idx server start` to start the daemon — all search/index commands require the server.
-3. The server runs the watch loop internally — no separate command needed.
+2. Run `idx agent start` to start the background agent — all search/index commands require the agent.
+3. The agent runs the watch loop internally — no separate command needed.
 4. Verify index freshness with `idx status`.
 5. Use `idx search` (or `idx find`) during development.
 6. Use `idx read <path>` (or `idx open <path>`) to stream file content — repeated reads boost that file in search rankings via the read-popularity signal.

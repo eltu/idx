@@ -76,7 +76,7 @@ idx find   [query terms] [flags]   # alias
 
 ## Prerequisites
 
-Requires `idx server` to be running. If the server socket is not reachable, the command fails with `✗ idx server not running`. See [server.md](server.md) and [errors.md](errors.md).
+Requires the background agent to be running. If the agent socket is not reachable, the command fails with `✗ idx agent is not running`. See [agent.md](agent.md) and [errors.md](errors.md).
 
 ## Behavior and Side Effects
 
@@ -123,8 +123,7 @@ Requires `idx server` to be running. If the server socket is not reachable, the 
 | `--limit` zero when explicitly set | `invalid --limit value ... expected a positive integer` |
 | Unsupported operator | `unsupported --operator value ... expected one of [AND OR]` |
 | Invalid `--relax` / `--relaxation` with OR operator | `invalid --relaxation with --operator "OR": expected "AND"` |
-| Invalid `--relaxation` format | `invalid --relaxation value ... expected format >N where N is a non-negative integer` |
-| Server not running | `✗ idx server not running` |
+| Agent not running | `✗ idx agent is not running` |
 
 ## Examples
 
