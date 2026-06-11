@@ -95,7 +95,7 @@ func (s *indexServer) prepareSocket() error {
 	conn, err := d.DialContext(context.Background(), "unix", s.deps.SocketPath)
 	if err == nil {
 		_ = conn.Close()
-		return fmt.Errorf("socket %q is already in use: another server is running on this project", s.deps.SocketPath)
+		return fmt.Errorf("agent is already running on this project (socket %q is in use)", s.deps.SocketPath)
 	}
 	// Remove stale socket file so net.Listen can bind cleanly.
 	_ = os.Remove(s.deps.SocketPath)

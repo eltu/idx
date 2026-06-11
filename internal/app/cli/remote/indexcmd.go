@@ -50,7 +50,7 @@ func (c *RemoteIndexCommand) Inspect(indexPath string) error {
 
 // WatchWithContext is not supported over RPC — the server handles watching internally.
 func (c *RemoteIndexCommand) WatchWithContext(_ context.Context, _ time.Duration) error {
-	return c.output.WriteLine("idx watch is not available in server mode — the server watches the project automatically")
+	return c.output.WriteLine("idx watch is not available — the background agent watches the project automatically")
 }
 
 func (c *RemoteIndexCommand) sendCommand(method string) error {

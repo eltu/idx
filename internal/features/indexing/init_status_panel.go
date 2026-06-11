@@ -32,7 +32,7 @@ func buildStatusPanelContent(daemonRepo ProjectMonitorChecker, data statusPanelD
 		panelRow("Index", data.indexStatus),
 		panelRow("Files", filesCountLine(data.summary, data.directories)),
 		panelRow("Updated", updatedLine(data.summary)),
-		panelRow("Daemon", daemonStatusLine(daemonRepo, data.projectRoot)),
+		panelRow("Agent", daemonStatusLine(daemonRepo, data.projectRoot)),
 	}
 
 	if data.configFilePath != "" {
