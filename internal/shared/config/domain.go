@@ -18,7 +18,7 @@ type SearchConfig struct {
 	Limit      int           `yaml:"limit"`
 	Operator   string        `yaml:"operator"`
 	Context    int           `yaml:"context"`
-	Relaxation string        `yaml:"relaxation"`
+	Relaxation int           `yaml:"relaxation"`
 	CacheTTL   time.Duration `yaml:"cache_ttl"`
 	MaxWorkers int           `yaml:"max_workers"`
 }
@@ -57,7 +57,7 @@ func DefaultIdxConfig() IdxConfig {
 			Limit:      0,
 			Operator:   "AND",
 			Context:    0,
-			Relaxation: "",
+			Relaxation: 0,
 			CacheTTL:   time.Minute,
 			MaxWorkers: 4,
 		},

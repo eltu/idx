@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -19,7 +20,22 @@ const (
 	defaultReadinessTimeout = 5 * time.Second
 	socketPollInterval      = 100 * time.Millisecond
 	socketDialTimeout       = 300 * time.Millisecond
+	readinessTimeoutMsEnv   = "IDX_READINESS_TIMEOUT_MS"
 )
+
+// readinessTimeoutFromEnv returns the readiness timeout from IDX_READINESS_TIMEOUT_MS
+// if set, otherwise returns defaultReadinessTimeout. Allows tests to reduce wait time.
+func readinessTimeoutFromEnv() time.Duration {
+	val := os.Getenv(readinessTimeoutMsEnv)
+	if val == "" {
+		return defaultReadinessTimeout
+	}
+	ms, err := strconv.Atoi(val)
+	if err != nil || ms <= 0 {
+		return defaultReadinessTimeout
+	}
+	return time.Duration(ms) * time.Millisecond
+}
 
 // ServerDaemonServiceDeps holds injectable dependencies for testing.
 type ServerDaemonServiceDeps struct {
@@ -68,7 +84,7 @@ func newServerDaemonService(deps ServerDaemonServiceDeps) *ServerDaemonService {
 		deps.IsSocketAlive = defaultSocketAlive
 	}
 	if deps.ReadinessTimeout == 0 {
-		deps.ReadinessTimeout = defaultReadinessTimeout
+		deps.ReadinessTimeout = readinessTimeoutFromEnv()
 	}
 	return &ServerDaemonService{
 		stateRepo:        deps.StateRepo,

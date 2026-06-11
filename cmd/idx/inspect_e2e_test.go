@@ -8,6 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	idxtui "idx/internal/app/tui"
+	featindexing "idx/internal/features/indexing"
 )
 
 // --- Argument validation (no server needed) ---
@@ -92,14 +95,19 @@ func TestCLI_Inspect_AfterInit_WithPath_PassesIndexToTUI(t *testing.T) {
 	startTestServer(t, projectRoot)
 	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
 
-	// Act — inspect with a path: server loads the index and the TUI runner receives it.
-	// In a non-TTY environment the TUI runner may return an error; what matters is that
-	// the error is about the TUI, not about a missing or unreadable index.
+	// Replace TUI runner with a no-op: the real BubbleTea program blocks reading
+	// from terminal stdin and never exits when there is no TTY input to consume.
+	var receivedIndex *featindexing.InvertedIndex
+	idxtui.SetRunInspectTUITestHook(func(index *featindexing.InvertedIndex) error {
+		receivedIndex = index
+		return nil
+	})
+	t.Cleanup(func() { idxtui.SetRunInspectTUITestHook(nil) })
+
+	// Act
 	err := run([]string{"idx", "inspect", projectRoot}, io.Discard)
 
-	// Assert — if there is an error it must not be "no index found"
-	if err != nil {
-		assert.NotContains(t, err.Error(), "idx init",
-			"expected TUI-related error (non-TTY), not an index-loading error")
-	}
+	// Assert — index was loaded and passed to the TUI runner without errors
+	require.NoError(t, err)
+	assert.NotNil(t, receivedIndex, "expected TUI runner to receive a non-nil index")
 }

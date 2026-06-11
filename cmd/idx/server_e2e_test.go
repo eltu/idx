@@ -35,6 +35,9 @@ func TestCLI_ServerStart_WithoutInit_AttemptsDaemonSpawn(t *testing.T) {
 	// (no longer blocked by ErrNotInitialized; daemon bootstraps itself via ensureRootIndex)
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
+	// Short timeout: the test binary spawned by OSServerSpawner cannot serve as a real
+	// idx server, so the socket never appears. Without this override the test waits 5s.
+	t.Setenv("IDX_READINESS_TIMEOUT_MS", "200")
 
 	// Act — OSServerSpawner will try to exec the binary; in CI/test the spawned process
 	// may or may not start, so we do not assert on err but only on absence of panic.

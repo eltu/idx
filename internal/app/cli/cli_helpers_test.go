@@ -249,15 +249,15 @@ func TestValidateSearchRelaxation_EmptyString_IsValid(t *testing.T) {
 
 func TestValidateSearchRelaxation_WithOROperator_ReturnsError(t *testing.T) {
 	t.Parallel()
-	cfg := &searchCommandConfig{operator: search.OperatorOR, relaxation: ">2"}
+	cfg := &searchCommandConfig{operator: search.OperatorOR, relaxation: 2}
 	require.Error(t, validateSearchRelaxation(cfg))
 }
 
-func TestValidateSearchRelaxation_ValidFormat_ParsesCorrectly(t *testing.T) {
+func TestValidateSearchRelaxation_WithIntValue_ParsesCorrectly(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	cfg := &searchCommandConfig{operator: search.OperatorAND, relaxation: ">2"}
+	cfg := &searchCommandConfig{operator: search.OperatorAND, relaxation: 2}
 
 	// Act
 	err := validateSearchRelaxation(cfg)
@@ -266,12 +266,6 @@ func TestValidateSearchRelaxation_ValidFormat_ParsesCorrectly(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, cfg.relaxationEnabled)
 	assert.Equal(t, 2, cfg.relaxationMin)
-}
-
-func TestValidateSearchRelaxation_MissingAngleBracket_ReturnsError(t *testing.T) {
-	t.Parallel()
-	cfg := &searchCommandConfig{operator: search.OperatorAND, relaxation: "2"}
-	require.Error(t, validateSearchRelaxation(cfg))
 }
 
 // ---- formatVersionDate ----
@@ -294,11 +288,11 @@ func TestFormatVersionDate_Invalid_PassesThrough(t *testing.T) {
 
 // ---- buildConfigRows ----
 
-func TestBuildConfigRows_ReturnsAllThirteenKeys(t *testing.T) {
+func TestBuildConfigRows_ReturnsAllFourteenKeys(t *testing.T) {
 	t.Parallel()
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	rows := buildConfigRows(runner)
-	assert.Len(t, rows, 13, "expected one row per configurable key")
+	assert.Len(t, rows, 14, "expected one row per configurable key")
 }
 
 func TestBuildConfigRows_ContainsSearchFormat(t *testing.T) {

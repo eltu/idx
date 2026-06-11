@@ -7,31 +7,32 @@ import (
 	"time"
 )
 
-// Key* constants are the canonical display names for all 13 configurable fields.
+// Key* constants are the canonical display names for all 14 configurable fields.
 const (
-	KeySearchFormat     = "search.format"
-	KeySearchLimit      = "search.limit"
-	KeySearchOperator   = "search.operator"
-	KeySearchContext    = "search.context"
-	KeySearchRelaxation = "search.relaxation"
-	KeySearchCacheTTL   = "search.cache_ttl"
-	KeySearchMaxWorkers = "search.max_workers"
-	KeyWatchDebounce    = "watch.debounce"
-	KeyIndexIgnore      = "index.ignore"
-	KeyBM25K1           = "bm25.k1"
-	KeyBM25B            = "bm25.b"
-	KeyBM25ProxWeight   = "bm25.proximity_weight"
-	KeyLogLevel         = "log.level"
+	KeySearchFormat         = "search.format"
+	KeySearchLimit          = "search.limit"
+	KeySearchOperator       = "search.operator"
+	KeySearchContext        = "search.context"
+	KeySearchRelaxation     = "search.relaxation"
+	KeySearchCacheTTL       = "search.cache_ttl"
+	KeySearchMaxWorkers     = "search.max_workers"
+	KeyWatchDebounce        = "watch.debounce"
+	KeyIndexIgnore          = "index.ignore"
+	KeyBM25K1               = "bm25.k1"
+	KeyBM25B                = "bm25.b"
+	KeyBM25ProxWeight       = "bm25.proximity_weight"
+	KeyBM25PopularityWeight = "bm25.popularity_weight"
+	KeyLogLevel             = "log.level"
 )
 
-// AllKeys returns the 13 configurable keys in display order.
+// AllKeys returns the 14 configurable keys in display order.
 // Example: for _, key := range config.AllKeys() { ... }.
 func AllKeys() []string {
 	return []string{
 		KeySearchFormat, KeySearchLimit, KeySearchOperator, KeySearchContext,
 		KeySearchRelaxation, KeySearchCacheTTL, KeySearchMaxWorkers,
 		KeyWatchDebounce, KeyIndexIgnore,
-		KeyBM25K1, KeyBM25B, KeyBM25ProxWeight,
+		KeyBM25K1, KeyBM25B, KeyBM25ProxWeight, KeyBM25PopularityWeight,
 		KeyLogLevel,
 	}
 }
@@ -50,7 +51,7 @@ func FieldValue(cfg IdxConfig, key string) string {
 	case KeySearchContext:
 		return fmt.Sprintf("%d", cfg.Search.Context)
 	case KeySearchRelaxation:
-		return cfg.Search.Relaxation
+		return fmt.Sprintf("%d", cfg.Search.Relaxation)
 	case KeySearchCacheTTL:
 		return cfg.Search.CacheTTL.String()
 	case KeySearchMaxWorkers:
@@ -65,6 +66,8 @@ func FieldValue(cfg IdxConfig, key string) string {
 		return FormatFloat(cfg.BM25.B)
 	case KeyBM25ProxWeight:
 		return FormatFloat(cfg.BM25.ProximityWeight)
+	case KeyBM25PopularityWeight:
+		return FormatFloat(cfg.BM25.PopularityWeight)
 	case KeyLogLevel:
 		return cfg.Log.Level
 	default:
@@ -76,19 +79,20 @@ func FieldValue(cfg IdxConfig, key string) string {
 // Example: DefaultFieldValue(KeySearchFormat) → "text".
 func DefaultFieldValue(key string) string {
 	defaults := map[string]string{
-		KeySearchFormat:     "text",
-		KeySearchLimit:      "0",
-		KeySearchOperator:   "AND",
-		KeySearchContext:    "0",
-		KeySearchRelaxation: "",
-		KeySearchCacheTTL:   time.Minute.String(),
-		KeySearchMaxWorkers: "4",
-		KeyWatchDebounce:    (750 * time.Millisecond).String(),
-		KeyIndexIgnore:      "[]",
-		KeyBM25K1:           "1.5",
-		KeyBM25B:            "0.75",
-		KeyBM25ProxWeight:   "3",
-		KeyLogLevel:         "error",
+		KeySearchFormat:         "text",
+		KeySearchLimit:          "0",
+		KeySearchOperator:       "AND",
+		KeySearchContext:        "0",
+		KeySearchRelaxation:     "0",
+		KeySearchCacheTTL:       time.Minute.String(),
+		KeySearchMaxWorkers:     "4",
+		KeyWatchDebounce:        (750 * time.Millisecond).String(),
+		KeyIndexIgnore:          "[]",
+		KeyBM25K1:               "1.5",
+		KeyBM25B:                "0.75",
+		KeyBM25ProxWeight:       "3",
+		KeyBM25PopularityWeight: "0.3",
+		KeyLogLevel:             "error",
 	}
 	return defaults[key]
 }

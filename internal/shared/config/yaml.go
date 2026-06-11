@@ -70,7 +70,7 @@ type yamlSearchConfig struct {
 	Size       *int    `yaml:"size"` // deprecated: use limit
 	Operator   *string `yaml:"operator"`
 	Context    *int    `yaml:"context"`
-	Relaxation *string `yaml:"relaxation"`
+	Relaxation *int    `yaml:"relaxation"`
 	CacheTTL   *string `yaml:"cache_ttl"`
 	MaxWorkers *int    `yaml:"max_workers"`
 }

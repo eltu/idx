@@ -43,10 +43,6 @@ func TestValidateSearchConfig_InvalidInputs_ReturnErrors(t *testing.T) {
 			"bad operator",
 			&searchCommandConfig{format: search.OutputText, operator: "XOR"},
 		},
-		{
-			"invalid relaxation",
-			&searchCommandConfig{format: search.OutputText, operator: search.OperatorAND, relaxation: "no-angle"},
-		},
 	}
 	for _, tc := range cases {
 		tc := tc

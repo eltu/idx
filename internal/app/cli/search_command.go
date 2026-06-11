@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -12,10 +11,9 @@ import (
 )
 
 const (
-	searchCmdName          = "idx search"
-	errMsgRelaxationFormat = "invalid search.relaxation value %q: expected format >N where N is a non-negative integer"
-	flagNameAgentCompact   = "agent-compact"
-	flagNameJSONPretty     = "json-pretty"
+	searchCmdName        = "idx search"
+	flagNameAgentCompact = "agent-compact"
+	flagNameJSONPretty   = "json-pretty"
 )
 
 const searchLongDescription = `Search indexed files using BM25 full-text ranking.
@@ -92,7 +90,7 @@ type searchCommandConfig struct {
 	limit             int
 	operator          string
 	anyMode           bool
-	relaxation        string
+	relaxation        int
 	relaxInt          int
 	relaxIntSet       bool
 	relaxationMin     int
@@ -243,8 +241,7 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 		return nil
 	}
 
-	value := strings.TrimSpace(config.relaxation)
-	if value == "" {
+	if config.relaxation == 0 {
 		return nil
 	}
 
@@ -252,17 +249,8 @@ func validateSearchRelaxation(config *searchCommandConfig) error {
 		return fmt.Errorf("invalid search.relaxation with --operator %q: expected %q", config.operator, search.OperatorAND)
 	}
 
-	if !strings.HasPrefix(value, ">") || len(value) == 1 {
-		return fmt.Errorf(errMsgRelaxationFormat, value)
-	}
-
-	parsed, err := strconv.Atoi(value[1:])
-	if err != nil || parsed < 0 {
-		return fmt.Errorf(errMsgRelaxationFormat, value)
-	}
-
 	config.relaxationEnabled = true
-	config.relaxationMin = parsed
+	config.relaxationMin = config.relaxation
 	return nil
 }
 

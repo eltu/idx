@@ -15,7 +15,7 @@ import (
 
 func TestAllKeys_ReturnsFourteenKeys(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, config.AllKeys(), 13)
+	assert.Len(t, config.AllKeys(), 14)
 }
 
 func TestAllKeys_ContainsAllExpectedKeys(t *testing.T) {
@@ -62,11 +62,7 @@ func TestDefaultFieldValue_SearchFormat_ReturnsText(t *testing.T) {
 
 func TestDefaultFieldValue_AllKeys_HaveNonEmptyDefaults(t *testing.T) {
 	t.Parallel()
-	// relaxation default is intentionally empty — skip it
 	for _, key := range config.AllKeys() {
-		if key == config.KeySearchRelaxation {
-			continue
-		}
 		assert.NotEmpty(t, config.DefaultFieldValue(key), "expected non-empty default for key %q", key)
 	}
 }
@@ -173,11 +169,11 @@ func TestFormatOutput_Duration_FormatsCorrectly(t *testing.T) {
 	assert.Contains(t, sb.String(), "250ms")
 }
 
-func TestFormatOutput_PopularityWeightNotShown(t *testing.T) {
+func TestFormatOutput_PopularityWeightIsShown(t *testing.T) {
 	t.Parallel()
 	var sb strings.Builder
 	require.NoError(t, config.FormatOutput(&sb, config.DefaultIdxConfig(), "/project/.idx.yml", nil))
-	assert.NotContains(t, sb.String(), "popularity_weight")
+	assert.Contains(t, sb.String(), "bm25.popularity_weight")
 }
 
 func TestFormatOutput_ReturnsNoError(t *testing.T) {

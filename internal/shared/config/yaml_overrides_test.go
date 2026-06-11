@@ -18,7 +18,7 @@ func TestYAMLRepository_Load_ParsesSearchContextAndRelaxation(t *testing.T) {
 	writeYAMLConfig(t, dir, `
 search:
   context: 4
-  relaxation: "5"
+  relaxation: 5
   max_workers: 8
 `)
 
@@ -28,7 +28,7 @@ search:
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, 4, cfg.Search.Context)
-	assert.Equal(t, "5", cfg.Search.Relaxation)
+	assert.Equal(t, 5, cfg.Search.Relaxation)
 	assert.Equal(t, 8, cfg.Search.MaxWorkers)
 	overrideSet := overrideMap(overrides)
 	for _, key := range []string{"search.context", "search.relaxation", "search.max_workers"} {

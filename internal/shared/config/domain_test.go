@@ -20,7 +20,7 @@ func TestDefaultIdxConfig_Search_ReturnsExpectedDefaults(t *testing.T) {
 	assert.Equal(t, 0, cfg.Search.Limit)
 	assert.Equal(t, "AND", cfg.Search.Operator)
 	assert.Equal(t, 0, cfg.Search.Context)
-	assert.Equal(t, "", cfg.Search.Relaxation)
+	assert.Equal(t, 0, cfg.Search.Relaxation)
 	assert.Equal(t, time.Minute, cfg.Search.CacheTTL)
 	assert.Equal(t, 4, cfg.Search.MaxWorkers)
 }
