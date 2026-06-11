@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	errNoServerMsg      = "idx server not running"
-	errNoServerStartMsg = "start with: idx server start"
-	errNoServerAltMsg   = "or run in foreground: idx server run"
+	errNoServerMsg      = "idx agent is not running"
+	errNoServerStartMsg = "start with: idx agent start"
+	errNoServerAltMsg   = "then retry your command"
 )
 
 var (

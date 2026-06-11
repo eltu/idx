@@ -89,14 +89,14 @@ func (runner CommandRunner) WithReadCommand(r Reader) CommandRunner {
 	return runner
 }
 
-// WithIndexServer wires the JSON-RPC index server so 'idx server run' works.
+// WithIndexServer wires the JSON-RPC index server so 'idx agent run' works.
 // Example: runner = runner.WithIndexServer(indexServer).
 func (runner CommandRunner) WithIndexServer(s ServerRunner) CommandRunner {
 	runner.indexServer = s
 	return runner
 }
 
-// WithServerManager wires the server daemon manager so 'idx server start/stop/status' works.
+// WithServerManager wires the background agent manager so 'idx agent start/stop/status' works.
 // Example: runner = runner.WithServerManager(serverDaemonAdapter).
 func (runner CommandRunner) WithServerManager(s serverManagerCommand) CommandRunner {
 	runner.serverManager = s

@@ -207,7 +207,7 @@ func TestCLI_Destroy_WithoutServer_ReturnsServerNotRunningError(t *testing.T) {
 
 	// Assert — client cannot connect to socket, must return a server-not-running error
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }
 
 func TestCLI_Destroy_RemovesIdxDirectoriesRecursively(t *testing.T) {
@@ -247,8 +247,8 @@ func TestCLI_Destroy_WithServerRunning_StopsServerAfterRemovingIndexes(t *testin
 	// Act
 	err = run([]string{"idx", "destroy"}, &buf)
 
-	// Assert — destroy succeeded and stopServerForDestroy wrote a server-status message.
-	// The exact message ("Server stopped" vs "Server is not running") depends on whether
+	// Assert — destroy succeeded and stopServerForDestroy wrote an agent-status message.
+	// The exact message ("Agent stopped" vs "Agent is not running") depends on whether
 	// the socket path computed from "." matches the path used to start the server. On
 	// macOS, /tmp is a symlink to /private/tmp, so the paths may differ. Both outcomes
 	// confirm that stopServerForDestroy was called and completed without error.
@@ -256,8 +256,8 @@ func TestCLI_Destroy_WithServerRunning_StopsServerAfterRemovingIndexes(t *testin
 	assert.Contains(t, buf.String(), "🧹")
 	serverMsg := buf.String()
 	assert.True(t,
-		containsAny(serverMsg, "Server stopped", "Server is not running"),
-		"expected a server-status message in output, got: %q", serverMsg,
+		containsAny(serverMsg, "Agent stopped", "Agent is not running"),
+		"expected an agent-status message in output, got: %q", serverMsg,
 	)
 }
 
@@ -300,5 +300,5 @@ func TestCLI_Destroy_AfterDestroy_SearchReturnsServerNotRunning(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }

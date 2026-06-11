@@ -656,7 +656,7 @@ func TestRemoteConfigCommand_Show_ServerNotRunning_ReturnsError(t *testing.T) {
 	out := &fakeOutput{}
 	err := NewRemoteConfigCommand(client, out).Show()
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }
 
 // ---- RemoteSearcher --count ----

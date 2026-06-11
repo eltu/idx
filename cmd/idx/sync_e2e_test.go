@@ -115,7 +115,7 @@ func TestCLI_Sync_WithoutServer_ReturnsServerNotRunningError(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }
 
 // writerFunc adapts a func(string) to the io.Writer interface for output capture.

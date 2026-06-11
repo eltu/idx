@@ -129,7 +129,7 @@ func (s *ServerDaemonService) Start(projectPath string) error {
 
 	socketPath := ipc.SocketPath(absPath)
 	if s.isSocketAlive(socketPath) {
-		return s.output.WriteLine("⚡ Server already running")
+		return s.output.WriteLine("⚡ Agent is already running")
 	}
 
 	s.killStaleProcess(absPath)
@@ -159,10 +159,7 @@ func (s *ServerDaemonService) Start(projectPath string) error {
 		return err
 	}
 
-	if err := s.output.WriteLine(fmt.Sprintf("✅ Server started (PID: %d)", pid)); err != nil {
-		return err
-	}
-	return s.output.WriteLine(fmt.Sprintf("🔌 Socket: %s", socketPath))
+	return s.output.WriteLine(fmt.Sprintf("✅ Agent started (PID: %d)", pid))
 }
 
 // Stop sends SIGTERM to the server daemon and removes the state file.
@@ -178,7 +175,7 @@ func (s *ServerDaemonService) Stop(projectPath string) error {
 
 	if !s.isSocketAlive(socketPath) {
 		s.removeStaleStateIfDead(absPath, state)
-		return s.output.WriteLine("ℹ️  Server is not running")
+		return s.output.WriteLine("ℹ️  Agent is not running")
 	}
 
 	if state != nil {
@@ -186,10 +183,10 @@ func (s *ServerDaemonService) Stop(projectPath string) error {
 			_ = proc.Signal(syscall.SIGTERM)
 		}
 		_ = s.stateRepo.RemoveState(absPath)
-		return s.output.WriteLine(fmt.Sprintf("🛑 Server stopped (was PID: %d)", state.PID))
+		return s.output.WriteLine("🛑 Agent stopped")
 	}
 
-	return s.output.WriteLine("🛑 Server stopped")
+	return s.output.WriteLine("🛑 Agent stopped")
 }
 
 // Status prints the current server status for the given project path.
@@ -204,18 +201,15 @@ func (s *ServerDaemonService) Status(projectPath string) error {
 
 	if !s.isSocketAlive(socketPath) {
 		s.removeStaleStateIfDead(absPath, state)
-		return s.output.WriteLine("❌ Server not running")
+		return s.output.WriteLine("❌ Agent is not running")
 	}
 
 	if state == nil {
-		return s.output.WriteLine(fmt.Sprintf("✅ Server running\n🔌 Socket: %s", socketPath))
+		return s.output.WriteLine("✅ Agent running")
 	}
 
 	uptime := time.Since(state.StartedAt).Round(time.Second)
-	if err := s.output.WriteLine(fmt.Sprintf("✅ Server running (PID: %d, uptime: %s)", state.PID, uptime)); err != nil {
-		return err
-	}
-	return s.output.WriteLine(fmt.Sprintf("🔌 Socket: %s", socketPath))
+	return s.output.WriteLine(fmt.Sprintf("✅ Agent running (uptime: %s)", uptime))
 }
 
 // IsProjectMonitored implements indexing.ProjectMonitorChecker.

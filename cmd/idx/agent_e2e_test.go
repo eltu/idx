@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- idx server status ---
+// --- idx agent status ---
 
-func TestCLI_ServerStatus_WhenRunning_OutputsRunningMessage(t *testing.T) {
+func TestCLI_AgentStatus_WhenRunning_OutputsRunningMessage(t *testing.T) {
 	// Arrange
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
@@ -21,51 +21,51 @@ func TestCLI_ServerStatus_WhenRunning_OutputsRunningMessage(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Act
-	err := run([]string{"idx", "server", "status"}, &buf)
+	err := run([]string{"idx", "agent", "status"}, &buf)
 
 	// Assert
 	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "Server running")
+	assert.Contains(t, buf.String(), "Agent running")
 }
 
-// --- idx server start ---
+// --- idx agent start ---
 
-func TestCLI_ServerStart_WithoutInit_AttemptsDaemonSpawn(t *testing.T) {
-	// Arrange — git project without idx init; server start must attempt to spawn
+func TestCLI_AgentStart_WithoutInit_AttemptsDaemonSpawn(t *testing.T) {
+	// Arrange — git project without idx init; agent start must attempt to spawn
 	// (no longer blocked by ErrNotInitialized; daemon bootstraps itself via ensureRootIndex)
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
 	// Short timeout: the test binary spawned by OSServerSpawner cannot serve as a real
-	// idx server, so the socket never appears. Without this override the test waits 5s.
+	// idx agent, so the socket never appears. Without this override the test waits 5s.
 	t.Setenv("IDX_READINESS_TIMEOUT_MS", "200")
 
 	// Act — OSServerSpawner will try to exec the binary; in CI/test the spawned process
 	// may or may not start, so we do not assert on err but only on absence of panic.
-	_ = run([]string{"idx", "server", "start"}, io.Discard)
+	_ = run([]string{"idx", "agent", "start"}, io.Discard)
 }
 
-func TestCLI_ServerStart_AfterInit_StartsServer(t *testing.T) {
-	// Arrange — init runs locally (in-process, no server required); server is started separately
+func TestCLI_AgentStart_AfterInit_StartsAgent(t *testing.T) {
+	// Arrange — init runs locally (in-process, no agent required); agent is started separately
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
 	startTestServer(t, projectRoot)
 	require.NoError(t, run([]string{"idx", "init"}, io.Discard))
 
-	// Act — `idx server start` tries to spawn via OSServerSpawner; the socket
-	// is already alive so Start returns an error about a running server.
-	// We verify the command produces an observable error or message, not a silent panic.
+	// Act — `idx agent start` tries to spawn via OSServerSpawner; the socket
+	// is already alive so Start returns a message about the agent already running.
+	// We verify the command produces an observable message, not a silent panic.
 	var buf bytes.Buffer
-	err := run([]string{"idx", "server", "start"}, &buf)
+	err := run([]string{"idx", "agent", "start"}, &buf)
 
-	// Assert — either the server is already running (socket alive) or the spawner
+	// Assert — either the agent is already running (socket alive) or the spawner
 	// fails in test environment; both are expected non-success outcomes.
 	// The important invariant is that the process does not hang or panic.
 	_ = err // error outcome is environment-dependent
 }
 
-// --- idx server stop ---
+// --- idx agent stop ---
 
-func TestCLI_ServerStop_WhenRunning_OutputsMessage(t *testing.T) {
+func TestCLI_AgentStop_WhenRunning_OutputsMessage(t *testing.T) {
 	// Arrange
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
@@ -73,26 +73,26 @@ func TestCLI_ServerStop_WhenRunning_OutputsMessage(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Act
-	err := run([]string{"idx", "server", "stop"}, &buf)
+	err := run([]string{"idx", "agent", "stop"}, &buf)
 
-	// Assert — Stop writes a server-status message regardless of whether it could
+	// Assert — Stop writes an agent-status message regardless of whether it could
 	// send SIGTERM (no PID state in test server). Both outcomes are valid.
 	require.NoError(t, err)
 	assert.True(t,
-		containsAny(buf.String(), "Server stopped", "Server is not running"),
-		"expected a server-status message, got: %q", buf.String(),
+		containsAny(buf.String(), "Agent stopped", "Agent is not running"),
+		"expected an agent-status message, got: %q", buf.String(),
 	)
 }
 
-func TestCLI_ServerStop_WhenNotRunning_OutputsNotRunningMessage(t *testing.T) {
-	// Arrange — no server started
+func TestCLI_AgentStop_WhenNotRunning_OutputsNotRunningMessage(t *testing.T) {
+	// Arrange — no agent started
 	projectRoot := newTestProject(t)
 	t.Setenv("IDX_PROJECT_PATH", projectRoot)
 	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".idx"), 0o750))
 	var buf bytes.Buffer
 
 	// Act
-	err := run([]string{"idx", "server", "stop"}, &buf)
+	err := run([]string{"idx", "agent", "stop"}, &buf)
 
 	// Assert
 	require.NoError(t, err)

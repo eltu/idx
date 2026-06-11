@@ -30,7 +30,7 @@ func (service InitCommandService) runIndex() error {
 	if err := service.initIndexing(currentDir, projectRoot); err != nil {
 		return err
 	}
-	return service.output.WriteLine("   💡 Run `idx server start` to enable search")
+	return service.output.WriteLine("   💡 Run `idx agent start` to enable search")
 }
 
 func (service InitCommandService) resolveIndexPaths() (string, string, error) {

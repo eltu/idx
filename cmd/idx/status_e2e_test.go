@@ -120,5 +120,5 @@ func TestCLI_Status_WithoutServer_ReturnsServerNotRunningError(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }

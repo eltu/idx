@@ -210,7 +210,10 @@ func isServerCommand(arguments []string) bool {
 			nonFlagArgs = append(nonFlagArgs, arg)
 		}
 	}
-	return len(nonFlagArgs) >= 2 && nonFlagArgs[0] == "server" && nonFlagArgs[1] == "run"
+	if len(nonFlagArgs) < 2 || nonFlagArgs[1] != "run" {
+		return false
+	}
+	return nonFlagArgs[0] == "agent" || nonFlagArgs[0] == "server"
 }
 
 // isInitCommand returns true for "idx init [flags]".

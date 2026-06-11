@@ -41,8 +41,9 @@ type serverStatusJSONProvider interface {
 
 func (runner CommandRunner) newServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "server",
-		Short: "Manage the idx JSON-RPC server daemon",
+		Use:     "agent",
+		Aliases: []string{"server"},
+		Short:   "Manage the idx background agent",
 	}
 	cmd.AddCommand(
 		runner.newServerStartCommand(),
@@ -56,7 +57,7 @@ func (runner CommandRunner) newServerCommand() *cobra.Command {
 func (runner CommandRunner) newServerStartCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
-		Short: "Start the idx server daemon in the background",
+		Short: "Start the background agent that keeps your index up to date",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := runner.resolveServerRoot()
 			if err != nil {
@@ -71,7 +72,7 @@ func (runner CommandRunner) newServerStartCommand() *cobra.Command {
 func (runner CommandRunner) newServerStopCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the idx server daemon",
+		Short: "Stop the background agent",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := runner.resolveServerRoot()
 			if err != nil {
@@ -88,7 +89,7 @@ func (runner CommandRunner) newServerStatusCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show the idx server daemon status",
+		Short: "Show whether the background agent is running and healthy",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := runner.resolveServerRoot()
 			if err != nil {
@@ -139,7 +140,7 @@ func (runner CommandRunner) resolveServerRoot() (string, error) {
 func (runner CommandRunner) newServerRunCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:    "run",
-		Short:  "Run the idx server and watch loop (internal, spawned by 'server start')",
+		Short:  "Run the idx agent (internal, spawned by 'agent start')",
 		Hidden: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -182,6 +183,6 @@ func serverNotInProjectMessage() string {
 	return fmt.Sprintf("\n%s\n  %s\n  %s\n",
 		serverErrTitleStyle.Render("✗ Not inside an idx project"),
 		serverErrActionStyle.Render("cd <project-root>"),
-		serverErrHintStyle.Render("then: idx server start"),
+		serverErrHintStyle.Render("then: idx agent start"),
 	)
 }

@@ -129,7 +129,7 @@ func TestCLI_ConfigShow_WithoutServer_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "server not running")
+	assert.ErrorContains(t, err, "not running")
 }
 
 // --- Group B: config values flow through to search behavior ---

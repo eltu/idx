@@ -264,7 +264,8 @@ func TestServerDaemonService_Status_ShowsRunningDetails(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "5678")
+	assert.Contains(t, buf.String(), "Agent running")
+	assert.Contains(t, buf.String(), "uptime")
 }
 
 func TestServerDaemonService_Status_ShowsNotRunning(t *testing.T) {
