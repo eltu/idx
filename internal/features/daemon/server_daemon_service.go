@@ -209,7 +209,7 @@ func (s *ServerDaemonService) Status(projectPath string) error {
 	}
 
 	uptime := time.Since(state.StartedAt).Round(time.Second)
-	return s.output.WriteLine(fmt.Sprintf("✅ Agent running (uptime: %s)", uptime))
+	return s.output.WriteLine(fmt.Sprintf("✅ Agent running (PID: %d, uptime: %s)", state.PID, uptime))
 }
 
 // IsProjectMonitored implements indexing.ProjectMonitorChecker.
