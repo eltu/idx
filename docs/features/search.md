@@ -24,11 +24,9 @@ idx find   [query terms] [flags]   # alias
 | `--format` | | string | `text`¹ | `text` or `json` |
 | `--json` | `-j` | bool | `false` | Shorthand for `--format json` |
 | `--pretty` | | bool | `false` | Pretty-print JSON; requires `--json` or `--format json` |
-| `--explain` | | bool | `false` | Include BM25 score in output |
-| `--compact` | | bool | `false` | Compact text output for AI agents (no header/footer spacing) |
+| `--explain` | | bool | `false` | Include BM25 score inline with each file path |
+| `--compact` | | bool | `false` | Compact output for AI agents — no ANSI color, `lineNum:content` format, no header or blank separators |
 | `--context` | `-c` | int | `0`¹ | Context lines around each match. Must be `>= 0` |
-| `--hits` | | bool | `false` | Show only lines that directly match the query |
-| `--matches-only` | | bool | `false` | Alias for `--hits` |
 | `--files-only` | `-l` | bool | `false` | Return only file paths |
 | `--count` | | bool | `false` | Print only the number of matching files |
 | `--time` | | bool | `false` | Show query execution time |
@@ -47,7 +45,7 @@ idx find   [query terms] [flags]   # alias
 | `--operator` | | string | `AND`¹ | `AND` or `OR` |
 | `--any` | | bool | `false` | Match any term — shorthand for `--operator OR` |
 | `--relax` | | int | (off) | Relax AND: require at least N matching terms. Activates only when query has more terms than N |
-| `--relaxation` | | string | `""`¹ | `>N` format — long-form equivalent of `--relax N` |
+| `--relaxation` | | int | `0`¹ | Long-form equivalent of `--relax N` |
 | `--popularity-weight` | | float | `0.3`¹ | Boost weight for files frequently read via `idx read`. `0` disables |
 
 ### Pagination flags
@@ -87,26 +85,56 @@ Requires the background agent to be running. If the agent socket is not reachabl
 - Applies BM25 + normalization for ranking.
 - **`--operator AND`** (default): a document must contain **all** query terms to be ranked.
 - **`--any`** (or `--operator OR`): a document must contain **at least one** query term. Proximity bonus is skipped for terms absent from a given document.
-- **`--relax N`** (or `--relaxation >N`): only active with `AND` operator. When the query has more than N terms, evaluates decreasing term prefixes (removing tokens right to left) down to a single term, ranking by largest matched term count.
+- **`--relax N`** (or `--relaxation N`): only active with `AND` operator. When the query has more than N terms, evaluates decreasing term prefixes (removing tokens right to left) down to a single term, ranking by largest matched term count.
 - **`--count`**: forces `--files-only` internally and prints only the integer file count to stdout. No headers.
 - **`--time`**: appends a muted timing line after results showing the RPC round-trip duration.
-- Applies output filters in this order: `files-only` / `count`, then `matches-only` / `hits`, then pagination (`skip`, `limit`).
-- `--files-only` and `--count` take priority over `--hits`.
+- Applies output filters in this order: `files-only` / `count`, then pagination (`skip`, `limit`).
 - Uses in-memory cache for ranked results (TTL: configurable via `search.cache_ttl`, default 1 minute).
 - Read-only command; no filesystem writes.
 
 ## Output
 
-- Text mode (default):
-  - Header: `📁 Found <total> file(s) matching your search`
-  - With `--compact`: header omitted; simplified line format `<path>\n  <line>: <content>`
-  - No results: `No results found.`
-- JSON mode (`--json` / `--format json`):
-  - Object: `{"count": N, "results": [...]}`
-  - With `--files-only`: array of path strings `["a.go", "b.go"]`
-  - With `--explain`: each result includes `"score"` field
-  - With `--pretty`: indented JSON
+### Text mode (default)
+
+- **Header:** `📁 Found <total> file(s) matching your search`
+  - When `--skip` / `--limit` is active: `📁 Found <total> file(s) matching your search (showing <N> with pagination)`
+- **File path:** ANSI-colored path, one per result block
+  - With `--explain`: `path/to/file.go (score: 0.8432)`
+- **Match lines:** tree-prefix format with term highlighting and blank line separator between results:
+  ```
+  internal/features/search/service.go
+    ├── 42: func Run(query string, opts Options) (Results, error) {
+    └── 55: }
+
+  ```
+- **Stale file:** file in index no longer found on disk:
+  ```
+  internal/old/removed.go
+    └── ⚠ file not found — index is outdated, run idx sync
+  ```
+- **No results:** `No results found.`
+
+### Compact mode (`--compact`)
+
+Disables ANSI color, header, and tree prefix. Line format: `<lineNum>:<content>`. Designed for AI agent consumption (fewer tokens).
+
+```
+internal/features/search/service.go
+  42: func Run(query string, opts Options) (Results, error) {
+  55: }
+```
+
+### JSON mode (`--json` / `--format json`)
+
+- Object: `{"count": N, "results": [...]}`
+- With `--files-only`: array of path strings `["a.go", "b.go"]`
+- With `--explain`: each result includes `"score"` field
+- With `--pretty`: indented JSON
+
+### Other
+
 - `--count`: prints a single integer to stdout (e.g. `7`). No other output.
+- `--files-only`: one path per line.
 - `--time`: appends `  ⏱  Nms` after the last result line.
 
 ## Errors
@@ -122,7 +150,7 @@ Requires the background agent to be running. If the agent socket is not reachabl
 | `--size` zero when explicitly set | `invalid --size value ... expected a positive integer` |
 | `--limit` zero when explicitly set | `invalid --limit value ... expected a positive integer` |
 | Unsupported operator | `unsupported --operator value ... expected one of [AND OR]` |
-| Invalid `--relax` / `--relaxation` with OR operator | `invalid --relaxation with --operator "OR": expected "AND"` |
+| `--relax` / `--relaxation` with OR operator | `invalid search.relaxation with --operator "OR": expected "AND"` |
 | Agent not running | `✗ idx agent is not running` |
 
 ## Examples
@@ -153,9 +181,8 @@ idx search --compact "BM25"
 idx search --count "TODO"
 idx search -l -e md "installation"  # list markdown files only
 
-# Context lines and match-only
+# Context lines
 idx search -c 3 "BM25Tokenizer"
-idx search --hits "BM25Tokenizer"
 
 # Pagination
 idx search --skip 10 -n 5 "handler"
