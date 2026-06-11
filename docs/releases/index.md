@@ -4,6 +4,7 @@ All stable releases of idx. Each entry links to the full release notes.
 
 | Version | Date | Highlights |
 |---|---|---|
+| [v0.8.0](v0.8.0.md) | June 11, 2026 | `idx agent` rename, `idx init` bootstrap fix, relaxation as int, `--hits` removed |
 | [v0.7.0](v0.7.0.md) | June 1, 2026 | Search flag expansion, `idx watch` removed, read popularity boost, `idx config` |
 | [v0.6.0](v0.6.0.md) | May 27, 2026 | `idx server start/stop/status`, bundled skills, `idx daemon` removed |
 | [v0.5.0](v0.5.0.md) | May 20, 2026 | Read popularity boost, `index.ignore`, GoReleaser, SonarCloud |
