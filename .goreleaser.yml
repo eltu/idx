@@ -29,16 +29,7 @@ checksum:
 
 release:
   replace_existing_artifacts: true
-
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
-      - Merge pull request
-      - Merge branch
+  notes_file: "docs/releases/{{ .Tag }}.md"
 
 brews:
   - name: idx
