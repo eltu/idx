@@ -1,81 +1,144 @@
 # idx
 
-Fast code and text search CLI for Git repositories, powered by BM25 and per-directory indexes.
-
-⚠️ This project is under active development and may contain bugs or breaking changes.
+Fast BM25 full-text search for Git repositories. Index your codebase once, search it instantly — from the terminal or from your AI coding assistant.
 
 ## Install
 
-### Homebrew (macOS / Linux)
+**Homebrew (macOS / Linux)**
 
 ```bash
 brew tap eltu/idx
 brew install idx
 ```
 
-Upgrade:
-
-```bash
-brew upgrade idx
-```
-
-### Build from source
-
-Requires Go `1.26+`.
+**Build from source** (requires Go 1.26+)
 
 ```bash
 git clone https://github.com/eltu/idx.git
 cd idx
-make build
-cp bin/idx /usr/local/bin/
+make build && cp bin/idx /usr/local/bin/
 ```
 
-Or run without installing:
+## Getting started
+
+Three commands to go from zero to searching:
 
 ```bash
-go run cmd/idx/main.go <command>
-```
-
-## Requirements
-
-- Git repository (project root is resolved from `.git`)
-- Go `1.26+` only required when building from source
-
-## Quick start
-
-```bash
+# 1. Build the index for your project
 idx init
-idx search "auth token"
-idx search "func abc x y int 10" --operator AND --relaxation '>2'
+
+# 2. Start the background agent (keeps the index up to date automatically)
+idx agent start
+
+# 3. Search
+idx search "error handling"
 ```
 
-## Core commands
+After `idx init` you can also let the agent handle initialization on its own:
 
-- `idx init`: create indexes recursively
-- `idx sync`: resync existing indexes
-- `idx search <terms>`: search indexed content, with `--operator AND|OR` and AND relaxation via `--relaxation '>N'`
-- `idx watch`: realtime sync in active terminal session
-- `idx daemon enable|disable|status`: background monitoring
-- `idx inspect <path>`: inspect index content
-- `idx destroy`: remove index metadata
+```bash
+idx agent start   # starts and auto-indexes if no index exists yet
+idx search "your query"
+```
 
-## Useful Make targets
+### Verify everything is working
 
-- `make build`
-- `make test`
-- `make check`
-- `make fmt`
-- `make lint`
-- `make complexity`
-- `make clean`
+```bash
+idx agent status  # ✅ Agent running (PID: 12345, uptime: 10s)
+idx status        # shows index freshness per directory
+```
 
-## Detailed docs
+### Search examples
 
-For full command reference, flags, examples, and troubleshooting, see:
+```bash
+# Basic search
+idx search "authentication middleware"
 
-- [docs/features/README.md](docs/features/README.md)
+# Filter by file extension
+idx search -e go "func main"
+idx search -e go -e ts "interface"
 
-## Additional docs
+# Filter by path
+idx search -p internal "logger"
 
-- Benchmarks: [docs/benchmarks](docs/benchmarks)
+# Match any term (OR mode)
+idx search --any "init sync destroy"
+
+# AND relaxation — match at least 2 of the 3 terms
+idx search --relax 2 "init sync destroy"
+
+# Compact output for AI agents
+idx search --compact "BM25"
+
+# JSON output
+idx search -j --pretty "config"
+
+# Count matching files only
+idx search --count "TODO"
+```
+
+### Install AI editor skills
+
+Integrate idx into your editor's AI assistant in one command:
+
+```bash
+idx skills install claude    # Claude Code
+idx skills install copilot   # GitHub Copilot
+idx skills install cursor    # Cursor
+```
+
+## Command reference
+
+| Command | Description |
+|---|---|
+| `idx init` | Build the full index for the project |
+| `idx agent start` | Start the background agent |
+| `idx agent stop` | Stop the background agent |
+| `idx agent status` | Show agent health and PID |
+| `idx sync` | Incrementally re-index changed directories |
+| `idx status` | Check index freshness |
+| `idx search <terms>` | Search indexed content |
+| `idx read <path>` | Print a file (boosts it in future search results) |
+| `idx inspect [path]` | Browse the index in an interactive TUI |
+| `idx config show` | Show resolved project configuration |
+| `idx destroy` | Remove all index files and stop the agent |
+
+Full flag reference: [docs/features/README.md](docs/features/README.md)
+
+## Configuration
+
+Create `.idx.yml` at your project root to customize behavior:
+
+```yaml
+search:
+  operator: AND
+  limit: 20
+  relaxation: 2
+
+bm25:
+  popularity_weight: 0.3  # boost frequently-read files in search results
+
+watch:
+  debounce: 750ms
+
+index:
+  ignore:
+    - vendor/
+    - node_modules/
+```
+
+See `idx config show` for all available keys and their current values.
+
+## Development
+
+```bash
+make build      # build binary to bin/idx
+make check      # format + lint + tests
+make test       # run tests only
+make fmt        # run gofmt
+make lint       # run golangci-lint
+make clean      # remove build artifacts
+```
+
 - Architecture decisions: [docs/adr](docs/adr)
+- Release notes: [docs/releases](docs/releases)
