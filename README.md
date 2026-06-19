@@ -129,6 +129,16 @@ index:
 
 See `idx config show` for all available keys and their current values.
 
+## Documentation
+
+| Section | Description |
+|---|---|
+| [docs/features/](docs/features/README.md) | Full flag reference, organized by command |
+| [docs/adr/](docs/adr/README.md) | Architecture Decision Records — design rationale and tradeoffs |
+| [docs/releases/](docs/releases/README.md) | Release notes for every stable version |
+| [docs/roadmap/](docs/roadmap/README.md) | Planned versions and feature design documents |
+| [docs/benchmarks/](docs/benchmarks/README.md) | Performance and token-usage benchmarks |
+
 ## Development
 
 ```bash
@@ -139,6 +149,3 @@ make fmt        # run gofmt
 make lint       # run golangci-lint
 make clean      # remove build artifacts
 ```
-
-- Architecture decisions: [docs/adr](docs/adr)
-- Release notes: [docs/releases](docs/releases)
