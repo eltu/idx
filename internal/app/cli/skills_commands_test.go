@@ -129,14 +129,16 @@ func TestNewSkillsCommand_HasInstallSubcommand(t *testing.T) {
 }
 
 type captureSkillsCommand struct {
-	lastEditor string
+	lastEditor      string
+	lastProjectRoot string
 }
 
-func (c *captureSkillsCommand) Install(editor string) error {
+func (c *captureSkillsCommand) Install(editor, projectRoot string) error {
 	c.lastEditor = editor
+	c.lastProjectRoot = projectRoot
 	return nil
 }
 
 type errSkillsCommand struct{ err error }
 
-func (e *errSkillsCommand) Install(_ string) error { return e.err }
+func (e *errSkillsCommand) Install(_, _ string) error { return e.err }

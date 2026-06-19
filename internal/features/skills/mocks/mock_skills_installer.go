@@ -35,15 +35,15 @@ func (m *MockSkillsInstaller) EXPECT() *MockSkillsInstallerMockRecorder {
 }
 
 // Install mocks base method.
-func (m *MockSkillsInstaller) Install(editor string) error {
+func (m *MockSkillsInstaller) Install(editor, projectRoot string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Install", editor)
+	ret := m.ctrl.Call(m, "Install", editor, projectRoot)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Install indicates an expected call of Install.
-func (mr *MockSkillsInstallerMockRecorder) Install(editor any) *gomock.Call {
+func (mr *MockSkillsInstallerMockRecorder) Install(editor, projectRoot any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Install", reflect.TypeOf((*MockSkillsInstaller)(nil).Install), editor)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Install", reflect.TypeOf((*MockSkillsInstaller)(nil).Install), editor, projectRoot)
 }

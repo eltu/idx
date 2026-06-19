@@ -486,7 +486,7 @@ func TestIsIgnorableServerStopError_PermissionDenied_ReturnsFalse(t *testing.T) 
 
 type stubSkillsCommand struct{}
 
-func (s stubSkillsCommand) Install(editor string) error { return nil }
+func (s stubSkillsCommand) Install(_, _ string) error { return nil }
 
 type stubReadCommand struct{}
 
