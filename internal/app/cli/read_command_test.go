@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,6 +157,61 @@ func TestReadCommand_HasLongDescription(t *testing.T) {
 	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
 	cmd := runner.newReadCommand()
 	assert.NotEmpty(t, cmd.Long)
+}
+
+// ---- --compact flag ----
+
+func TestReadCommand_CompactFlag_Registered(t *testing.T) {
+	t.Parallel()
+
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
+	cmd := runner.newReadCommand()
+	assert.NotNil(t, cmd.Flags().Lookup("compact"), "expected --compact flag to be registered")
+}
+
+func TestReadCommand_CompactFlag_DefaultIsFalse(t *testing.T) {
+	t.Parallel()
+
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil)
+	cmd := runner.newReadCommand()
+	flag := cmd.Flags().Lookup("compact")
+	require.NotNil(t, flag)
+	assert.Equal(t, "false", flag.DefValue)
+}
+
+func TestReadCommand_WithoutCompact_WritesHeader(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	stub := &captureReadCommand{}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithReadCommand(stub)
+	cmd := runner.newReadCommand()
+	var buf strings.Builder
+	cmd.SetOut(&buf)
+
+	// Act
+	require.NoError(t, cmd.RunE(cmd, []string{"/some/file.go"}))
+
+	// Assert
+	assert.Contains(t, buf.String(), "/some/file.go", "expected header to contain file path when --compact is not set")
+}
+
+func TestReadCommand_WithCompact_SkipsHeader(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	stub := &captureReadCommand{}
+	runner := NewCommandRunner([]string{"idx"}, nil, nil, nil).WithReadCommand(stub)
+	cmd := runner.newReadCommand()
+	var buf strings.Builder
+	cmd.SetOut(&buf)
+
+	// Act
+	require.NoError(t, cmd.Flags().Set("compact", "true"))
+	require.NoError(t, cmd.RunE(cmd, []string{"/some/file.go"}))
+
+	// Assert
+	assert.Empty(t, buf.String(), "expected no header output when --compact is set")
 }
 
 type captureReadCommand struct {
