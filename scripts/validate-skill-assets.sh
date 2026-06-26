@@ -4,7 +4,7 @@
 set -euo pipefail
 
 BINARY="${IDX_BINARY:-./bin/idx}"
-SKILL_DIR="./internal/features/skills/assets/idx-search"
+SKILL_DIR="./internal/features/skills/assets/idx"
 SKILL_MD="${SKILL_DIR}/SKILL.md"
 COMMANDS_MD="${SKILL_DIR}/references/idx-commands.md"
 

@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	assetSkillDir         = "assets/idx-search"
+	assetSkillDir         = "assets/idx"
 	assetClaudeProjectDir = "claude-project"
-	assetHookSrc          = "assets/idx-search/claude-project/block-shell-tools.sh"
-	assetContextHookSrc   = "assets/idx-search/claude-project/context-hook.sh"
-	skillName             = "idx-search"
+	assetHookSrc          = "assets/idx/claude-project/block-shell-tools.sh"
+	assetContextHookSrc   = "assets/idx/claude-project/context-hook.sh"
+	skillName             = "idx"
 	claudePermission      = "Bash(idx *)"
-	projectHookName       = "idx-search-block.sh"
-	contextHookName       = "idx-search-context-hook.sh"
+	projectHookName       = "idx-block.sh"
+	contextHookName       = "idx-context-hook.sh"
 	projectHookCommand    = "~/.claude/" + projectHookName
 	contextHookCommand    = "~/.claude/" + contextHookName
 	hookEventPreToolCall  = "PreToolCall"
@@ -133,12 +133,12 @@ func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
 	return i.installContextHookScript(homeDir)
 }
 
-// installHookScript copies the embedded PreToolCall hook to ~/.claude/idx-search-hook.sh.
+// installHookScript copies the embedded PreToolCall hook to ~/.claude/idx-block.sh.
 func (i *EmbedSkillsInstaller) installHookScript(homeDir string) error {
 	return i.installEmbeddedScript(assetHookSrc, filepath.Join(homeDir, ".claude", projectHookName))
 }
 
-// installContextHookScript copies the embedded UserPromptSubmit hook to ~/.claude/idx-search-context-hook.sh.
+// installContextHookScript copies the embedded UserPromptSubmit hook to ~/.claude/idx-context-hook.sh.
 func (i *EmbedSkillsInstaller) installContextHookScript(homeDir string) error {
 	return i.installEmbeddedScript(assetContextHookSrc, filepath.Join(homeDir, ".claude", contextHookName))
 }

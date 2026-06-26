@@ -83,9 +83,9 @@ func TestCLI_SkillsInstall_Claude_CreatesSkillFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, "claude")
 
-	skillsDir := filepath.Join(home, ".claude", "skills", "idx-search")
+	skillsDir := filepath.Join(home, ".claude", "skills", "idx")
 	entries, statErr := os.ReadDir(skillsDir)
-	require.NoError(t, statErr, "expected .claude/skills/idx-search/ to be created")
+	require.NoError(t, statErr, "expected .claude/skills/idx/ to be created")
 	assert.NotEmpty(t, entries, "expected skill files to be written")
 }
 
@@ -156,9 +156,9 @@ func TestCLI_SkillsInstall_Copilot_CreatesSkillFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, "copilot")
 
-	skillsDir := filepath.Join(home, ".copilot", "skills", "idx-search")
+	skillsDir := filepath.Join(home, ".copilot", "skills", "idx")
 	entries, statErr := os.ReadDir(skillsDir)
-	require.NoError(t, statErr, "expected .copilot/skills/idx-search/ to be created")
+	require.NoError(t, statErr, "expected .copilot/skills/idx/ to be created")
 	assert.NotEmpty(t, entries)
 }
 
@@ -175,9 +175,9 @@ func TestCLI_SkillsInstall_Cursor_CreatesSkillFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, "cursor")
 
-	skillsDir := filepath.Join(home, ".cursor", "skills", "idx-search")
+	skillsDir := filepath.Join(home, ".cursor", "skills", "idx")
 	entries, statErr := os.ReadDir(skillsDir)
-	require.NoError(t, statErr, "expected .cursor/skills/idx-search/ to be created")
+	require.NoError(t, statErr, "expected .cursor/skills/idx/ to be created")
 	assert.NotEmpty(t, entries)
 }
 

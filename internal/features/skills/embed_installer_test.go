@@ -40,7 +40,7 @@ func TestInstall_CopiesSkillFilesToEditorDir(t *testing.T) {
 			require.NoError(t, installer.Install(editor, ""))
 
 			// Assert
-			targetDir := filepath.Join(homeDir, "."+editor, "skills", "idx-search")
+			targetDir := filepath.Join(homeDir, "."+editor, "skills", "idx")
 			_, err := os.Stat(filepath.Join(targetDir, "SKILL.md"))
 			require.NoError(t, err, "expected SKILL.md at %q", targetDir)
 			_, err = os.Stat(filepath.Join(targetDir, "references", "idx-commands.md"))
@@ -234,7 +234,7 @@ func TestInstall_CopiesContextHookScriptToClaudeDir(t *testing.T) {
 	require.NoError(t, installer.Install("claude", ""))
 
 	// Assert
-	hookPath := filepath.Join(homeDir, ".claude", "idx-search-context-hook.sh")
+	hookPath := filepath.Join(homeDir, ".claude", "idx-context-hook.sh")
 	info, err := os.Stat(hookPath)
 	require.NoError(t, err, "expected context hook script at %q", hookPath)
 	assert.NotZero(t, info.Size(), "expected non-empty context hook script")
@@ -250,7 +250,7 @@ func TestInstall_SkillsDirDoesNotContainClaudeProjectSubdir(t *testing.T) {
 	require.NoError(t, installer.Install("claude", ""))
 
 	// Assert
-	claudeProjectInSkills := filepath.Join(homeDir, ".claude", "skills", "idx-search", "claude-project")
+	claudeProjectInSkills := filepath.Join(homeDir, ".claude", "skills", "idx", "claude-project")
 	_, err := os.Stat(claudeProjectInSkills)
 	assert.True(t, os.IsNotExist(err), "claude-project/ should not be copied into the skills directory")
 }
@@ -355,7 +355,7 @@ func TestInstall_WithProjectRoot_RegistersUserPromptSubmitHook(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "UserPromptSubmit")
-	assert.Contains(t, string(data), "idx-search-context-hook.sh")
+	assert.Contains(t, string(data), "idx-context-hook.sh")
 }
 
 func TestInstall_WithProjectRoot_DoesNotDuplicateUserPromptSubmitHook(t *testing.T) {
@@ -371,7 +371,7 @@ func TestInstall_WithProjectRoot_DoesNotDuplicateUserPromptSubmitHook(t *testing
 
 	// Assert
 	data, _ := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
-	assert.Equal(t, 1, strings.Count(string(data), "idx-search-context-hook.sh"),
+	assert.Equal(t, 1, strings.Count(string(data), "idx-context-hook.sh"),
 		"expected exactly one UserPromptSubmit hook entry after two installs")
 }
 
@@ -404,7 +404,7 @@ func TestInstall_WithProjectRoot_RegistersPreToolCallHook(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "PreToolCall")
-	assert.Contains(t, string(data), "idx-search-block.sh")
+	assert.Contains(t, string(data), "idx-block.sh")
 }
 
 func TestInstall_WithProjectRoot_DoesNotDuplicateHook(t *testing.T) {
@@ -420,7 +420,7 @@ func TestInstall_WithProjectRoot_DoesNotDuplicateHook(t *testing.T) {
 
 	// Assert
 	data, _ := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
-	assert.Equal(t, 1, strings.Count(string(data), "idx-search-block.sh"),
+	assert.Equal(t, 1, strings.Count(string(data), "idx-block.sh"),
 		"expected exactly one hook entry after two installs")
 }
 
@@ -475,7 +475,7 @@ func TestInstall_CopiesHookScriptToClaudeDir(t *testing.T) {
 	require.NoError(t, installer.Install("claude", ""))
 
 	// Assert
-	hookPath := filepath.Join(homeDir, ".claude", "idx-search-block.sh")
+	hookPath := filepath.Join(homeDir, ".claude", "idx-block.sh")
 	info, err := os.Stat(hookPath)
 	require.NoError(t, err, "expected hook script at %q", hookPath)
 	assert.NotZero(t, info.Size(), "expected non-empty hook script")
