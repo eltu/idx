@@ -29,7 +29,6 @@ checksum:
 
 release:
   replace_existing_artifacts: true
-  notes_file: "docs/releases/{{ .Tag }}.md"
 
 brews:
   - name: idx
