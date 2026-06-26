@@ -8,13 +8,24 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
-	assetSkillDir    = "assets/idx-search"
-	skillName        = "idx-search"
-	claudePermission = "Bash(idx *)"
-	editorClaude     = "claude"
+	assetSkillDir         = "assets/idx"
+	assetClaudeProjectDir = "claude-project"
+	assetHookSrc          = "assets/idx/claude-project/block-shell-tools.sh"
+	assetContextHookSrc   = "assets/idx/claude-project/context-hook.sh"
+	skillName             = "idx"
+	claudePermission      = "Bash(idx *)"
+	projectHookName       = "idx-block.sh"
+	contextHookName       = "idx-context-hook.sh"
+	projectHookCommand    = "~/.claude/" + projectHookName
+	contextHookCommand    = "~/.claude/" + contextHookName
+	hookEventPreToolCall  = "PreToolCall"
+	hookEventUserPrompt   = "UserPromptSubmit"
+	editorClaude          = "claude"
+	claudeDir             = ".claude"
 )
 
 //go:embed assets
@@ -51,9 +62,9 @@ func NewEmbedSkillsInstallerWithDeps(
 	}
 }
 
-// Install copies bundled skill files to the editor's skills directory and,
-// for Claude, ensures the idx permission entry is present in settings.json.
-func (i *EmbedSkillsInstaller) Install(editor string) error {
+// Install copies bundled skill files to the editor's skills directory and, for Claude,
+// patches ~/.claude/settings.json and (when projectRoot != "") configures the project.
+func (i *EmbedSkillsInstaller) Install(editor, projectRoot string) error {
 	homeDir, err := i.homeDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve home directory: %w", err)
@@ -61,10 +72,16 @@ func (i *EmbedSkillsInstaller) Install(editor string) error {
 	if err := i.copySkillFiles(editorSkillsDir(editor, homeDir)); err != nil {
 		return err
 	}
-	if editor == editorClaude {
-		return i.configureClaude(homeDir)
+	if editor != editorClaude {
+		return nil
 	}
-	return nil
+	if err := i.configureClaude(homeDir); err != nil {
+		return err
+	}
+	if projectRoot == "" {
+		return nil
+	}
+	return i.configureClaudeProject(projectRoot)
 }
 
 func editorSkillsDir(editor, homeDir string) string {
@@ -82,6 +99,10 @@ func (i *EmbedSkillsInstaller) copySkillFiles(targetDir string) error {
 
 func (i *EmbedSkillsInstaller) copyEntry(srcPath string, d fs.DirEntry, targetDir string) error {
 	relPath, _ := filepath.Rel(assetSkillDir, srcPath)
+	// claude-project/ contains hook scripts installed separately; skip from skill copy.
+	if relPath == assetClaudeProjectDir || strings.HasPrefix(relPath, assetClaudeProjectDir+string(filepath.Separator)) {
+		return nil
+	}
 	destPath := filepath.Join(targetDir, relPath)
 	if d.IsDir() {
 		return i.mkdirAll(destPath, 0750)
@@ -93,17 +114,131 @@ func (i *EmbedSkillsInstaller) copyEntry(srcPath string, d fs.DirEntry, targetDi
 	return i.writeFile(destPath, data, 0600)
 }
 
+// configureClaude patches ~/.claude/settings.json to allow Bash(idx *) permissions
+// and installs both enforcement hook scripts to ~/.claude/.
 func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
-	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
+	settingsPath := filepath.Join(homeDir, claudeDir, "settings.json")
 	settings, err := i.loadClaudeSettings(settingsPath)
 	if err != nil {
 		return err
 	}
-	if hasClaudePermission(settings) {
+	if !hasClaudePermission(settings) {
+		addClaudePermission(settings)
+		if err := i.saveClaudeSettings(settingsPath, settings); err != nil {
+			return err
+		}
+	}
+	if err := i.installHookScript(homeDir); err != nil {
+		return err
+	}
+	return i.installContextHookScript(homeDir)
+}
+
+// installHookScript copies the embedded PreToolCall hook to ~/.claude/idx-block.sh.
+func (i *EmbedSkillsInstaller) installHookScript(homeDir string) error {
+	return i.installEmbeddedScript(assetHookSrc, filepath.Join(homeDir, claudeDir, projectHookName))
+}
+
+// installContextHookScript copies the embedded UserPromptSubmit hook to ~/.claude/idx-context-hook.sh.
+func (i *EmbedSkillsInstaller) installContextHookScript(homeDir string) error {
+	return i.installEmbeddedScript(assetContextHookSrc, filepath.Join(homeDir, claudeDir, contextHookName))
+}
+
+func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) error {
+	data, err := skillsFS.ReadFile(assetSrc)
+	if err != nil {
+		return fmt.Errorf("failed to read embedded script %q: %w", assetSrc, err)
+	}
+	if err := i.mkdirAll(filepath.Dir(destPath), 0750); err != nil {
+		return fmt.Errorf("failed to create directory for %q: %w", destPath, err)
+	}
+	return i.writeFile(destPath, data, 0750)
+}
+
+// configureClaudeProject registers the PreToolCall and UserPromptSubmit hooks
+// in the project's .claude/settings.json. No project files are modified beyond that.
+// Hook commands use literal "~" so the file is portable and can be versioned.
+func (i *EmbedSkillsInstaller) configureClaudeProject(projectRoot string) error {
+	projectSettingsPath := filepath.Join(projectRoot, claudeDir, "settings.json")
+	if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, projectHookCommand, true); err != nil {
+		return err
+	}
+	return i.upsertProjectHook(projectSettingsPath, hookEventUserPrompt, contextHookCommand, false)
+}
+
+// upsertProjectHook registers a hook command under the given event type in the project
+// .claude/settings.json. withMatcher adds a "matcher":"Bash" field (used for PreToolCall).
+// It is idempotent: running it again does not add a duplicate entry.
+func (i *EmbedSkillsInstaller) upsertProjectHook(path, eventType, hookCmd string, withMatcher bool) error {
+	settings, err := i.loadClaudeSettings(path)
+	if err != nil {
+		return err
+	}
+	if hookEntryExists(settings, eventType, hookCmd) {
 		return nil
 	}
-	addClaudePermission(settings)
-	return i.saveClaudeSettings(settingsPath, settings)
+	addHookEntry(settings, eventType, hookCmd, withMatcher)
+	return i.saveClaudeSettings(path, settings)
+}
+
+func hookEntryExists(settings map[string]interface{}, eventType, hookCmd string) bool {
+	for _, entry := range hookEventEntries(settings, eventType) {
+		if hooksSliceContains(entry, hookCmd) {
+			return true
+		}
+	}
+	return false
+}
+
+func addHookEntry(settings map[string]interface{}, eventType, hookCmd string, withMatcher bool) {
+	hooks := hooksSectionMap(settings)
+	entries := hookEventEntries(settings, eventType)
+	newEntry := map[string]interface{}{
+		"hooks": []interface{}{
+			map[string]interface{}{"type": "command", "command": hookCmd},
+		},
+	}
+	if withMatcher {
+		newEntry["matcher"] = "Bash"
+	}
+	hooks[eventType] = append(entries, newEntry)
+	settings["hooks"] = hooks
+}
+
+func hooksSectionMap(settings map[string]interface{}) map[string]interface{} {
+	if h, ok := settings["hooks"].(map[string]interface{}); ok {
+		return h
+	}
+	return map[string]interface{}{}
+}
+
+func hookEventEntries(settings map[string]interface{}, eventType string) []interface{} {
+	h := hooksSectionMap(settings)
+	if entries, ok := h[eventType].([]interface{}); ok {
+		return entries
+	}
+	return []interface{}{}
+}
+
+func hooksSliceContains(entry interface{}, hookCmd string) bool {
+	m, ok := entry.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	hooks, ok := m["hooks"].([]interface{})
+	if !ok {
+		return false
+	}
+	for _, h := range hooks {
+		hm, ok := h.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if cmd, ok := hm["command"].(string); ok && cmd == hookCmd {
+			return true
+		}
+	}
+	return false
 }
 
 func (i *EmbedSkillsInstaller) loadClaudeSettings(path string) (map[string]interface{}, error) {

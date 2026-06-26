@@ -24,6 +24,7 @@ idx cat  <path> [flags]   # alias
 | --- | --- | --- | --- | --- |
 | `--start` | `-s` | int | `0` | First line to print (1-based). `0` means start of file. |
 | `--end` | `-e` | int | `0` | Last line to print (1-based). `0` means end of file. |
+| `--compact` | — | bool | `false` | Omit the decorative path header; output raw file content only. Ideal for agent pipelines and shell redirects. |
 | `--quiet` | `-q` | bool | `false` | Suppress informational output. |
 
 ### Deprecated flags (still functional, emit a deprecation warning)
@@ -57,7 +58,12 @@ Requires the background agent to be running. If the agent socket is not reachabl
 ## Output
 
 - Each line of the file (or the requested range) is printed to stdout, one line per output line.
-- No headers, no line numbers, no syntax highlighting.
+- No line numbers, no syntax highlighting.
+- By default, a styled path header is printed before the content:
+  ```
+  ─── internal/app/cli/read_command.go ───
+  ```
+- With `--compact`, the header is suppressed and only the raw file content is printed.
 - Empty output when `--start` exceeds the file length.
 
 ## Errors
@@ -87,6 +93,10 @@ idx read main.go --start 50
 
 # Print only the first 5 lines
 idx read go.mod --end 5
+
+# Compact output — no header, raw content only (for agent pipelines)
+idx read --compact internal/app/cli/read_command.go
+idx read --compact main.go --start 10 --end 50
 
 # Legacy flags (still work, emit deprecation warning)
 idx read main.go --from 10 --to 20

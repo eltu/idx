@@ -35,6 +35,9 @@ jobs:
       - name: Run unit tests with coverage
         run: make coverage
 
+      - name: Validate skill assets against CLI
+        run: make skill-lint
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8 # v5.0.0
         env:

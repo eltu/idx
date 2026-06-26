@@ -237,6 +237,8 @@ quality — a test that only exercises the happy path has low value.
 - ADR 0019: IPC via JSON-RPC 2.0 over Unix socket (`~/.idx/<project>.sock`); persistent `idx server` holds index in memory; all index-related CLI commands (init, sync, status, search, read, inspect, destroy) are clients; no in-process fallback — missing server is a clear error.
 - ADR 0020: `idx server` is a self-managing daemon (server + watch in one process); `idx server start/stop/status` manage the lifecycle; `idx daemon enable/disable` removed; DI cycle between InitCommandService and ServerDaemonService eliminated.
 - ADR 0021: `idx watch` removed; watch loop is internal to `idx server run` via `WatchWithContext`; `watch.debounce` config key retained.
+- ADR 0022: `idx init` is the sole bootstrap exception — runs in-process without a server; all other commands require a live `idx server`.
+- ADR 0023: Skills project-level enforcement — `idx skills install claude` registers a PreToolCall hook (blocks grep/cat/tail at Bash layer) and a UserPromptSubmit hook (injects enforcement rules into each turn) in the project `.claude/settings.json`; CLAUDE.md is never modified; `make skill-lint` CI step detects skill asset drift against the live binary.
 
 ## Formatting
 

@@ -35,8 +35,10 @@ const (
 )
 
 // Installer defines the Install method consumed by the skills command.
+// projectRoot is the git root of the current project; empty string skips
+// project-level enforcement configuration.
 type Installer interface {
-	Install(editor string) error
+	Install(editor, projectRoot string) error
 }
 
 // newSkillsCommand creates the parent 'idx skills' command.
@@ -64,7 +66,7 @@ func (runner CommandRunner) newSkillsInstallCommand() *cobra.Command {
 				writeSkillsMissingEditorError(installCmd)
 				return fmt.Errorf("")
 			}
-			return runner.skillsCommand.Install(args[0])
+			return runner.skillsCommand.Install(args[0], runner.projectRoot)
 		},
 	}
 	installCmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {

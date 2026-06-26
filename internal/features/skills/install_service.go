@@ -20,14 +20,16 @@ func NewSkillsInstallService(installer Installer, out io.Writer) *SkillsInstallS
 }
 
 // Install validates the editor, copies the bundled skill files to the editor's
-// skills directory, and writes progress output.
-func (s *SkillsInstallService) Install(editor string) error {
+// skills directory, and writes progress output. projectRoot is the git root of
+// the current project; when non-empty, Claude-specific project enforcement
+// (CLAUDE.md injection and PreToolCall hook) is also applied.
+func (s *SkillsInstallService) Install(editor, projectRoot string) error {
 	if err := validateEditor(editor); err != nil {
 		return err
 	}
 	writeHeader(s.out, editor)
 	writeStep(s.out, 1, 2, fmt.Sprintf("Installing skills for %s...", displayName(editor)))
-	if err := s.installer.Install(editor); err != nil {
+	if err := s.installer.Install(editor, projectRoot); err != nil {
 		return fmt.Errorf("failed to install skills for %q: %w", editor, err)
 	}
 	writeSuccess(s.out, editor)

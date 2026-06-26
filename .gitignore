@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Claude Code project settings (contains machine-specific hook paths)
+.claude/settings.json

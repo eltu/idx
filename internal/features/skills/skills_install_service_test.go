@@ -32,10 +32,10 @@ func TestSkillsInstallService_Install_SupportedEditors(t *testing.T) {
 
 			// Arrange
 			installer, _, svc := newSkillsTestService(t)
-			installer.EXPECT().Install(editor).Return(nil)
+			installer.EXPECT().Install(editor, "").Return(nil)
 
 			// Act & Assert
-			require.NoError(t, svc.Install(editor))
+			require.NoError(t, svc.Install(editor, ""))
 		})
 	}
 }
@@ -45,10 +45,10 @@ func TestSkillsInstallService_Install_RejectsUnknownEditor(t *testing.T) {
 
 	// Arrange
 	installer, _, svc := newSkillsTestService(t)
-	installer.EXPECT().Install(gomock.Any()).Times(0)
+	installer.EXPECT().Install(gomock.Any(), gomock.Any()).Times(0)
 
 	// Act
-	err := svc.Install("vim")
+	err := svc.Install("vim", "")
 
 	// Assert
 	require.Error(t, err)
@@ -60,10 +60,10 @@ func TestSkillsInstallService_Install_RejectsEmptyEditor(t *testing.T) {
 
 	// Arrange
 	installer, _, svc := newSkillsTestService(t)
-	installer.EXPECT().Install(gomock.Any()).Times(0)
+	installer.EXPECT().Install(gomock.Any(), gomock.Any()).Times(0)
 
 	// Act & Assert
-	require.Error(t, svc.Install(""))
+	require.Error(t, svc.Install("", ""))
 }
 
 func TestSkillsInstallService_Install_PropagatesInstallerError(t *testing.T) {
@@ -72,10 +72,10 @@ func TestSkillsInstallService_Install_PropagatesInstallerError(t *testing.T) {
 	// Arrange
 	installer, _, svc := newSkillsTestService(t)
 	installErr := errors.New("disk full")
-	installer.EXPECT().Install("claude").Return(installErr)
+	installer.EXPECT().Install("claude", "").Return(installErr)
 
 	// Act
-	err := svc.Install("claude")
+	err := svc.Install("claude", "")
 
 	// Assert
 	require.ErrorIs(t, err, installErr)
@@ -86,11 +86,23 @@ func TestSkillsInstallService_Install_OutputContainsEditorName(t *testing.T) {
 
 	// Arrange
 	installer, out, svc := newSkillsTestService(t)
-	installer.EXPECT().Install("copilot").Return(nil)
+	installer.EXPECT().Install("copilot", "").Return(nil)
 
 	// Act
-	require.NoError(t, svc.Install("copilot"))
+	require.NoError(t, svc.Install("copilot", ""))
 
 	// Assert
 	assert.Contains(t, out.String(), "copilot")
+}
+
+func TestSkillsInstallService_Install_PassesProjectRootToInstaller(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _, svc := newSkillsTestService(t)
+	projectRoot := "/home/user/myproject"
+	installer.EXPECT().Install("claude", projectRoot).Return(nil)
+
+	// Act & Assert
+	require.NoError(t, svc.Install("claude", projectRoot))
 }
