@@ -80,7 +80,7 @@ func (i *EmbedSkillsInstaller) Install(editor, projectRoot string) error {
 	if projectRoot == "" {
 		return nil
 	}
-	return i.configureClaudeProject(homeDir, projectRoot)
+	return i.configureClaudeProject(projectRoot)
 }
 
 func editorSkillsDir(editor, homeDir string) string {
@@ -156,14 +156,13 @@ func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) 
 
 // configureClaudeProject registers the PreToolCall and UserPromptSubmit hooks
 // in the project's .claude/settings.json. No project files are modified beyond that.
-func (i *EmbedSkillsInstaller) configureClaudeProject(homeDir, projectRoot string) error {
+// Hook commands use literal "~" so the file is portable and can be versioned.
+func (i *EmbedSkillsInstaller) configureClaudeProject(projectRoot string) error {
 	projectSettingsPath := filepath.Join(projectRoot, ".claude", "settings.json")
-	preToolCmd := strings.ReplaceAll(projectHookCommand, "~", homeDir)
-	contextCmd := strings.ReplaceAll(contextHookCommand, "~", homeDir)
-	if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, preToolCmd, true); err != nil {
+	if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, projectHookCommand, true); err != nil {
 		return err
 	}
-	return i.upsertProjectHook(projectSettingsPath, hookEventUserPrompt, contextCmd, false)
+	return i.upsertProjectHook(projectSettingsPath, hookEventUserPrompt, contextHookCommand, false)
 }
 
 // upsertProjectHook registers a hook command under the given event type in the project
