@@ -80,9 +80,13 @@ type InspectRequest struct {
 
 // RelatedRequest asks the server for files related to a given file path.
 type RelatedRequest struct {
-	FilePath string `json:"file_path"`
-	Size     int    `json:"size,omitempty"`
-	Format   string `json:"format,omitempty"`
+	FilePath string   `json:"file_path"`
+	Size     int      `json:"size,omitempty"`
+	Skip     int      `json:"skip,omitempty"`
+	Format   string   `json:"format,omitempty"`
+	Since    string   `json:"since,omitempty"`
+	Ext      []string `json:"ext,omitempty"`
+	Compact  bool     `json:"compact,omitempty"`
 }
 
 // RelatedResult is a single file returned by the related command.

@@ -1,11 +1,15 @@
 package related
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"idx/internal/features/indexing"
@@ -78,6 +82,14 @@ func (svc RelatedCommandService) Run(filePath string, opts Options) error {
 		return fmt.Errorf("failed to load read log: %w", err)
 	}
 
+	var changedFiles map[string]bool
+	if opts.Since != "" {
+		changedFiles, err = relatedChangedFiles(projectRoot, opts.Since)
+		if err != nil {
+			return err
+		}
+	}
+
 	candidates, err := svc.computeRelated(absPath, projectRoot, dirs, logEntries)
 	if err != nil {
 		return err
@@ -88,8 +100,74 @@ func (svc RelatedCommandService) Run(filePath string, opts Options) error {
 		limit = defaultResultSize
 	}
 
-	results := buildResults(candidates, projectRoot, limit)
+	results := buildResults(candidates, projectRoot, limit+opts.Skip)
+	results = applyFilters(results, changedFiles, opts.Ext, projectRoot)
+	results = applySkip(results, opts.Skip)
 	return writeRelatedResults(results, opts, svc.output)
+}
+
+// relatedChangedFiles returns relative paths changed since the given git ref.
+func relatedChangedFiles(projectRoot, since string) (map[string]bool, error) {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", projectRoot, "diff", "--name-only", since+"...HEAD") // #nosec G204 -- intentional git invocation; ref comes from validated CLI flag
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf("invalid git ref %q: %s", since, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return nil, fmt.Errorf("git diff failed for ref %q: %w", since, err)
+	}
+	files := make(map[string]bool)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			files[line] = true
+		}
+	}
+	return files, nil
+}
+
+// applyFilters applies --since and --ext post-filters to the result list.
+func applyFilters(results []Result, changedFiles map[string]bool, exts []string, projectRoot string) []Result {
+	if changedFiles == nil && len(exts) == 0 {
+		return results
+	}
+	extSet := buildExtSet(exts)
+	filtered := make([]Result, 0, len(results))
+	for _, r := range results {
+		if changedFiles != nil {
+			abs := filepath.Join(projectRoot, filepath.FromSlash(r.Path))
+			rel, err := filepath.Rel(projectRoot, abs)
+			if err != nil || !changedFiles[filepath.ToSlash(rel)] {
+				continue
+			}
+		}
+		if len(extSet) > 0 && !extSet[strings.TrimPrefix(filepath.Ext(r.Path), ".")] {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
+func buildExtSet(exts []string) map[string]bool {
+	if len(exts) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(exts))
+	for _, e := range exts {
+		set[strings.TrimPrefix(e, ".")] = true
+	}
+	return set
+}
+
+func applySkip(results []Result, skip int) []Result {
+	if skip <= 0 {
+		return results
+	}
+	if skip >= len(results) {
+		return []Result{}
+	}
+	return results[skip:]
 }
 
 func (svc RelatedCommandService) resolveTarget(filePath string) (string, string, error) {
@@ -325,7 +403,7 @@ func writeRelatedResults(results []Result, opts Options, out output.Writer) erro
 	if opts.Format == OutputJSON {
 		return writeRelatedJSON(results, out)
 	}
-	return writeRelatedText(results, out)
+	return writeRelatedText(results, opts, out)
 }
 
 func writeRelatedJSON(results []Result, out output.Writer) error {
@@ -338,12 +416,17 @@ func writeRelatedJSON(results []Result, out output.Writer) error {
 
 const msgNoRelatedFound = "No related files found."
 
-func writeRelatedText(results []Result, out output.Writer) error {
+func writeRelatedText(results []Result, opts Options, out output.Writer) error {
 	if len(results) == 0 {
 		return out.WriteLine(msgNoRelatedFound)
 	}
 	for _, r := range results {
-		line := fmt.Sprintf("  %-60s %-14s %.2f", r.Path, "("+r.Reason+")", r.Score)
+		var line string
+		if opts.Compact {
+			line = r.Path
+		} else {
+			line = fmt.Sprintf("  %-60s %-14s %.2f", r.Path, "("+r.Reason+")", r.Score)
+		}
 		if err := out.WriteLine(line); err != nil {
 			return err
 		}

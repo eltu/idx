@@ -18,8 +18,12 @@ const (
 
 // Options controls the related command output.
 type Options struct {
-	Format string
-	Size   int
+	Format  string
+	Size    int
+	Skip    int
+	Since   string
+	Ext     []string
+	Compact bool
 }
 
 // Result is a single related file with its relevance score and signal origin.

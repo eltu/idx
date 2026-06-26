@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -400,7 +402,7 @@ func TestWriteRelatedText_NoResults_PrintsNoRelatedMessage(t *testing.T) {
 	t.Parallel()
 
 	w := &fakeWriter{}
-	err := writeRelatedText(nil, w)
+	err := writeRelatedText(nil, Options{}, w)
 
 	require.NoError(t, err)
 	assert.Contains(t, w.joined(), "No related files found.")
@@ -413,7 +415,7 @@ func TestWriteRelatedText_WithResults_FormatsLines(t *testing.T) {
 		{Path: "internal/search/query.go", Score: 0.92, Reason: ReasonBoth},
 	}
 	w := &fakeWriter{}
-	err := writeRelatedText(results, w)
+	err := writeRelatedText(results, Options{}, w)
 
 	require.NoError(t, err)
 	require.Len(t, w.lines, 1)
@@ -422,12 +424,23 @@ func TestWriteRelatedText_WithResults_FormatsLines(t *testing.T) {
 	assert.Contains(t, w.lines[0], "0.92")
 }
 
+func TestWriteRelatedText_Compact_OutputsPathOnly(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go", Score: 0.8, Reason: ReasonCoRead}}
+	w := &fakeWriter{}
+	err := writeRelatedText(results, Options{Compact: true}, w)
+
+	require.NoError(t, err)
+	assert.Equal(t, "a.go", w.lines[0])
+}
+
 func TestWriteRelatedText_WriterError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	results := []Result{{Path: "a.go", Score: 0.5, Reason: ReasonTermOverlap}}
 	w := &fakeWriter{err: errors.New("write failed")}
-	err := writeRelatedText(results, w)
+	err := writeRelatedText(results, Options{}, w)
 
 	require.Error(t, err)
 }
@@ -598,6 +611,92 @@ func TestRelatedCommandService_Run_JSONFormat_WritesJSON(t *testing.T) {
 	assert.Len(t, w.lines, 1)
 }
 
+// ---- relatedChangedFiles ----
+
+func TestRelatedChangedFiles_ValidRef_ReturnsFiles(t *testing.T) {
+	t.Parallel()
+
+	// Arrange: real git repo with two commits
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+	writeGitFile(t, tmpDir, "a.go", "package a")
+	runGit(t, tmpDir, "add", ".")
+	runGit(t, tmpDir, "commit", "-m", "first")
+	writeGitFile(t, tmpDir, "b.go", "package b")
+	runGit(t, tmpDir, "add", ".")
+	runGit(t, tmpDir, "commit", "-m", "second")
+
+	// Act
+	files, err := relatedChangedFiles(tmpDir, "HEAD~1")
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, files["b.go"])
+	assert.False(t, files["a.go"])
+}
+
+func TestRelatedChangedFiles_InvalidRef_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+	writeGitFile(t, tmpDir, "a.go", "package a")
+	runGit(t, tmpDir, "add", ".")
+	runGit(t, tmpDir, "commit", "-m", "init")
+
+	_, err := relatedChangedFiles(tmpDir, "nonexistent-ref-xyz")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent-ref-xyz")
+}
+
+// ---- Run with --since filter ----
+
+func TestRelatedCommandService_Run_InvalidSince_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange: real git repo so git subprocess works
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+	writeGitFile(t, tmpDir, "service.go", "package main")
+	runGit(t, tmpDir, "add", ".")
+	runGit(t, tmpDir, "commit", "-m", "init")
+
+	w := &fakeWriter{}
+	tree := &fakeProjectTree{currentDir: tmpDir, gitRoot: tmpDir}
+	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, &fakeLogRepository{}, w)
+
+	// Act
+	err := svc.Run("service.go", Options{Since: "bad-ref-xyz"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bad-ref-xyz")
+}
+
+// helpers shared with query_executor_test style.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@test.com")
+	runGit(t, dir, "config", "user.name", "Test")
+}
+
+func writeGitFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("writeGitFile: %v", err)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) //nolint:gosec
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
 // ---- collectTargetTerms error path ----
 
 func TestCollectTargetTerms_LoadIndexError_ReturnsError(t *testing.T) {
@@ -668,4 +767,94 @@ func TestBuildResults_EmptyCandidates_ReturnsEmpty(t *testing.T) {
 
 	results := buildResults(map[string]*candidateScore{}, testRoot, 10)
 	assert.Empty(t, results)
+}
+
+// ---- applyFilters ----
+
+func TestApplyFilters_NoFilters_ReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go"}, {Path: "b.go"}}
+	got := applyFilters(results, nil, nil, testRoot)
+	assert.Len(t, got, 2)
+}
+
+func TestApplyFilters_ExtFilter_KeepsMatchingExtensions(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{
+		{Path: "internal/a.go"},
+		{Path: "internal/b.md"},
+		{Path: "internal/c.go"},
+	}
+	got := applyFilters(results, nil, []string{"go"}, testRoot)
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "internal/a.go", got[0].Path)
+	assert.Equal(t, "internal/c.go", got[1].Path)
+}
+
+func TestApplyFilters_ExtFilterWithDot_StripsLeadingDot(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go"}, {Path: "b.ts"}}
+	got := applyFilters(results, nil, []string{".go"}, testRoot)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "a.go", got[0].Path)
+}
+
+func TestApplyFilters_ChangedFilesFilter_KeepsOnlyChanged(t *testing.T) {
+	t.Parallel()
+
+	changedFiles := map[string]bool{"internal/a.go": true}
+	results := []Result{
+		{Path: "internal/a.go"},
+		{Path: "internal/b.go"},
+	}
+	got := applyFilters(results, changedFiles, nil, testRoot)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "internal/a.go", got[0].Path)
+}
+
+func TestApplyFilters_BothFilters_Intersection(t *testing.T) {
+	t.Parallel()
+
+	changedFiles := map[string]bool{"internal/a.go": true, "internal/b.md": true}
+	results := []Result{
+		{Path: "internal/a.go"},
+		{Path: "internal/b.md"},
+		{Path: "internal/c.go"},
+	}
+	got := applyFilters(results, changedFiles, []string{"go"}, testRoot)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "internal/a.go", got[0].Path)
+}
+
+// ---- applySkip ----
+
+func TestApplySkip_ZeroSkip_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go"}, {Path: "b.go"}}
+	assert.Len(t, applySkip(results, 0), 2)
+}
+
+func TestApplySkip_PositiveSkip_RemovesFirst(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go"}, {Path: "b.go"}, {Path: "c.go"}}
+	got := applySkip(results, 1)
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "b.go", got[0].Path)
+}
+
+func TestApplySkip_SkipBeyondLen_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	results := []Result{{Path: "a.go"}}
+	assert.Empty(t, applySkip(results, 5))
 }

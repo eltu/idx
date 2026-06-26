@@ -24,11 +24,17 @@ When the read log is empty, falls back to term-overlap only.
 Examples:
   idx related internal/features/search/service.go
   idx related internal/features/search/service.go --limit 5
-  idx related internal/features/search/service.go --format json`
+  idx related internal/features/search/service.go --format json
+  idx related internal/features/search/service.go --since HEAD~1
+  idx related internal/features/search/service.go --ext go --compact`
 
 func (runner CommandRunner) newRelatedCommand() *cobra.Command {
 	var size int
+	var skip int
 	var format string
+	var since string
+	var ext []string
+	var compact bool
 
 	cmd := &cobra.Command{
 		Use:   "related <file>",
@@ -39,7 +45,14 @@ func (runner CommandRunner) newRelatedCommand() *cobra.Command {
 			if runner.relatedCommand == nil {
 				return fmt.Errorf("related command is not available")
 			}
-			opts := related.Options{Format: format, Size: size}
+			opts := related.Options{
+				Format:  format,
+				Size:    size,
+				Skip:    skip,
+				Since:   since,
+				Ext:     ext,
+				Compact: compact,
+			}
 			return runner.relatedCommand.Run(args[0], opts)
 		},
 		ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
@@ -48,6 +61,10 @@ func (runner CommandRunner) newRelatedCommand() *cobra.Command {
 	}
 
 	cmd.Flags().IntVarP(&size, "limit", "n", 10, "Maximum number of related files to return")
+	cmd.Flags().IntVar(&skip, "skip", 0, "Skip the first N results")
 	cmd.Flags().StringVar(&format, "format", related.OutputText, "Output format: text|json")
+	cmd.Flags().StringVar(&since, "since", "", "Restrict results to files changed since a git ref (commit SHA, branch, tag, HEAD~N)")
+	cmd.Flags().StringArrayVarP(&ext, "ext", "e", nil, "Filter results by file extension, e.g. go or .go (repeatable)")
+	cmd.Flags().BoolVar(&compact, "compact", false, "Compact output — paths only, no score or reason")
 	return cmd
 }

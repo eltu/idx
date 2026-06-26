@@ -104,7 +104,14 @@ func (s *indexServer) handleRelated(_ context.Context, params json.RawMessage) (
 	svc := featrelated.NewRelatedCommandService(
 		s.deps.ProjectTree, s.deps.IndexRepo, s.deps.ReadLogRepo, capture,
 	)
-	opts := featrelated.Options{Format: featrelated.OutputJSON, Size: req.Size}
+	opts := featrelated.Options{
+		Format:  featrelated.OutputJSON,
+		Size:    req.Size,
+		Skip:    req.Skip,
+		Since:   req.Since,
+		Ext:     req.Ext,
+		Compact: req.Compact,
+	}
 	if err := svc.Run(req.FilePath, opts); err != nil {
 		return nil, err
 	}
