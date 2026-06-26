@@ -25,6 +25,7 @@ const (
 	hookEventPreToolCall  = "PreToolCall"
 	hookEventUserPrompt   = "UserPromptSubmit"
 	editorClaude          = "claude"
+	claudeDir             = ".claude"
 )
 
 //go:embed assets
@@ -116,7 +117,7 @@ func (i *EmbedSkillsInstaller) copyEntry(srcPath string, d fs.DirEntry, targetDi
 // configureClaude patches ~/.claude/settings.json to allow Bash(idx *) permissions
 // and installs both enforcement hook scripts to ~/.claude/.
 func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
-	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
+	settingsPath := filepath.Join(homeDir, claudeDir, "settings.json")
 	settings, err := i.loadClaudeSettings(settingsPath)
 	if err != nil {
 		return err
@@ -135,12 +136,12 @@ func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
 
 // installHookScript copies the embedded PreToolCall hook to ~/.claude/idx-block.sh.
 func (i *EmbedSkillsInstaller) installHookScript(homeDir string) error {
-	return i.installEmbeddedScript(assetHookSrc, filepath.Join(homeDir, ".claude", projectHookName))
+	return i.installEmbeddedScript(assetHookSrc, filepath.Join(homeDir, claudeDir, projectHookName))
 }
 
 // installContextHookScript copies the embedded UserPromptSubmit hook to ~/.claude/idx-context-hook.sh.
 func (i *EmbedSkillsInstaller) installContextHookScript(homeDir string) error {
-	return i.installEmbeddedScript(assetContextHookSrc, filepath.Join(homeDir, ".claude", contextHookName))
+	return i.installEmbeddedScript(assetContextHookSrc, filepath.Join(homeDir, claudeDir, contextHookName))
 }
 
 func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) error {
@@ -158,7 +159,7 @@ func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) 
 // in the project's .claude/settings.json. No project files are modified beyond that.
 // Hook commands use literal "~" so the file is portable and can be versioned.
 func (i *EmbedSkillsInstaller) configureClaudeProject(projectRoot string) error {
-	projectSettingsPath := filepath.Join(projectRoot, ".claude", "settings.json")
+	projectSettingsPath := filepath.Join(projectRoot, claudeDir, "settings.json")
 	if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, projectHookCommand, true); err != nil {
 		return err
 	}

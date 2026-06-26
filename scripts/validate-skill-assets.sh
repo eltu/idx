@@ -36,7 +36,8 @@ idx_help=$("$BINARY" --help 2>&1 || true)
 while IFS= read -r subcmd; do
   # Skip meta-words that appear with idx but are not subcommands.
   case "$subcmd" in
-    "" | "server" ) continue ;;
+    "" | "server") continue ;;
+    *) ;;
   esac
   if ! echo "$idx_help" | grep -qE "^\s+${subcmd}\b"; then
     die "subcommand 'idx ${subcmd}' found in skill assets but not in 'idx --help'"

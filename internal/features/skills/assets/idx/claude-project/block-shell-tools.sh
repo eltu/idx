@@ -41,6 +41,9 @@ case "$first_word" in
     printf '  → idx read --compact <path>\n' >&2
     exit 2
     ;;
+  *)
+    # All other commands are allowed to proceed.
+    ;;
 esac
 
 exit 0
