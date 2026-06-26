@@ -23,18 +23,41 @@ idx skills install <editor>
 ## Behavior and Side Effects
 
 - Validates the `editor` argument against the supported list.
-- Copies the bundled `idx-search` skill files from the binary into `~/.<editor>/skills/idx-search/`.
-- For `claude` only: reads `~/.claude/settings.json`, adds `"Bash(idx *)"` to `permissions.allow` if not already present, and writes the file back. Creates `~/.claude/settings.json` with a minimal structure if the file does not exist.
+- Copies the bundled `idx` skill files from the binary into `~/.<editor>/skills/idx/`.
 - All skill files are written with permission `0600`; skill directories with `0750`.
 - If the skill directory already exists, files are overwritten in place (idempotent).
+
+### Claude-specific behavior
+
+When `editor` is `claude`, the installer also:
+
+1. **Global settings** (`~/.claude/settings.json`):
+   - Adds `"Bash(idx *)"` to `permissions.allow` if not already present.
+   - Copies `~/.claude/idx-block.sh` — a `PreToolCall` hook that blocks `grep`, `rg`, `ag`, `cat`, `head`, `tail` and other shell tools from reading repository files, redirecting Claude to `idx search` / `idx read` instead.
+   - Copies `~/.claude/idx-context-hook.sh` — a `UserPromptSubmit` hook that injects the idx enforcement rules into every session turn as additional context.
+   - Creates `~/.claude/settings.json` with a minimal structure if the file does not exist. Existing fields are preserved.
+
+2. **Project settings** (`.claude/settings.json` at the git root, when run inside a git repository):
+   - Registers `~/.claude/idx-block.sh` as a `PreToolCall` hook (matcher: `Bash`).
+   - Registers `~/.claude/idx-context-hook.sh` as a `UserPromptSubmit` hook.
+   - Hook commands use literal `~` so the file is portable and can be versioned.
+   - All operations are idempotent: re-running install never duplicates entries.
+   - `CLAUDE.md` is never modified.
 
 ### Installation paths by editor
 
 | Editor | Skills directory |
 | --- | --- |
-| `claude` | `~/.claude/skills/idx-search/` |
-| `cursor` | `~/.cursor/skills/idx-search/` |
-| `copilot` | `~/.copilot/skills/idx-search/` |
+| `claude` | `~/.claude/skills/idx/` |
+| `cursor` | `~/.cursor/skills/idx/` |
+| `copilot` | `~/.copilot/skills/idx/` |
+
+### Hook scripts installed for Claude
+
+| File | Event | Purpose |
+| --- | --- | --- |
+| `~/.claude/idx-block.sh` | `PreToolCall` (Bash) | Blocks grep/cat/tail; exit 2 feeds feedback to Claude |
+| `~/.claude/idx-context-hook.sh` | `UserPromptSubmit` | Injects enforcement rules into each session turn |
 
 ## Output
 
@@ -56,10 +79,16 @@ idx skills install <editor>
 - File or directory write failure: `failed to install skills for "...": ...`
 - For `claude`, settings parse failure: `failed to install skills for "claude": failed to parse "...": ...`
 
+## Drift detection
+
+The `make skill-lint` target (also run in CI) validates that every flag and subcommand
+referenced in the skill asset files exists in the actual CLI binary. Any drift between
+skill docs and the live CLI fails the build immediately.
+
 ## Examples
 
 ```bash
-# Install skills for Claude Code
+# Install skills for Claude Code (also configures project hooks if inside a git repo)
 idx skills install claude
 
 # Install skills for GitHub Copilot
