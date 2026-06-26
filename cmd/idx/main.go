@@ -20,6 +20,7 @@ import (
 	idxstorage "idx/internal/features/indexing/storage"
 	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
+	featrelated "idx/internal/features/related"
 	featsearch "idx/internal/features/search"
 	featskills "idx/internal/features/skills"
 	sharedconfig "idx/internal/shared/config"
@@ -326,6 +327,7 @@ func runServer(arguments []string, output io.Writer) error {
 	fileStreamer := featread.NewOSFileStreamer()
 	readService := featread.NewReadCommandService(d.projectTree, fileStreamer, d.writer).
 		WithReadLog(readLogRepo)
+	relatedService := featrelated.NewRelatedCommandService(d.projectTree, d.indexRepo, readLogRepo, d.writer)
 
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	indexServer := appserver.NewServer(appserver.ServerDeps{
@@ -349,6 +351,7 @@ func runServer(arguments []string, output io.Writer) error {
 		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
+		WithRelatedCommand(relatedService).
 		WithIndexServer(indexServer).
 		WithConfig(d.cfg, d.configFilePath, d.overrides)
 
@@ -377,6 +380,7 @@ func runClient(arguments []string, output io.Writer) error {
 	inspectRunner := idxtui.NewInspectRunner()
 	searchCommand := remote.NewRemoteSearcher(client, d.writer)
 	readService := remote.NewRemoteReader(client, d.writer)
+	relatedCmd := remote.NewRemoteRelatedCommand(client, d.writer)
 	indexCmd := remote.NewRemoteIndexCommand(client, d.writer, inspectRunner)
 	destroyCommand := remote.NewRemoteDestroyCommand(client, d.writer)
 	configCommand := remote.NewRemoteConfigCommand(client, d.writer)
@@ -387,6 +391,7 @@ func runClient(arguments []string, output io.Writer) error {
 		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
 		WithSkillsCommand(skillsService).
 		WithReadCommand(readService).
+		WithRelatedCommand(relatedCmd).
 		WithServerManager(serverDaemonAdapter).
 		WithConfig(d.cfg, d.configFilePath, d.overrides).
 		WithProjectRoot(d.projectRoot).

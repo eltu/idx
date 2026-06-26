@@ -31,6 +31,7 @@ Output flags:
 Filtering flags:
   -e, --ext .go        Filter by file extension (repeatable)
   -p, --path internal  Filter by path prefix (repeatable)
+      --since HEAD~1   Restrict results to files changed since a git ref
 
 Ranking flags:
       --any            Match any term (OR mode)
@@ -50,7 +51,9 @@ Examples:
   idx search --count "TODO"
   idx search --relax 2 "init sync destroy context"
   idx search -l -e md "installation"
-  idx search --time --explain "BM25 scoring"`
+  idx search --time --explain "BM25 scoring"
+  idx search "token validation" --since HEAD~1
+  idx search "middleware" --since main --ext go`
 
 func (runner CommandRunner) newSearchCommand() *cobra.Command {
 	config := &searchCommandConfig{}
@@ -96,6 +99,7 @@ type searchCommandConfig struct {
 	relaxationMin     int
 	relaxationEnabled bool
 	popularityWeight  float64
+	since             string
 }
 
 func (runner CommandRunner) runSearchCommand(searchCommand *cobra.Command, args []string, config *searchCommandConfig) error {
@@ -151,6 +155,7 @@ func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, c
 	searchCommand.Flags().IntVar(&config.relaxInt, "relax", 0, "Relax AND: require at least N matching terms (e.g. --relax 2)")
 	config.relaxation = cfg.Relaxation
 	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
+	searchCommand.Flags().StringVar(&config.since, "since", "", "Restrict results to files changed since a git ref (commit SHA, branch, tag, HEAD~N)")
 
 	// Deprecated aliases kept for backward compatibility.
 	searchCommand.Flags().BoolVar(&config.agentCompact, flagNameAgentCompact, false, "")
@@ -281,6 +286,7 @@ func (config searchCommandConfig) options() search.Options {
 		RelaxationEnabled:      config.relaxationEnabled,
 		RelaxationMinExclusive: config.relaxationMin,
 		PopularityWeight:       config.popularityWeight,
+		Since:                  config.since,
 	}
 
 	if len(config.pathQueries) > 0 {

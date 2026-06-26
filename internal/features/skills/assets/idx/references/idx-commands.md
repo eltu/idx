@@ -46,6 +46,11 @@ idx destroy
 # synchronize project indices manually (only when explicitly requested)
 idx sync
 
+# find related files for the file being edited
+idx related path/to/file.go
+idx related path/to/file.go --limit 5
+idx related path/to/file.go --format json
+
 # read a repository file (logs access for popularity ranking)
 idx read --compact path/to/file.go
 
@@ -143,11 +148,19 @@ idx search --path internal/core --ext go --files-only
 | `--files-only` | bool | false | Show only matched file paths |
 | `--path` | stringArray | `[]` | Filter results by metadata path (repeatable) |
 | `--ext` | stringArray | `[]` | Filter by file extension, e.g. `go` or `.go` (repeatable, combinable with `--path`) |
+| `--since` | string | `""` | Restrict results to files changed since a git ref (commit SHA, branch, tag, `HEAD~N`) |
 | `--skip` | int | 0 | Skip the first N ranked results |
 | `--limit` | int | unset | Limit results to top N files. If set, must be > 0 |
 | `--operator` | string | `AND` | Boolean logic for multi-term queries: `AND` or `OR` |
 | `--relax` | int | 0 | Relax AND: require at least N matching terms (e.g. `--relax 2`) |
 | `--compact` | bool | false | Compact output with fewer tokens (good for AI agents) |
+
+## Related Flags Reference
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--limit` / `-n` | int | 10 | Maximum number of related files to return |
+| `--format` | string | `text` | Output format. Allowed: `text`, `json` |
 
 ## Notes
 

@@ -239,6 +239,7 @@ quality — a test that only exercises the happy path has low value.
 - ADR 0021: `idx watch` removed; watch loop is internal to `idx server run` via `WatchWithContext`; `watch.debounce` config key retained.
 - ADR 0022: `idx init` is the sole bootstrap exception — runs in-process without a server; all other commands require a live `idx server`.
 - ADR 0023: Skills project-level enforcement — `idx skills install claude` registers a PreToolCall hook (blocks grep/cat/tail at Bash layer) and a UserPromptSubmit hook (injects enforcement rules into each turn) in the project `.claude/settings.json`; CLAUDE.md is never modified; `make skill-lint` CI step detects skill asset drift against the live binary.
+- ADR 0024: `idx related <file>` combines co-read affinity (weight 0.7, temporal proxy ±2h) and BM25 term co-occurrence (weight 0.3); `idx search --since <ref>` restricts results via `git diff --name-only`; both use subprocess Git integration as in ADR 0013.
 
 ## Formatting
 

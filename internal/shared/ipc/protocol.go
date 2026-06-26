@@ -10,6 +10,7 @@ const (
 	MethodInspect = "idx.inspect"
 	MethodDestroy = "idx.destroy"
 	MethodConfig  = "idx.config"
+	MethodRelated = "idx.related"
 )
 
 // SearchRequest carries all search parameters over RPC.
@@ -26,6 +27,7 @@ type SearchRequest struct {
 	From              int      `json:"from,omitempty"`
 	RelaxationEnabled bool     `json:"relaxation_enabled,omitempty"`
 	RelaxationMin     int      `json:"relaxation_min,omitempty"`
+	Since             string   `json:"since,omitempty"`
 }
 
 // SearchResponse carries structured search results.
@@ -74,4 +76,24 @@ type CommandResponse struct {
 // An empty IndexPath causes the server to merge all indexed project directories.
 type InspectRequest struct {
 	IndexPath string `json:"index_path,omitempty"`
+}
+
+// RelatedRequest asks the server for files related to a given file path.
+type RelatedRequest struct {
+	FilePath string `json:"file_path"`
+	Size     int    `json:"size,omitempty"`
+	Format   string `json:"format,omitempty"`
+}
+
+// RelatedResult is a single file returned by the related command.
+type RelatedResult struct {
+	Path   string  `json:"path"`
+	Score  float64 `json:"score"`
+	Reason string  `json:"reason"` // "co-read", "term-overlap", or "both"
+}
+
+// RelatedResponse carries the related file results.
+type RelatedResponse struct {
+	Count   int             `json:"count"`
+	Results []RelatedResult `json:"results"`
 }

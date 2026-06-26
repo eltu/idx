@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"idx/internal/features/related"
 	"idx/internal/features/search"
 	"idx/internal/shared/config"
 )
@@ -30,6 +31,11 @@ type Reader interface {
 	RunWithOptions(filePath string, fromLine, toLine int) error
 }
 
+// RelatedRunner finds files related to a given file.
+type RelatedRunner interface {
+	Run(filePath string, opts related.Options) error
+}
+
 // BuildInfo holds version and build date injected at compile time via -ldflags.
 type BuildInfo struct {
 	Version   string
@@ -42,6 +48,7 @@ type CommandRunner struct {
 	destroyCommand  Runner
 	searchCommand   Searcher
 	readCommand     Reader
+	relatedCommand  RelatedRunner
 	serverManager   serverManagerCommand
 	skillsCommand   Installer
 	indexServer     ServerRunner
@@ -86,6 +93,13 @@ func (runner CommandRunner) WithSkillsCommand(s Installer) CommandRunner {
 // Example: runner = runner.WithReadCommand(readService).
 func (runner CommandRunner) WithReadCommand(r Reader) CommandRunner {
 	runner.readCommand = r
+	return runner
+}
+
+// WithRelatedCommand wires the related files finder so 'idx related <file>' works.
+// Example: runner = runner.WithRelatedCommand(relatedService).
+func (runner CommandRunner) WithRelatedCommand(r RelatedRunner) CommandRunner {
+	runner.relatedCommand = r
 	return runner
 }
 
@@ -163,7 +177,7 @@ func (runner CommandRunner) Run() error {
 
 func canExecuteWithCobra(command string) bool {
 	switch command {
-	case "sync", "init", "status", "inspect", "read", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v",
+	case "sync", "init", "status", "inspect", "read", "related", "watch", "destroy", "search", "version", "skills", "config", "server", "help", "--help", "-h", "--version", "-v",
 		// Aliases added for discoverability and human-readable usage.
 		"find",   // alias for search
 		"open",   // alias for read

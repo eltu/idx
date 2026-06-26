@@ -8,6 +8,7 @@ import (
 	featindexing "idx/internal/features/indexing"
 	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
+	featrelated "idx/internal/features/related"
 	featsearch "idx/internal/features/search"
 	sharedconfig "idx/internal/shared/config"
 	sharedfs "idx/internal/shared/filesystem"
@@ -93,6 +94,43 @@ func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, 
 	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
 }
 
+func (s *indexServer) handleRelated(_ context.Context, params json.RawMessage) (any, error) {
+	var req idxipc.RelatedRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, err
+	}
+
+	capture := &captureWriter{}
+	svc := featrelated.NewRelatedCommandService(
+		s.deps.ProjectTree, s.deps.IndexRepo, s.deps.ReadLogRepo, capture,
+	)
+	opts := featrelated.Options{Format: featrelated.OutputJSON, Size: req.Size}
+	if err := svc.Run(req.FilePath, opts); err != nil {
+		return nil, err
+	}
+
+	return parseRelatedJSON(capture.firstLine())
+}
+
+func parseRelatedJSON(line string) (idxipc.RelatedResponse, error) {
+	if line == "" {
+		return idxipc.RelatedResponse{Results: []idxipc.RelatedResult{}}, nil
+	}
+	var results []struct {
+		Path   string  `json:"path"`
+		Score  float64 `json:"score"`
+		Reason string  `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(line), &results); err != nil {
+		return idxipc.RelatedResponse{}, err
+	}
+	out := make([]idxipc.RelatedResult, 0, len(results))
+	for _, r := range results {
+		out = append(out, idxipc.RelatedResult{Path: r.Path, Score: r.Score, Reason: r.Reason})
+	}
+	return idxipc.RelatedResponse{Count: len(out), Results: out}, nil
+}
+
 func (s *indexServer) handleConfig(_ context.Context, _ json.RawMessage) (any, error) {
 	var sb strings.Builder
 	if err := sharedconfig.FormatOutput(&sb, s.deps.Config, s.deps.ConfigFilePath, s.deps.ConfigOverrides); err != nil {
@@ -130,6 +168,7 @@ func searchOptionsFromRequest(req idxipc.SearchRequest) featsearch.Options {
 		PopularityWeight:       req.PopularityWeight,
 		RelaxationEnabled:      req.RelaxationEnabled,
 		RelaxationMinExclusive: req.RelaxationMin,
+		Since:                  req.Since,
 	}
 }
 

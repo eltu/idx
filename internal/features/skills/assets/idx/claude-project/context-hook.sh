@@ -5,5 +5,6 @@ cat <<'EOF'
 IMPORTANT: This project uses idx for code search and file reading.
 - NEVER use grep, rg, ag, ack, git grep or the built-in Grep tool. Always use: idx search "<keywords>" --compact --limit 2
 - NEVER use cat, head, tail or the built-in Read tool. Always use: idx read --compact <path>
+- To find files related to what you are editing, use: idx related <file>
 - idx runs as a daemon. Go directly to idx commands — no pre-flight checks.
 EOF

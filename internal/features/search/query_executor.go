@@ -1,11 +1,14 @@
 package search
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,9 +130,62 @@ func (service SearchCommandService) computeRankedResults(projectRoot string, ter
 		return nil, err
 	}
 
+	var changedFiles map[string]bool
+	if options.Since != "" {
+		changedFiles, err = gitChangedFiles(projectRoot, options.Since)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	popularityMap := service.loadPopularityMap(projectRoot)
 	now := time.Now()
-	return service.rankedResults(directories, terms, options, popularityMap, now)
+	results, err := service.rankedResults(directories, terms, options, popularityMap, now)
+	if err != nil {
+		return nil, err
+	}
+
+	if changedFiles != nil {
+		results = filterByChangedFiles(results, projectRoot, changedFiles)
+	}
+
+	return results, nil
+}
+
+// gitChangedFiles returns the set of relative paths changed since the given git ref.
+// Returns a clear error including the offending ref when git fails.
+func gitChangedFiles(projectRoot, since string) (map[string]bool, error) {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", projectRoot, "diff", "--name-only", since+"...HEAD") // #nosec G204 -- intentional git invocation; ref comes from validated CLI flag
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf("invalid git ref %q: %s", since, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return nil, fmt.Errorf("git diff failed for ref %q: %w", since, err)
+	}
+
+	files := make(map[string]bool)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			files[line] = true
+		}
+	}
+	return files, nil
+}
+
+func filterByChangedFiles(results []searchResult, projectRoot string, changedFiles map[string]bool) []searchResult {
+	filtered := make([]searchResult, 0, len(results))
+	for _, r := range results {
+		rel, err := filepath.Rel(projectRoot, filepath.Join(r.directoryPath, r.fileName))
+		if err != nil {
+			continue
+		}
+		if changedFiles[filepath.ToSlash(rel)] {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
 }
 
 func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options Options, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {
