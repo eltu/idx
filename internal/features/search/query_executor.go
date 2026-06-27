@@ -1,18 +1,16 @@
 package search
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
 	"idx/internal/features/indexing"
+	"idx/internal/shared/gitutil"
 	"idx/internal/shared/readlog"
 )
 
@@ -132,7 +130,7 @@ func (service SearchCommandService) computeRankedResults(projectRoot string, ter
 
 	var changedFiles map[string]bool
 	if options.Since != "" {
-		changedFiles, err = gitChangedFiles(projectRoot, options.Since)
+		changedFiles, err = gitutil.ChangedFilesSince(projectRoot, options.Since)
 		if err != nil {
 			return nil, err
 		}
@@ -150,28 +148,6 @@ func (service SearchCommandService) computeRankedResults(projectRoot string, ter
 	}
 
 	return results, nil
-}
-
-// gitChangedFiles returns the set of relative paths changed since the given git ref.
-// Returns a clear error including the offending ref when git fails.
-func gitChangedFiles(projectRoot, since string) (map[string]bool, error) {
-	cmd := exec.CommandContext(context.Background(), "git", "-C", projectRoot, "diff", "--name-only", since+"...HEAD") // #nosec G204 -- intentional git invocation; ref comes from validated CLI flag
-	out, err := cmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return nil, fmt.Errorf("invalid git ref %q: %s", since, strings.TrimSpace(string(exitErr.Stderr)))
-		}
-		return nil, fmt.Errorf("git diff failed for ref %q: %w", since, err)
-	}
-
-	files := make(map[string]bool)
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line != "" {
-			files[line] = true
-		}
-	}
-	return files, nil
 }
 
 func filterByChangedFiles(results []searchResult, projectRoot string, changedFiles map[string]bool) []searchResult {

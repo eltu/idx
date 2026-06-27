@@ -207,6 +207,29 @@ func TestPaginatedResults_ZeroSize_ReturnsAll(t *testing.T) {
 	assert.Len(t, paginatedResults(results, 0, 0), 2)
 }
 
+// --- filesOnlyResult ---
+
+func TestFilesOnlyResult_PreservesFieldsAndClearsMatchedLines(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	input := searchResult{
+		directoryPath: "/project/internal",
+		fileName:      "service.go",
+		score:         1.5,
+		matchedLines:  []matchedLine{{lineNumber: 10, content: "func Foo()"}},
+	}
+
+	// Act
+	got := filesOnlyResult(input)
+
+	// Assert
+	assert.Equal(t, input.directoryPath, got.directoryPath)
+	assert.Equal(t, input.fileName, got.fileName)
+	assert.Equal(t, input.score, got.score)
+	assert.Empty(t, got.matchedLines)
+}
+
 // --- filesOnlyResults ---
 
 func TestFilesOnlyResults_DeduplicatesSameFileDifferentScores(t *testing.T) {

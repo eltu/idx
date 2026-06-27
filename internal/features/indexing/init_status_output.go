@@ -214,13 +214,13 @@ func (service InitCommandService) writeNoIndexError(projectRoot string) error {
 	return reportedError{}
 }
 
-func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot string, missing []string) error {
-	header := statusWarningStyle.Render("⚠  Index out of sync")
-	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s not indexed yet:", len(missing), pluralSuffix(len(missing), "y", "ies")))
+// writeDirListError writes a diagnostic block listing directory paths and returns finalErr.
+// header and count must be pre-rendered styled strings.
+// Example: service.writeDirListError(root, header, count, dirs, errors.New("stale index")).
+func (service InitCommandService) writeDirListError(projectRoot, header, count string, dirs []string, finalErr error) error {
 	action := fmt.Sprintf(runCmdToUpdateFmt, statusActionStyle.Render(idxSyncCmdName))
-
 	lines := []string{"", header, "", count}
-	for _, dir := range missing {
+	for _, dir := range dirs {
 		rel, err := filepath.Rel(projectRoot, dir)
 		if err != nil {
 			rel = dir
@@ -228,34 +228,22 @@ func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot str
 		lines = append(lines, "  "+statusPathStyle.Render(rel))
 	}
 	lines = append(lines, "", "  "+action, "")
-
 	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
 		return err
 	}
+	return finalErr
+}
 
-	return fmt.Errorf("unindexed directories found")
+func (service InitCommandService) writeUnindexedDirectoriesError(projectRoot string, missing []string) error {
+	header := statusWarningStyle.Render("⚠  Index out of sync")
+	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s not indexed yet:", len(missing), pluralSuffix(len(missing), "y", "ies")))
+	return service.writeDirListError(projectRoot, header, count, missing, fmt.Errorf("unindexed directories found"))
 }
 
 func (service InitCommandService) writeStaleIndexError(projectRoot string, stale []string) error {
 	header := statusStaleStyle.Render("✗  Stale index detected")
 	count := statusMutedStyle.Render(fmt.Sprintf("%d director%s with outdated index:", len(stale), pluralSuffix(len(stale), "y", "ies")))
-	action := fmt.Sprintf(runCmdToUpdateFmt, statusActionStyle.Render(idxSyncCmdName))
-
-	lines := []string{"", header, "", count}
-	for _, dir := range stale {
-		rel, err := filepath.Rel(projectRoot, dir)
-		if err != nil {
-			rel = dir
-		}
-		lines = append(lines, "  "+statusPathStyle.Render(rel))
-	}
-	lines = append(lines, "", "  "+action, "")
-
-	if err := service.output.WriteLine(strings.Join(lines, "\n")); err != nil {
-		return err
-	}
-
-	return errors.New(errMsgStaleIndex)
+	return service.writeDirListError(projectRoot, header, count, stale, errors.New(errMsgStaleIndex))
 }
 
 // reportedError is returned after a formatted diagnostic has been written to output.

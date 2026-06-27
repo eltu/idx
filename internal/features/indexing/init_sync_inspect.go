@@ -19,16 +19,16 @@ func (service InitCommandService) Sync() error {
 		return err
 	}
 
-	projectRoot, matcher, staleDirectories, eligibleDirectories, err := service.syncPlan()
+	plan, err := service.syncPlan()
 	if err != nil {
 		return err
 	}
 
-	if err := service.removeStaleDirectories(staleDirectories); err != nil {
+	if err := service.removeStaleDirectories(plan.staleDirectories); err != nil {
 		return err
 	}
 
-	if err := service.syncEligibleDirectories(eligibleDirectories, projectRoot, matcher); err != nil {
+	if err := service.syncEligibleDirectories(plan.eligibleDirectories, plan.projectRoot, plan.matcher); err != nil {
 		return err
 	}
 
@@ -39,38 +39,58 @@ func (service InitCommandService) Sync() error {
 	))
 }
 
-func (service InitCommandService) syncPlan() (string, filesystem.IgnoreMatcher, []string, []string, error) {
-	currentDir, err := service.projectTree.CurrentDir()
+type syncPlanResult struct {
+	projectRoot         string
+	matcher             filesystem.IgnoreMatcher
+	staleDirectories    []string
+	eligibleDirectories []string
+}
+
+func (service InitCommandService) syncPlan() (syncPlanResult, error) {
+	projectRoot, err := service.syncPlanRoot()
 	if err != nil {
-		return "", nil, nil, nil, fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
+		return syncPlanResult{}, err
 	}
-
-	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
-	if err != nil {
-		return "", nil, nil, nil, err
-	}
-
-	if filepath.Clean(currentDir) != filepath.Clean(projectRoot) {
-		return "", nil, nil, nil, fmt.Errorf("sync must run from project root: got current directory %q, expected root directory %q", currentDir, projectRoot)
-	}
-
 	matcher, err := service.syncMatcher(projectRoot)
 	if err != nil {
-		return "", nil, nil, nil, err
+		return syncPlanResult{}, err
 	}
-
-	directories, err := IndexedDirectories(service.projectTree, projectRoot)
+	dirs, err := service.syncPlanDirectories(projectRoot, matcher)
 	if err != nil {
-		return "", nil, nil, nil, err
+		return syncPlanResult{}, err
 	}
+	return syncPlanResult{projectRoot: projectRoot, matcher: matcher, staleDirectories: dirs.stale, eligibleDirectories: dirs.eligible}, nil
+}
 
-	eligibleDirectories, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+func (service InitCommandService) syncPlanRoot() (string, error) {
+	currentDir, err := service.projectTree.CurrentDir()
 	if err != nil {
-		return "", nil, nil, nil, err
+		return "", fmt.Errorf("failed to resolve current directory: got error %v, expected a readable working directory", err)
 	}
+	projectRoot, err := service.projectTree.FindGitRoot(currentDir)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Clean(currentDir) != filepath.Clean(projectRoot) {
+		return "", fmt.Errorf("sync must run from project root: got current directory %q, expected root directory %q", currentDir, projectRoot)
+	}
+	return projectRoot, nil
+}
 
-	staleDirectories := staleIndexedDirectories(directories, eligibleDirectories)
-	return projectRoot, matcher, staleDirectories, eligibleDirectories, nil
+type syncPlanDirs struct {
+	eligible, stale []string
+}
+
+func (service InitCommandService) syncPlanDirectories(projectRoot string, matcher filesystem.IgnoreMatcher) (syncPlanDirs, error) {
+	indexed, err := IndexedDirectories(service.projectTree, projectRoot)
+	if err != nil {
+		return syncPlanDirs{}, err
+	}
+	eligible, err := eligibleDirectories(service.projectTree, projectRoot, matcher)
+	if err != nil {
+		return syncPlanDirs{}, err
+	}
+	return syncPlanDirs{eligible: eligible, stale: staleIndexedDirectories(indexed, eligible)}, nil
 }
 
 func (service InitCommandService) syncMatcher(projectRoot string) (filesystem.IgnoreMatcher, error) {

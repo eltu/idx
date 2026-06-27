@@ -360,34 +360,6 @@ func TestApplyGitCoChange_GitNotAvailable_NoopGracefully(t *testing.T) {
 	assert.Empty(t, candidates)
 }
 
-// ---- parseCoChangeFiles ----
-
-func TestParseCoChangeFiles_TwoCommits_CountsCorrectly(t *testing.T) {
-	t.Parallel()
-
-	// Simulate diff-tree output: SHA header per commit, then files touched.
-	sha1 := strings.Repeat("a", 40)
-	sha2 := strings.Repeat("b", 40)
-	raw := sha1 + "\ntarget.go\nfoo.go\nbar.go\n" + sha2 + "\ntarget.go\nfoo.go\n"
-	coChanges, total, err := parseCoChangeFiles(raw, "target.go", 2)
-
-	require.NoError(t, err)
-	assert.Equal(t, 2, total)
-	assert.Equal(t, 2, coChanges["foo.go"])
-	assert.Equal(t, 1, coChanges["bar.go"])
-	assert.NotContains(t, coChanges, "target.go")
-}
-
-func TestParseCoChangeFiles_EmptyOutput_ZeroCommits(t *testing.T) {
-	t.Parallel()
-
-	coChanges, total, err := parseCoChangeFiles("", "target.go", 0)
-
-	require.NoError(t, err)
-	assert.Equal(t, 0, total)
-	assert.Empty(t, coChanges)
-}
-
 // ---- normalizeTermScores ----
 
 func TestNormalizeTermScores_NormalizesMax(t *testing.T) {
@@ -653,45 +625,6 @@ func TestRelatedCommandService_Run_JSONFormat_WritesJSON(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Len(t, w.lines, 1)
-}
-
-// ---- relatedChangedFiles ----
-
-func TestRelatedChangedFiles_ValidRef_ReturnsFiles(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tmpDir := t.TempDir()
-	initGitRepo(t, tmpDir)
-	writeGitFile(t, tmpDir, "a.go", "package a")
-	runGit(t, tmpDir, "add", ".")
-	runGit(t, tmpDir, "commit", "-m", "first")
-	writeGitFile(t, tmpDir, "b.go", "package b")
-	runGit(t, tmpDir, "add", ".")
-	runGit(t, tmpDir, "commit", "-m", "second")
-
-	// Act
-	files, err := relatedChangedFiles(tmpDir, "HEAD~1")
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, files["b.go"])
-	assert.False(t, files["a.go"])
-}
-
-func TestRelatedChangedFiles_InvalidRef_ReturnsError(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	initGitRepo(t, tmpDir)
-	writeGitFile(t, tmpDir, "a.go", "package a")
-	runGit(t, tmpDir, "add", ".")
-	runGit(t, tmpDir, "commit", "-m", "init")
-
-	_, err := relatedChangedFiles(tmpDir, "nonexistent-ref-xyz")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nonexistent-ref-xyz")
 }
 
 // ---- Run with --since filter ----

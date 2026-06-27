@@ -13,18 +13,9 @@ import (
 
 	appcli "idx/internal/app/cli"
 	"idx/internal/app/cli/remote"
-	appserver "idx/internal/app/server"
 	idxtui "idx/internal/app/tui"
 	featdaemon "idx/internal/features/daemon"
-	featindexing "idx/internal/features/indexing"
-	idxstorage "idx/internal/features/indexing/storage"
-	featlifecycle "idx/internal/features/lifecycle"
-	featread "idx/internal/features/read"
-	featrelated "idx/internal/features/related"
-	featsearch "idx/internal/features/search"
-	featskills "idx/internal/features/skills"
 	sharedconfig "idx/internal/shared/config"
-	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 )
 
@@ -74,40 +65,46 @@ func newLogger(configLogLevel string) (*zap.Logger, error) {
 	if err != nil {
 		return nil, err
 	}
+	logLevel, err := resolveLogLevel(configLogLevel)
+	if err != nil {
+		return nil, err
+	}
+	return buildZapLogger(logPath, logLevel)
+}
 
+// resolveLogLevel applies configLogLevel as base, with IDX_LOG_LEVEL env var taking precedence.
+// Defaults to zapcore.ErrorLevel when neither source provides a valid level.
+func resolveLogLevel(configLogLevel string) (zapcore.Level, error) {
 	logLevel := zapcore.ErrorLevel
-
-	// .idx.yml log.level is the base; IDX_LOG_LEVEL env var takes precedence.
 	if configLogLevel != "" {
-		var parsedLevel zapcore.Level
-		if err := parsedLevel.Set(strings.ToLower(configLogLevel)); err == nil {
-			logLevel = parsedLevel
+		var parsed zapcore.Level
+		if err := parsed.Set(strings.ToLower(configLogLevel)); err == nil {
+			logLevel = parsed
 		}
 	}
-
 	if envLevel := strings.TrimSpace(os.Getenv("IDX_LOG_LEVEL")); envLevel != "" {
-		var parsedLevel zapcore.Level
-		if err := parsedLevel.Set(strings.ToLower(envLevel)); err != nil {
-			return nil, fmt.Errorf("invalid IDX_LOG_LEVEL %q: expected one of [debug info warn error dpanic panic fatal]", envLevel)
+		var parsed zapcore.Level
+		if err := parsed.Set(strings.ToLower(envLevel)); err != nil {
+			return logLevel, fmt.Errorf("invalid IDX_LOG_LEVEL %q: expected one of [debug info warn error dpanic panic fatal]", envLevel)
 		}
-		logLevel = parsedLevel
+		logLevel = parsed
 	}
+	return logLevel, nil
+}
 
+func buildZapLogger(logPath string, logLevel zapcore.Level) (*zap.Logger, error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	rotatingWriter := &lumberjack.Logger{
 		Filename:   logPath,
 		MaxSize:    1,
 		MaxBackups: 5,
 	}
-
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
 		zapcore.AddSync(rotatingWriter),
 		logLevel,
 	)
-
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
-
 	zap.ReplaceGlobals(logger)
 	return logger, nil
 }
@@ -232,133 +229,27 @@ func run(arguments []string, output io.Writer) error {
 	return runClient(arguments, output)
 }
 
-func sharedDeps(output io.Writer) (sharedDepsResult, error) {
-	writer := appcli.NewLineWriter(output)
-	projectTree := sharedfs.NewOSProjectTree()
-	matcherFactory := sharedfs.IgnoreMatcherBuilder(sharedfs.NewGitIgnoreMatcherFactory())
-	fileReader := sharedfs.NewOSFileReader()
-	indexRepo := idxstorage.NewBinaryIndexRepository()
-	checksumRepo := idxstorage.NewDirectoryChecksumRepository()
-
-	configRepo := sharedconfig.NewYAMLRepository()
-	cwd, _ := os.Getwd()
-	// IDX_PROJECT_PATH is set by OSServerSpawner to guarantee path consistency between
-	// the client process (which computed the project root) and the server process (whose
-	// os.Getwd() may differ due to macOS firmlink resolution under /System/Volumes/Data).
-	projectRoot := os.Getenv("IDX_PROJECT_PATH")
-	if projectRoot == "" {
-		projectRoot = gitRootFrom(cwd)
-	}
-	cfg, overrides, _ := configRepo.Load(projectRoot)
-	configFilePath := configRepo.FilePath(projectRoot)
-
-	matcherFactory = sharedfs.NewCompositeIgnoreMatcherFactory(
-		matcherFactory,
-		sharedfs.NewGlobIgnoreMatcherFactory(cfg.Index.Ignore),
-	)
-
-	return sharedDepsResult{
-		writer:         writer,
-		projectTree:    projectTree,
-		matcherFactory: matcherFactory,
-		fileReader:     fileReader,
-		indexRepo:      indexRepo,
-		checksumRepo:   checksumRepo,
-		projectRoot:    projectRoot,
-		cfg:            cfg,
-		overrides:      overrides,
-		configFilePath: configFilePath,
-	}, nil
-}
-
-type sharedDepsResult struct {
-	writer         *appcli.LineWriter
-	projectTree    sharedfs.ProjectTree
-	matcherFactory sharedfs.IgnoreMatcherBuilder
-	fileReader     sharedfs.FileReader
-	indexRepo      *idxstorage.BinaryIndexRepository
-	checksumRepo   *idxstorage.DirectoryChecksumRepository
-	projectRoot    string
-	cfg            sharedconfig.IdxConfig
-	overrides      []string
-	configFilePath string
-}
-
 func runServer(arguments []string, output io.Writer) error {
 	d, err := sharedDeps(output)
 	if err != nil {
 		return err
 	}
-
-	indexer := featindexing.NewBM25IndexService()
-	inspectRunner := idxtui.NewInspectRunner()
-	progressRunner := idxtui.NewInitProgressRunner()
-
-	// ServerDaemonService with nil spawner: the server process never spawns itself.
-	serverDaemon := featdaemon.NewServerDaemonService(
-		featdaemon.NewServerStateRepository(), nil, d.writer,
-	)
-	initCommand := featindexing.NewInitCommandServiceWithProgress(featindexing.InitCommandServiceDeps{
-		ProjectTree:    d.projectTree,
-		MatcherFactory: d.matcherFactory,
-		Output:         d.writer,
-		FileReader:     d.fileReader,
-		Indexer:        indexer,
-		IndexRepo:      d.indexRepo,
-		ChecksumRepo:   d.checksumRepo,
-		DaemonRepo:     serverDaemon,
-	}, inspectRunner, progressRunner)
-
-	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
-	readLogRepo := featread.NewReadLogRepository()
-	coReadRepo := featread.NewCoReadMatrixRepository()
-	tuning := featsearch.SearchServiceOptions{
-		BM25K1:           d.cfg.BM25.K1,
-		BM25B:            d.cfg.BM25.B,
-		ProximityWeight:  d.cfg.BM25.ProximityWeight,
-		PopularityWeight: d.cfg.BM25.PopularityWeight,
-		MaxWorkers:       d.cfg.Search.MaxWorkers,
-		CacheTTL:         d.cfg.Search.CacheTTL,
-	}
-	searchCommand := featsearch.NewSearchCommandService(d.projectTree, d.writer, d.fileReader, d.indexRepo).
-		WithTuning(tuning).
-		WithReadLog(readLogRepo)
-	skillsInstaller := featskills.NewEmbedSkillsInstaller()
-	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
-	fileStreamer := featread.NewOSFileStreamer()
-	readService := featread.NewReadCommandService(d.projectTree, fileStreamer, d.writer).
-		WithReadLog(readLogRepo)
-	relatedService := featrelated.NewRelatedCommandService(d.projectTree, d.indexRepo, coReadRepo, d.writer)
-
-	socketPath := idxipc.SocketPath(d.projectRoot)
-	indexServer := appserver.NewServer(appserver.ServerDeps{
-		ProjectTree:     d.projectTree,
-		MatcherFactory:  d.matcherFactory,
-		FileReader:      d.fileReader,
-		Indexer:         indexer,
-		IndexRepo:       d.indexRepo,
-		ChecksumRepo:    d.checksumRepo,
-		DaemonRepo:      serverDaemon,
-		ReadLogRepo:     readLogRepo,
-		CoReadRepo:      coReadRepo,
-		SearchTuning:    tuning,
-		SocketPath:      socketPath,
-		ProjectRoot:     d.projectRoot,
-		Config:          d.cfg,
-		ConfigFilePath:  d.configFilePath,
-		ConfigOverrides: d.overrides,
-	})
-
-	runner := appcli.NewCommandRunner(arguments, initCommand, destroyCommand, searchCommand).
+	idx := buildIndexingDeps(d)
+	read := buildReadDeps(d)
+	tuning := buildSearchTuning(d.cfg)
+	searchCmd := buildSearchDeps(d, read.readLog, tuning)
+	relatedSvc := buildRelatedDeps(d, read.coReadRepo)
+	skillsSvc := buildSkillsDeps(output)
+	indexServer := buildIndexServer(d, idx, read, tuning)
+	return appcli.NewCommandRunner(arguments, idx.initCommand, idx.destroyCommand, searchCmd).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
-		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
-		WithSkillsCommand(skillsService).
-		WithReadCommand(readService).
-		WithRelatedCommand(relatedService).
+		WithQuietToggle(multiQuiet{d.writer, idx.progressRunner}).
+		WithSkillsCommand(skillsSvc).
+		WithReadCommand(read.readService).
+		WithRelatedCommand(relatedSvc).
 		WithIndexServer(indexServer).
-		WithConfig(d.cfg, d.configFilePath, d.overrides)
-
-	return runner.Run()
+		WithConfig(d.cfg, d.configFilePath, d.overrides).
+		Run()
 }
 
 func runClient(arguments []string, output io.Writer) error {
@@ -366,41 +257,31 @@ func runClient(arguments []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-
 	progressRunner := idxtui.NewInitProgressRunner()
-
 	serverDaemon := featdaemon.NewServerDaemonService(
 		featdaemon.NewServerStateRepository(),
 		featdaemon.NewOSServerSpawner(),
 		d.writer,
 	)
-
-	skillsInstaller := featskills.NewEmbedSkillsInstaller()
-	skillsService := featskills.NewSkillsInstallService(skillsInstaller, output)
-
+	skillsSvc := buildSkillsDeps(output)
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	client := remote.NewSocketClient(socketPath)
 	inspectRunner := idxtui.NewInspectRunner()
-	searchCommand := remote.NewRemoteSearcher(client, d.writer)
-	readService := remote.NewRemoteReader(client, d.writer)
-	relatedCmd := remote.NewRemoteRelatedCommand(client, d.writer)
-	indexCmd := remote.NewRemoteIndexCommand(client, d.writer, inspectRunner)
-	destroyCommand := remote.NewRemoteDestroyCommand(client, d.writer)
-	configCommand := remote.NewRemoteConfigCommand(client, d.writer)
-	serverDaemonAdapter := appcli.NewServerDaemonAdapter(serverDaemon)
-
-	runner := appcli.NewCommandRunner(arguments, indexCmd, destroyCommand, searchCommand).
+	return appcli.NewCommandRunner(arguments,
+		remote.NewRemoteIndexCommand(client, d.writer, inspectRunner),
+		remote.NewRemoteDestroyCommand(client, d.writer),
+		remote.NewRemoteSearcher(client, d.writer),
+	).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
 		WithQuietToggle(multiQuiet{d.writer, progressRunner}).
-		WithSkillsCommand(skillsService).
-		WithReadCommand(readService).
-		WithRelatedCommand(relatedCmd).
-		WithServerManager(serverDaemonAdapter).
+		WithSkillsCommand(skillsSvc).
+		WithReadCommand(remote.NewRemoteReader(client, d.writer)).
+		WithRelatedCommand(remote.NewRemoteRelatedCommand(client, d.writer)).
+		WithServerManager(appcli.NewServerDaemonAdapter(serverDaemon)).
 		WithConfig(d.cfg, d.configFilePath, d.overrides).
 		WithProjectRoot(d.projectRoot).
-		WithConfigCommand(configCommand)
-
-	return runner.Run()
+		WithConfigCommand(remote.NewRemoteConfigCommand(client, d.writer)).
+		Run()
 }
 
 // earlyLoadConfigLogLevel reads only the log.level field from .idx.yml so the

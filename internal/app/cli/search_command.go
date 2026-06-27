@@ -134,42 +134,57 @@ func applySearchAliasFlags(config *searchCommandConfig) {
 	}
 }
 
-func (runner CommandRunner) configureSearchFlags(searchCommand *cobra.Command, config *searchCommandConfig) {
+func (runner CommandRunner) configureSearchFlags(cmd *cobra.Command, config *searchCommandConfig) {
+	runner.configureSearchOutputFlags(cmd, config)
+	runner.configureSearchFilterFlags(cmd, config)
+	runner.configureSearchRankingFlags(cmd, config)
+	runner.configureSearchDeprecatedFlags(cmd, config)
+}
+
+func (runner CommandRunner) configureSearchOutputFlags(cmd *cobra.Command, config *searchCommandConfig) {
 	cfg := runner.config.Search
+	cmd.Flags().StringVar(&config.format, "format", cfg.Format, "Output format: text|json")
+	cmd.Flags().BoolVarP(&config.jsonShorthand, "json", "j", false, "Output results as JSON (shorthand for --format json)")
+	cmd.Flags().IntVarP(&config.contextLines, "context", "c", cfg.Context, "Number of context lines around matches")
+	cmd.Flags().BoolVar(&config.pretty, "pretty", false, "Pretty-print JSON output (requires --json or --format json)")
+	cmd.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
+	cmd.Flags().BoolVar(&config.compact, "compact", false, "Compact output with fewer tokens (good for AI agents)")
+	cmd.Flags().BoolVarP(&config.filesOnly, "files-only", "l", false, "Show only matched file paths")
+	cmd.Flags().BoolVar(&config.countOnly, "count", false, "Print only the number of matching files")
+	cmd.Flags().BoolVar(&config.timing, "time", false, "Show query execution time")
+}
 
-	searchCommand.Flags().StringVar(&config.format, "format", cfg.Format, "Output format: text|json")
-	searchCommand.Flags().BoolVarP(&config.jsonShorthand, "json", "j", false, "Output results as JSON (shorthand for --format json)")
-	searchCommand.Flags().IntVarP(&config.contextLines, "context", "c", cfg.Context, "Number of context lines around matches")
-	searchCommand.Flags().BoolVar(&config.pretty, "pretty", false, "Pretty-print JSON output (requires --json or --format json)")
-	searchCommand.Flags().BoolVar(&config.explain, "explain", false, "Include ranking metadata such as score")
-	searchCommand.Flags().BoolVar(&config.compact, "compact", false, "Compact output with fewer tokens (good for AI agents)")
-	searchCommand.Flags().BoolVarP(&config.filesOnly, "files-only", "l", false, "Show only matched file paths")
-	searchCommand.Flags().BoolVar(&config.countOnly, "count", false, "Print only the number of matching files")
-	searchCommand.Flags().BoolVar(&config.timing, "time", false, "Show query execution time")
-	searchCommand.Flags().StringArrayVarP(&config.pathQueries, "path", "p", []string{}, "Filter results by metadata path (repeatable)")
-	searchCommand.Flags().StringArrayVarP(&config.extensionQueries, "ext", "e", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
-	searchCommand.Flags().IntVar(&config.skip, "skip", 0, "Skip the first N ranked results")
-	searchCommand.Flags().IntVarP(&config.limit, "limit", "n", cfg.Limit, "Limit results to top N files")
-	searchCommand.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
-	searchCommand.Flags().BoolVar(&config.anyMode, "any", false, "Match files containing ANY query term (shorthand for --operator OR)")
-	searchCommand.Flags().IntVar(&config.relaxInt, "relax", 0, "Relax AND: require at least N matching terms (e.g. --relax 2)")
+func (runner CommandRunner) configureSearchFilterFlags(cmd *cobra.Command, config *searchCommandConfig) {
+	cmd.Flags().StringArrayVarP(&config.pathQueries, "path", "p", []string{}, "Filter results by metadata path (repeatable)")
+	cmd.Flags().StringArrayVarP(&config.extensionQueries, "ext", "e", []string{}, "Filter results by file extension (repeatable). Accepts go or .go")
+	cmd.Flags().StringVar(&config.since, "since", "", "Restrict results to files changed since a git ref (commit SHA, branch, tag, HEAD~N)")
+}
+
+func (runner CommandRunner) configureSearchRankingFlags(cmd *cobra.Command, config *searchCommandConfig) {
+	cfg := runner.config.Search
+	cmd.Flags().IntVar(&config.skip, "skip", 0, "Skip the first N ranked results")
+	cmd.Flags().IntVarP(&config.limit, "limit", "n", cfg.Limit, "Limit results to top N files")
+	cmd.Flags().StringVar(&config.operator, "operator", cfg.Operator, "Boolean operator for multi-term queries: AND|OR")
+	cmd.Flags().BoolVar(&config.anyMode, "any", false, "Match files containing ANY query term (shorthand for --operator OR)")
+	cmd.Flags().IntVar(&config.relaxInt, "relax", 0, "Relax AND: require at least N matching terms (e.g. --relax 2)")
 	config.relaxation = cfg.Relaxation
-	searchCommand.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
-	searchCommand.Flags().StringVar(&config.since, "since", "", "Restrict results to files changed since a git ref (commit SHA, branch, tag, HEAD~N)")
+	cmd.Flags().Float64Var(&config.popularityWeight, "popularity-weight", runner.config.BM25.PopularityWeight, "Boost weight for files frequently read via 'idx read' (0 disables, default 0.3)")
+}
 
-	// Deprecated aliases kept for backward compatibility.
-	searchCommand.Flags().BoolVar(&config.agentCompact, flagNameAgentCompact, false, "")
-	_ = searchCommand.Flags().MarkHidden(flagNameAgentCompact)
-	_ = searchCommand.Flags().MarkDeprecated(flagNameAgentCompact, "use --compact instead")
-	searchCommand.Flags().BoolVar(&config.prettyJSON, flagNameJSONPretty, false, "")
-	_ = searchCommand.Flags().MarkHidden(flagNameJSONPretty)
-	_ = searchCommand.Flags().MarkDeprecated(flagNameJSONPretty, "use --pretty instead")
-	searchCommand.Flags().IntVar(&config.size, "size", cfg.Limit, "")
-	_ = searchCommand.Flags().MarkHidden("size")
-	_ = searchCommand.Flags().MarkDeprecated("size", "use --limit/-n instead")
-	searchCommand.Flags().IntVar(&config.from, "from", 0, "")
-	_ = searchCommand.Flags().MarkHidden("from")
-	_ = searchCommand.Flags().MarkDeprecated("from", "use --skip instead")
+func (runner CommandRunner) configureSearchDeprecatedFlags(cmd *cobra.Command, config *searchCommandConfig) {
+	cfg := runner.config.Search
+	cmd.Flags().BoolVar(&config.agentCompact, flagNameAgentCompact, false, "")
+	_ = cmd.Flags().MarkHidden(flagNameAgentCompact)
+	_ = cmd.Flags().MarkDeprecated(flagNameAgentCompact, "use --compact instead")
+	cmd.Flags().BoolVar(&config.prettyJSON, flagNameJSONPretty, false, "")
+	_ = cmd.Flags().MarkHidden(flagNameJSONPretty)
+	_ = cmd.Flags().MarkDeprecated(flagNameJSONPretty, "use --pretty instead")
+	cmd.Flags().IntVar(&config.size, "size", cfg.Limit, "")
+	_ = cmd.Flags().MarkHidden("size")
+	_ = cmd.Flags().MarkDeprecated("size", "use --limit/-n instead")
+	cmd.Flags().IntVar(&config.from, "from", 0, "")
+	_ = cmd.Flags().MarkHidden("from")
+	_ = cmd.Flags().MarkDeprecated("from", "use --skip instead")
 }
 
 func validateSearchConfig(config *searchCommandConfig, sizeChanged, limitChanged bool) error {

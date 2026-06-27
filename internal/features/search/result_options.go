@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -143,18 +144,26 @@ func paginatedResults(results []searchResult, from, size int) []searchResult {
 	return limitedResults(sliced, size)
 }
 
+func filesOnlyResult(r searchResult) searchResult {
+	return searchResult{
+		directoryPath: r.directoryPath,
+		fileName:      r.fileName,
+		matchedLines:  []matchedLine{},
+		score:         r.score,
+	}
+}
+
 func filesOnlyResults(results []searchResult) []searchResult {
 	uniqueFiles := make(map[string]searchResult)
 	for _, result := range results {
-		fullPath := result.directoryPath + "/" + result.fileName
+		fullPath := filepath.Join(result.directoryPath, result.fileName)
 		if existing, exists := uniqueFiles[fullPath]; exists {
 			if result.score > existing.score {
-				uniqueFiles[fullPath] = searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: []matchedLine{}, score: result.score}
+				uniqueFiles[fullPath] = filesOnlyResult(result)
 			}
 			continue
 		}
-
-		uniqueFiles[fullPath] = searchResult{directoryPath: result.directoryPath, fileName: result.fileName, matchedLines: []matchedLine{}, score: result.score}
+		uniqueFiles[fullPath] = filesOnlyResult(result)
 	}
 
 	filtered := make([]searchResult, 0, len(uniqueFiles))
@@ -166,8 +175,8 @@ func filesOnlyResults(results []searchResult) []searchResult {
 		if filtered[i].score != filtered[j].score {
 			return filtered[i].score > filtered[j].score
 		}
-		iPath := filtered[i].directoryPath + "/" + filtered[i].fileName
-		jPath := filtered[j].directoryPath + "/" + filtered[j].fileName
+		iPath := filepath.Join(filtered[i].directoryPath, filtered[i].fileName)
+		jPath := filepath.Join(filtered[j].directoryPath, filtered[j].fileName)
 		return iPath < jPath
 	})
 
