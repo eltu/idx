@@ -50,6 +50,10 @@ idx sync
 idx related path/to/file.go
 idx related path/to/file.go --limit 5
 idx related path/to/file.go --format json
+idx related path/to/file.go --compact
+idx related path/to/file.go --since HEAD~1
+idx related path/to/file.go --ext go --compact
+idx related path/to/file.go --since HEAD~3 --ext go --compact
 
 # read a repository file (logs access for popularity ranking)
 idx read --compact path/to/file.go
@@ -160,7 +164,11 @@ idx search --path internal/core --ext go --files-only
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--limit` / `-n` | int | 10 | Maximum number of related files to return |
+| `--skip` | int | 0 | Skip the first N results |
 | `--format` | string | `text` | Output format. Allowed: `text`, `json` |
+| `--since` | string | `""` | Restrict results to files changed since a git ref (commit SHA, branch, tag, `HEAD~N`) |
+| `--ext` / `-e` | stringArray | (none) | Filter by file extension, e.g. `go` or `.go` (repeatable) |
+| `--compact` | bool | false | Compact output — paths only, no score or reason |
 
 ## Notes
 

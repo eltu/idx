@@ -152,6 +152,7 @@ internal/features/search/service.go
 | `--limit` zero when explicitly set | `invalid --limit value ... expected a positive integer` |
 | Unsupported operator | `unsupported --operator value ... expected one of [AND OR]` |
 | `--relax` / `--relaxation` with OR operator | `invalid search.relaxation with --operator "OR": expected "AND"` |
+| `--since` with invalid git ref | `invalid git ref "<ref>": <git stderr>` |
 | Agent not running | `✗ idx agent is not running` |
 
 ## Examples
