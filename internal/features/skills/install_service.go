@@ -22,7 +22,7 @@ func NewSkillsInstallService(installer Installer, out io.Writer) *SkillsInstallS
 // Install validates the editor, copies the bundled skill files to the editor's
 // skills directory, and writes progress output. projectRoot is the git root of
 // the current project; when non-empty, Claude-specific project enforcement
-// (CLAUDE.md injection and PreToolCall hook) is also applied.
+// (CLAUDE.md injection and PreToolUse hook) is also applied.
 func (s *SkillsInstallService) Install(editor, projectRoot string) error {
 	if err := validateEditor(editor); err != nil {
 		return err
