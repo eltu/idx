@@ -311,6 +311,7 @@ func runServer(arguments []string, output io.Writer) error {
 
 	destroyCommand := featlifecycle.NewDestroyCommandService(d.projectTree, d.writer)
 	readLogRepo := featread.NewReadLogRepository()
+	coReadRepo := featread.NewCoReadMatrixRepository()
 	tuning := featsearch.SearchServiceOptions{
 		BM25K1:           d.cfg.BM25.K1,
 		BM25B:            d.cfg.BM25.B,
@@ -327,7 +328,7 @@ func runServer(arguments []string, output io.Writer) error {
 	fileStreamer := featread.NewOSFileStreamer()
 	readService := featread.NewReadCommandService(d.projectTree, fileStreamer, d.writer).
 		WithReadLog(readLogRepo)
-	relatedService := featrelated.NewRelatedCommandService(d.projectTree, d.indexRepo, readLogRepo, d.writer)
+	relatedService := featrelated.NewRelatedCommandService(d.projectTree, d.indexRepo, coReadRepo, d.writer)
 
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	indexServer := appserver.NewServer(appserver.ServerDeps{
@@ -339,8 +340,10 @@ func runServer(arguments []string, output io.Writer) error {
 		ChecksumRepo:    d.checksumRepo,
 		DaemonRepo:      serverDaemon,
 		ReadLogRepo:     readLogRepo,
+		CoReadRepo:      coReadRepo,
 		SearchTuning:    tuning,
 		SocketPath:      socketPath,
+		ProjectRoot:     d.projectRoot,
 		Config:          d.cfg,
 		ConfigFilePath:  d.configFilePath,
 		ConfigOverrides: d.overrides,

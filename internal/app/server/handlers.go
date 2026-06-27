@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 
 	featindexing "idx/internal/features/indexing"
@@ -11,6 +12,7 @@ import (
 	featrelated "idx/internal/features/related"
 	featsearch "idx/internal/features/search"
 	sharedconfig "idx/internal/shared/config"
+	"idx/internal/shared/coread"
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 	"idx/internal/shared/readlog"
@@ -49,7 +51,24 @@ func (s *indexServer) handleRead(_ context.Context, params json.RawMessage) (any
 		return idxipc.ReadResponse{Lines: []string{}}, nil
 	}
 
+	// Best-effort: update co-read matrix so idx related improves over time.
+	if relPath, err := relativeFilePath(req.FilePath, s.deps.ProjectRoot); err == nil {
+		_ = s.deps.CoReadRepo.RecordCoRead(s.deps.ProjectRoot, relPath)
+	}
+
 	return idxipc.ReadResponse{Lines: capture.lines}, nil
+}
+
+// relativeFilePath converts filePath to a forward-slash relative path under projectRoot.
+func relativeFilePath(filePath, projectRoot string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		return filepath.ToSlash(filePath), nil
+	}
+	rel, err := filepath.Rel(projectRoot, filePath)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 func (s *indexServer) handleInit(_ context.Context, _ json.RawMessage) (any, error) {
@@ -102,7 +121,7 @@ func (s *indexServer) handleRelated(_ context.Context, params json.RawMessage) (
 
 	capture := &captureWriter{}
 	svc := featrelated.NewRelatedCommandService(
-		s.deps.ProjectTree, s.deps.IndexRepo, s.deps.ReadLogRepo, capture,
+		s.deps.ProjectTree, s.deps.IndexRepo, s.deps.CoReadRepo, capture,
 	)
 	opts := featrelated.Options{
 		Format:  featrelated.OutputJSON,
@@ -241,8 +260,10 @@ type ServerDeps struct {
 	ChecksumRepo    featindexing.DirectoryChecksumRepository
 	DaemonRepo      featindexing.ProjectMonitorChecker
 	ReadLogRepo     readlog.LogRepository
+	CoReadRepo      coread.MatrixRepository
 	SearchTuning    featsearch.SearchServiceOptions
 	SocketPath      string
+	ProjectRoot     string
 	Config          sharedconfig.IdxConfig
 	ConfigFilePath  string
 	ConfigOverrides []string

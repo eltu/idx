@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Find files most likely related to the file currently being edited, using co-read affinity and BM25 term co-occurrence.
+Find files most likely related to the file currently being edited, using git co-change history, persistent co-read affinity, and BM25 term co-occurrence.
 
 ## Usage
 
@@ -27,25 +27,28 @@ idx related <file> [flags]
 
 ## Signals
 
-Results are ranked by a weighted sum of two signals:
+Results are ranked by a weighted sum of three signals:
 
 | Signal | Weight | How it works |
 | --- | --- | --- |
-| Co-read affinity | 0.7 | Files whose `LastReadAt` in the read log falls within ±2 h of the target get a proximity score `1/(1+deltaHours)` |
-| Term co-occurrence | 0.3 | BM25Score of the target's term vector against all indexed documents |
+| Git co-change | 0.5 | `commits_together(A,B) / total_commits(A)` — files that appear in the same commits as the target |
+| Persistent co-read | 0.3 | Accumulated count of sessions where both files were read (30-min session window, stored in `.idx/co_read_matrix.idx`) |
+| Term co-occurrence | 0.2 | BM25Score of the target's term vector against all indexed documents |
 
 The **reason** field in the output indicates which signal(s) contributed:
 
 | Reason | Meaning |
 | --- | --- |
-| `co-read` | Only co-read affinity was non-zero |
+| `git` | Only git co-change was non-zero |
+| `co-read` | Only persistent co-read was non-zero |
 | `term-overlap` | Only term co-occurrence was non-zero |
-| `both` | Both signals contributed |
+| `both` | Two or more signals contributed |
 
 ## Fallback when data is insufficient
 
-- If the read log is empty, only term co-occurrence contributes (co-read weight is effectively zero).
-- If neither signal produces candidates, the command returns an empty list with the message `No related files found.` — no error.
+- Git co-change requires at least one commit touching the target file; absent commit history, only the other signals contribute.
+- Co-read affinity accumulates across sessions; it starts at zero for files never co-read and grows over time.
+- If no signal produces candidates, the command returns an empty list with the message `No related files found.` — no error.
 
 ## Prerequisites
 
@@ -131,5 +134,6 @@ idx related internal/features/search/service.go --limit 5 --skip 5
 ## See Also
 
 - [search.md](search.md) — full-text BM25 search with `--since` Git filter
-- [read.md](read.md) — file streaming (feeds the co-read signal)
-- [ADR 0024](../adr/0024-related-command-co-read-term-overlap.md) — design decisions for this feature
+- [read.md](read.md) — file streaming (feeds the persistent co-read signal)
+- [ADR 0024](../adr/0024-related-command-co-read-term-overlap.md) — original design (co-read temporal proxy + `--since`)
+- [ADR 0025](../adr/0025-related-signals-git-cochange-persistent-coread.md) — git co-change + persistent co-read matrix

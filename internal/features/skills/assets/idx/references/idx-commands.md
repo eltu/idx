@@ -170,6 +170,18 @@ idx search --path internal/core --ext go --files-only
 | `--ext` / `-e` | stringArray | (none) | Filter by file extension, e.g. `go` or `.go` (repeatable) |
 | `--compact` | bool | false | Compact output — paths only, no score or reason |
 
+## Related Signals
+
+`idx related` ranks candidates by a weighted sum of three signals:
+
+| Signal | Weight | Mechanism |
+|--------|--------|-----------|
+| Git co-change | 0.5 | Files that appear in the same commits as the target (`commits_together / total_commits`) |
+| Persistent co-read | 0.3 | Accumulated count of sessions where both files were read (30-min session window) |
+| BM25 term overlap | 0.2 | BM25Score of the target's term vector against all indexed documents |
+
+The `reason` field values: `git`, `co-read`, `term-overlap`, `both` (two or more signals active).
+
 ## Notes
 
 - Avoid a regex-first mindset; idx uses traditional IR with BM25 (keywords).

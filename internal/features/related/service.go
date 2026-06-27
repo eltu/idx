@@ -10,28 +10,38 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"idx/internal/features/indexing"
+	"idx/internal/shared/coread"
 	sharedfs "idx/internal/shared/filesystem"
 	"idx/internal/shared/output"
-	"idx/internal/shared/readlog"
 )
 
 type candidateScore struct {
-	absPath     string
-	termScore   float64
-	coReadScore float64
+	absPath          string
+	termScore        float64
+	coReadScore      float64
+	gitCoChangeScore float64
 }
 
 func (c *candidateScore) finalScore() float64 {
-	return coReadWeight*c.coReadScore + termOverlapWeight*c.termScore
+	return gitCoChangeWeight*c.gitCoChangeScore +
+		coReadMatrixWeight*c.coReadScore +
+		termOverlapWeight*c.termScore
 }
 
 func (c *candidateScore) reason() string {
-	switch {
-	case c.coReadScore > 0 && c.termScore > 0:
+	active := boolToInt(c.gitCoChangeScore > 0) + boolToInt(c.coReadScore > 0) + boolToInt(c.termScore > 0)
+	if active > 1 {
 		return ReasonBoth
+	}
+	return dominantReason(c)
+}
+
+func dominantReason(c *candidateScore) string {
+	switch {
+	case c.gitCoChangeScore > 0:
+		return ReasonGit
 	case c.coReadScore > 0:
 		return ReasonCoRead
 	default:
@@ -39,27 +49,34 @@ func (c *candidateScore) reason() string {
 	}
 }
 
-// RelatedCommandService finds files related to a target file using co-read affinity
-// and BM25 term co-occurrence.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// RelatedCommandService finds files related to a target file using git co-change
+// history, persistent co-read affinity, and BM25 term co-occurrence.
 type RelatedCommandService struct {
 	projectTree sharedfs.ProjectTree
 	indexRepo   indexing.IndexRepository
-	logRepo     readlog.LogRepository
+	coReadRepo  coread.MatrixRepository
 	output      output.Writer
 }
 
 // NewRelatedCommandService creates the related command use case.
-// Example: svc := NewRelatedCommandService(tree, indexRepo, logRepo, out).
+// Example: svc := NewRelatedCommandService(tree, indexRepo, coReadRepo, out).
 func NewRelatedCommandService(
 	projectTree sharedfs.ProjectTree,
 	indexRepo indexing.IndexRepository,
-	logRepo readlog.LogRepository,
+	coReadRepo coread.MatrixRepository,
 	out output.Writer,
 ) RelatedCommandService {
 	return RelatedCommandService{
 		projectTree: projectTree,
 		indexRepo:   indexRepo,
-		logRepo:     logRepo,
+		coReadRepo:  coReadRepo,
 		output:      out,
 	}
 }
@@ -77,20 +94,12 @@ func (svc RelatedCommandService) Run(filePath string, opts Options) error {
 		return fmt.Errorf("failed to list indexed directories: %w", err)
 	}
 
-	logEntries, err := svc.logRepo.LoadAll(projectRoot)
+	changedFiles, err := resolveChangedFiles(opts.Since, projectRoot)
 	if err != nil {
-		return fmt.Errorf("failed to load read log: %w", err)
+		return err
 	}
 
-	var changedFiles map[string]bool
-	if opts.Since != "" {
-		changedFiles, err = relatedChangedFiles(projectRoot, opts.Since)
-		if err != nil {
-			return err
-		}
-	}
-
-	candidates, err := svc.computeRelated(absPath, projectRoot, dirs, logEntries)
+	candidates, err := svc.computeRelated(absPath, projectRoot, dirs)
 	if err != nil {
 		return err
 	}
@@ -104,6 +113,13 @@ func (svc RelatedCommandService) Run(filePath string, opts Options) error {
 	results = applyFilters(results, changedFiles, opts.Ext, projectRoot)
 	results = applySkip(results, opts.Skip)
 	return writeRelatedResults(results, opts, svc.output)
+}
+
+func resolveChangedFiles(since, projectRoot string) (map[string]bool, error) {
+	if since == "" {
+		return nil, nil
+	}
+	return relatedChangedFiles(projectRoot, since)
 }
 
 // relatedChangedFiles returns relative paths changed since the given git ref.
@@ -189,12 +205,17 @@ func (svc RelatedCommandService) resolveTarget(filePath string) (string, string,
 	return projectRoot, absPath, nil
 }
 
-// computeRelated runs the two-phase scoring: collect target terms, then score candidates.
+// computeRelated runs term scoring, co-read matrix, and git co-change signals.
 func (svc RelatedCommandService) computeRelated(
 	targetPath, projectRoot string,
 	dirs []string,
-	logEntries []readlog.LogEntry,
 ) (map[string]*candidateScore, error) {
+	relPath, err := filepath.Rel(projectRoot, targetPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute relative path for %q: %w", targetPath, err)
+	}
+	relPath = filepath.ToSlash(relPath)
+
 	targetTerms, err := svc.collectTargetTerms(targetPath, dirs)
 	if err != nil {
 		return nil, err
@@ -205,7 +226,11 @@ func (svc RelatedCommandService) computeRelated(
 		return nil, err
 	}
 
-	applyCoRead(candidates, logEntries, targetPath, projectRoot)
+	if err := applyCoReadMatrix(candidates, svc.coReadRepo, targetPath, projectRoot, relPath); err != nil {
+		return nil, err
+	}
+	applyGitCoChange(candidates, projectRoot, relPath)
+
 	return candidates, nil
 }
 
@@ -306,44 +331,132 @@ func computeTermScore(
 	return score
 }
 
-// applyCoRead adds temporal proximity scores from the read log.
-// Files read within ±2h of the target get a co-read score decaying with distance.
-func applyCoRead(
+// applyCoReadMatrix adds persistent co-read counts as a ranking signal.
+// Scores are normalized by the maximum count for the target file's row.
+func applyCoReadMatrix(
 	candidates map[string]*candidateScore,
-	logEntries []readlog.LogEntry,
-	targetPath, projectRoot string,
-) {
-	targetReadAt := findTargetReadTime(logEntries, targetPath, projectRoot)
-	if targetReadAt.IsZero() {
-		return
+	repo coread.MatrixRepository,
+	targetPath, projectRoot, relPath string,
+) error {
+	counts, err := repo.LoadCoReads(projectRoot, relPath)
+	if err != nil {
+		return fmt.Errorf("failed to load co-read matrix: %w", err)
+	}
+	if len(counts) == 0 {
+		return nil
 	}
 
-	for _, entry := range logEntries {
-		absPath := filepath.Join(projectRoot, filepath.FromSlash(entry.Path))
+	var maxCount uint32
+	for _, count := range counts {
+		if count > maxCount {
+			maxCount = count
+		}
+	}
+
+	for relCandPath, count := range counts {
+		absPath := filepath.Join(projectRoot, filepath.FromSlash(relCandPath))
 		if absPath == targetPath {
 			continue
 		}
-		deltaHours := math.Abs(entry.LastReadAt.Sub(targetReadAt).Hours())
-		if deltaHours > coReadWindowHours {
-			continue
-		}
-		score := 1.0 / (1.0 + deltaHours)
-		if c := candidates[absPath]; c != nil {
-			c.coReadScore = math.Max(c.coReadScore, score)
+		score := float64(count) / float64(maxCount)
+		if c, ok := candidates[absPath]; ok {
+			c.coReadScore = score
 		} else {
 			candidates[absPath] = &candidateScore{absPath: absPath, coReadScore: score}
 		}
 	}
+	return nil
 }
 
-func findTargetReadTime(logEntries []readlog.LogEntry, targetPath, projectRoot string) time.Time {
-	for _, entry := range logEntries {
-		absPath := filepath.Join(projectRoot, filepath.FromSlash(entry.Path))
-		if absPath == targetPath {
-			return entry.LastReadAt
+// applyGitCoChange adds git commit co-change scores as a ranking signal.
+// Errors are silently ignored so git unavailability degrades gracefully.
+func applyGitCoChange(candidates map[string]*candidateScore, projectRoot, relPath string) {
+	coChanges, totalCommits, err := gitCoChangedFiles(projectRoot, relPath)
+	if err != nil || totalCommits == 0 {
+		return
+	}
+	for relCandPath, count := range coChanges {
+		absPath := filepath.Join(projectRoot, filepath.FromSlash(relCandPath))
+		score := float64(count) / float64(totalCommits)
+		if c, ok := candidates[absPath]; ok {
+			c.gitCoChangeScore = score
+		} else {
+			candidates[absPath] = &candidateScore{absPath: absPath, gitCoChangeScore: score}
 		}
 	}
-	return time.Time{}
+}
+
+// gitCoChangedFiles returns a map of relative paths → commit count alongside the
+// target file, plus the total number of commits that touched relPath.
+// Uses two git calls: one to fetch commit SHAs, one to fetch all files from those commits.
+func gitCoChangedFiles(projectRoot, relPath string) (map[string]int, int, error) {
+	shas, err := gitCommitSHAs(projectRoot, relPath)
+	if err != nil || len(shas) == 0 {
+		return map[string]int{}, 0, err
+	}
+
+	raw, err := gitCommitFiles(projectRoot, shas)
+	if err != nil {
+		return map[string]int{}, 0, err
+	}
+
+	return parseCoChangeFiles(raw, relPath, len(shas))
+}
+
+// gitCommitSHAs returns the full SHA hashes of commits that touched relPath.
+func gitCommitSHAs(projectRoot, relPath string) ([]string, error) {
+	cmd := exec.CommandContext( // #nosec G204 -- intentional git invocation; relPath is a sanitized relative path
+		context.Background(), "git", "-C", projectRoot, "log", "--format=%H", "--", relPath,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf("git log failed for %q: %s", relPath, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return nil, fmt.Errorf("git log failed for %q: %w", relPath, err)
+	}
+	return strings.Fields(string(out)), nil
+}
+
+// gitCommitFiles returns all file names touched by the given commits.
+// git diff-tree outputs each SHA as a header line, then the file list.
+func gitCommitFiles(projectRoot string, shas []string) (string, error) {
+	// --root includes root commits (no parent) in the diff output.
+	args := append([]string{"-C", projectRoot, "diff-tree", "--root", "-r", "--name-only"}, shas...) //nolint:gocritic
+	cmd := exec.CommandContext(context.Background(), "git", args...)                                 // #nosec G204
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git diff-tree failed: %w", err)
+	}
+	return string(out), nil
+}
+
+// parseCoChangeFiles counts how often each file co-appears with relPath across
+// totalCommits commits. SHA header lines (40 hex chars) and relPath itself are skipped.
+func parseCoChangeFiles(raw, relPath string, totalCommits int) (map[string]int, int, error) {
+	coChanges := make(map[string]int)
+	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || isGitSHA(line) || line == relPath {
+			continue
+		}
+		coChanges[line]++
+	}
+	return coChanges, totalCommits, nil
+}
+
+// isGitSHA returns true if s is a 40-character lowercase hexadecimal string (SHA-1).
+func isGitSHA(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func buildResults(candidates map[string]*candidateScore, projectRoot string, limit int) []Result {

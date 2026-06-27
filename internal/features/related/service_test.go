@@ -9,14 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"idx/internal/features/indexing"
 	sharedfs "idx/internal/shared/filesystem"
-	"idx/internal/shared/readlog"
 )
 
 // ---- fakes ----
@@ -52,14 +50,21 @@ func (r *fakeIndexRepository) LoadIndex(dir string) (*indexing.InvertedIndex, er
 	return idx, nil
 }
 
-type fakeLogRepository struct {
-	entries []readlog.LogEntry
-	loadErr error
+type fakeCoReadRepository struct {
+	counts    map[string]map[string]uint32
+	recordErr error
+	loadErr   error
 }
 
-func (r *fakeLogRepository) RecordRead(_, _ string) error { return nil }
-func (r *fakeLogRepository) LoadAll(_ string) ([]readlog.LogEntry, error) {
-	return r.entries, r.loadErr
+func (r *fakeCoReadRepository) RecordCoRead(_, _ string) error { return r.recordErr }
+func (r *fakeCoReadRepository) LoadCoReads(_, relPath string) (map[string]uint32, error) {
+	if r.loadErr != nil {
+		return nil, r.loadErr
+	}
+	if c, ok := r.counts[relPath]; ok {
+		return c, nil
+	}
+	return map[string]uint32{}, nil
 }
 
 type fakeWriter struct {
@@ -102,11 +107,11 @@ func buildIndex(avgLen float64, docs map[string]int, terms map[string]*indexing.
 
 // ---- candidateScore ----
 
-func TestCandidateScore_FinalScore_WeightsCoReadAndTerm(t *testing.T) {
+func TestCandidateScore_FinalScore_WeightsAllSignals(t *testing.T) {
 	t.Parallel()
 
-	c := &candidateScore{termScore: 1.0, coReadScore: 1.0}
-	expected := coReadWeight*1.0 + termOverlapWeight*1.0
+	c := &candidateScore{termScore: 1.0, coReadScore: 1.0, gitCoChangeScore: 1.0}
+	expected := gitCoChangeWeight*1.0 + coReadMatrixWeight*1.0 + termOverlapWeight*1.0
 
 	assert.InDelta(t, expected, c.finalScore(), 1e-9)
 }
@@ -118,18 +123,32 @@ func TestCandidateScore_Reason_BothSignals(t *testing.T) {
 	assert.Equal(t, ReasonBoth, c.reason())
 }
 
+func TestCandidateScore_Reason_GitOnly(t *testing.T) {
+	t.Parallel()
+
+	c := &candidateScore{gitCoChangeScore: 0.5}
+	assert.Equal(t, ReasonGit, c.reason())
+}
+
 func TestCandidateScore_Reason_CoReadOnly(t *testing.T) {
 	t.Parallel()
 
-	c := &candidateScore{termScore: 0, coReadScore: 0.5}
+	c := &candidateScore{coReadScore: 0.5}
 	assert.Equal(t, ReasonCoRead, c.reason())
 }
 
 func TestCandidateScore_Reason_TermOverlapOnly(t *testing.T) {
 	t.Parallel()
 
-	c := &candidateScore{termScore: 0.5, coReadScore: 0}
+	c := &candidateScore{termScore: 0.5}
 	assert.Equal(t, ReasonTermOverlap, c.reason())
+}
+
+func TestCandidateScore_Reason_AllThreeSignals_ReturnsBoth(t *testing.T) {
+	t.Parallel()
+
+	c := &candidateScore{gitCoChangeScore: 0.5, coReadScore: 0.5, termScore: 0.5}
+	assert.Equal(t, ReasonBoth, c.reason())
 }
 
 // ---- extractTargetTerms ----
@@ -213,94 +232,160 @@ func TestScoreDirectory_NoMatchingTerms_SkipsCandidate(t *testing.T) {
 	assert.Empty(t, candidates)
 }
 
-// ---- applyCoRead ----
+// ---- applyCoReadMatrix ----
 
-func TestApplyCoRead_WithinWindow_AddsCoReadScore(t *testing.T) {
+func TestApplyCoReadMatrix_WithCounts_AddsCoReadScore(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-	logEntries := []readlog.LogEntry{
-		{Path: "internal/search/" + targetFile, LastReadAt: now},
-		{Path: "internal/search/" + candidateA, LastReadAt: now.Add(30 * time.Minute)},
+	relCandPath := "internal/search/" + candidateA
+	repo := &fakeCoReadRepository{
+		counts: map[string]map[string]uint32{
+			"internal/search/" + targetFile: {relCandPath: 5},
+		},
 	}
 
 	candidates := make(map[string]*candidateScore)
-	applyCoRead(candidates, logEntries, testDir+"/"+targetFile, testRoot)
+	err := applyCoReadMatrix(candidates, repo, testDir+"/"+targetFile, testRoot, "internal/search/"+targetFile)
 
-	absA := filepath.Join(testRoot, "internal/search/"+candidateA)
+	require.NoError(t, err)
+	absA := filepath.Join(testRoot, relCandPath)
 	require.Contains(t, candidates, absA)
-	assert.Positive(t, candidates[absA].coReadScore)
+	assert.InDelta(t, 1.0, candidates[absA].coReadScore, 1e-9) // single entry = max = 1.0
 }
 
-func TestApplyCoRead_OutsideWindow_NoCoReadScore(t *testing.T) {
+func TestApplyCoReadMatrix_NormalizesScores(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-	logEntries := []readlog.LogEntry{
-		{Path: "internal/search/" + targetFile, LastReadAt: now},
-		{Path: "internal/search/" + candidateA, LastReadAt: now.Add(-3 * time.Hour)},
+	relA := "a.go"
+	relB := "b.go"
+	relTarget := "target.go"
+	repo := &fakeCoReadRepository{
+		counts: map[string]map[string]uint32{
+			relTarget: {relA: 10, relB: 5},
+		},
 	}
 
 	candidates := make(map[string]*candidateScore)
-	applyCoRead(candidates, logEntries, testDir+"/"+targetFile, testRoot)
+	err := applyCoReadMatrix(candidates, repo, filepath.Join(testRoot, relTarget), testRoot, relTarget)
 
-	absA := filepath.Join(testRoot, "internal/search/"+candidateA)
-	assert.NotContains(t, candidates, absA)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.0, candidates[filepath.Join(testRoot, relA)].coReadScore, 1e-9)
+	assert.InDelta(t, 0.5, candidates[filepath.Join(testRoot, relB)].coReadScore, 1e-9)
 }
 
-func TestApplyCoRead_TargetNotInLog_NoScoring(t *testing.T) {
+func TestApplyCoReadMatrix_EmptyCounts_NoChange(t *testing.T) {
 	t.Parallel()
 
-	logEntries := []readlog.LogEntry{
-		{Path: "internal/search/" + candidateA, LastReadAt: time.Now()},
+	repo := &fakeCoReadRepository{counts: map[string]map[string]uint32{}}
+	candidates := make(map[string]*candidateScore)
+
+	err := applyCoReadMatrix(candidates, repo, testDir+"/"+targetFile, testRoot, "internal/search/"+targetFile)
+
+	require.NoError(t, err)
+	assert.Empty(t, candidates)
+}
+
+func TestApplyCoReadMatrix_LoadError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeCoReadRepository{loadErr: errors.New("disk error")}
+	candidates := make(map[string]*candidateScore)
+
+	err := applyCoReadMatrix(candidates, repo, testDir+"/"+targetFile, testRoot, "internal/search/"+targetFile)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "co-read matrix")
+}
+
+func TestApplyCoReadMatrix_ExcludesTarget(t *testing.T) {
+	t.Parallel()
+
+	relTarget := "internal/search/" + targetFile
+	repo := &fakeCoReadRepository{
+		counts: map[string]map[string]uint32{
+			relTarget: {relTarget: 10, "internal/search/" + candidateA: 5},
+		},
 	}
 
 	candidates := make(map[string]*candidateScore)
-	applyCoRead(candidates, logEntries, testDir+"/"+targetFile, testRoot)
+	err := applyCoReadMatrix(candidates, repo, testDir+"/"+targetFile, testRoot, relTarget)
+
+	require.NoError(t, err)
+	assert.NotContains(t, candidates, testDir+"/"+targetFile)
+}
+
+// ---- applyGitCoChange ----
+
+func TestApplyGitCoChange_InRealRepo_AddsScores(t *testing.T) {
+	t.Parallel()
+
+	// Arrange: real git repo with two commits that co-change target and candidate.
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+	writeGitFile(t, tmpDir, "target.go", "package main")
+	writeGitFile(t, tmpDir, "sibling.go", "package main")
+	runGit(t, tmpDir, "add", ".")
+	runGit(t, tmpDir, "commit", "-m", "first commit")
+
+	candidates := make(map[string]*candidateScore)
+	applyGitCoChange(candidates, tmpDir, "target.go")
+
+	// "sibling.go" appeared in the same commit as "target.go".
+	absA := filepath.Join(tmpDir, "sibling.go")
+	require.Contains(t, candidates, absA)
+	assert.InDelta(t, 1.0, candidates[absA].gitCoChangeScore, 1e-9)
+}
+
+func TestApplyGitCoChange_FileWithNoHistory_NoChange(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	initGitRepo(t, tmpDir)
+	writeGitFile(t, tmpDir, "untracked.go", "package main")
+
+	candidates := make(map[string]*candidateScore)
+	applyGitCoChange(candidates, tmpDir, "untracked.go")
 
 	assert.Empty(t, candidates)
 }
 
-func TestApplyCoRead_UpdatesExistingCandidate_MaxScore(t *testing.T) {
+func TestApplyGitCoChange_GitNotAvailable_NoopGracefully(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-	absA := filepath.Join(testRoot, "internal/search/"+candidateA)
-	logEntries := []readlog.LogEntry{
-		{Path: "internal/search/" + targetFile, LastReadAt: now},
-		{Path: "internal/search/" + candidateA, LastReadAt: now.Add(30 * time.Minute)},
-	}
+	// Not a git repo — git will fail.
+	tmpDir := t.TempDir()
+	candidates := make(map[string]*candidateScore)
+	applyGitCoChange(candidates, tmpDir, "file.go")
 
-	candidates := map[string]*candidateScore{
-		absA: {absPath: absA, termScore: 0.5},
-	}
-	applyCoRead(candidates, logEntries, testDir+"/"+targetFile, testRoot)
-
-	assert.Positive(t, candidates[absA].coReadScore)
-	assert.Equal(t, 0.5, candidates[absA].termScore)
+	assert.Empty(t, candidates)
 }
 
-// ---- findTargetReadTime ----
+// ---- parseCoChangeFiles ----
 
-func TestFindTargetReadTime_Found_ReturnsTime(t *testing.T) {
+func TestParseCoChangeFiles_TwoCommits_CountsCorrectly(t *testing.T) {
 	t.Parallel()
 
-	ts := time.Now()
-	entries := []readlog.LogEntry{
-		{Path: "other.go", LastReadAt: ts.Add(-time.Hour)},
-		{Path: "internal/search/" + targetFile, LastReadAt: ts},
-	}
+	// Simulate diff-tree output: SHA header per commit, then files touched.
+	sha1 := strings.Repeat("a", 40)
+	sha2 := strings.Repeat("b", 40)
+	raw := sha1 + "\ntarget.go\nfoo.go\nbar.go\n" + sha2 + "\ntarget.go\nfoo.go\n"
+	coChanges, total, err := parseCoChangeFiles(raw, "target.go", 2)
 
-	result := findTargetReadTime(entries, testDir+"/"+targetFile, testRoot)
-	assert.Equal(t, ts, result)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Equal(t, 2, coChanges["foo.go"])
+	assert.Equal(t, 1, coChanges["bar.go"])
+	assert.NotContains(t, coChanges, "target.go")
 }
 
-func TestFindTargetReadTime_NotFound_ReturnsZero(t *testing.T) {
+func TestParseCoChangeFiles_EmptyOutput_ZeroCommits(t *testing.T) {
 	t.Parallel()
 
-	entries := []readlog.LogEntry{{Path: "other.go", LastReadAt: time.Now()}}
-	result := findTargetReadTime(entries, targetAbsPath, testRoot)
-	assert.True(t, result.IsZero())
+	coChanges, total, err := parseCoChangeFiles("", "target.go", 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, total)
+	assert.Empty(t, coChanges)
 }
 
 // ---- normalizeTermScores ----
@@ -332,9 +417,9 @@ func TestSortedCandidates_SortsByFinalScoreDescending(t *testing.T) {
 	t.Parallel()
 
 	candidates := map[string]*candidateScore{
-		"a": {absPath: "a", termScore: 0.2, coReadScore: 0.0},
-		"b": {absPath: "b", termScore: 1.0, coReadScore: 0.0},
-		"c": {absPath: "c", termScore: 0.5, coReadScore: 0.0},
+		"a": {absPath: "a", termScore: 0.2},
+		"b": {absPath: "b", termScore: 1.0},
+		"c": {absPath: "c", termScore: 0.5},
 	}
 	sorted := sortedCandidates(candidates)
 
@@ -348,7 +433,7 @@ func TestSortedCandidates_ZeroScore_Excluded(t *testing.T) {
 	t.Parallel()
 
 	candidates := map[string]*candidateScore{
-		"a": {absPath: "a", termScore: 0, coReadScore: 0},
+		"a": {absPath: "a", termScore: 0, coReadScore: 0, gitCoChangeScore: 0},
 		"b": {absPath: "b", termScore: 0.5},
 	}
 	sorted := sortedCandidates(candidates)
@@ -479,33 +564,21 @@ func TestWriteRelatedJSON_WithResults_WritesValidJSON(t *testing.T) {
 func newTestService(
 	currentDir, gitRoot string,
 	indices map[string]*indexing.InvertedIndex,
-	logEntries []readlog.LogEntry,
+	coReadCounts map[string]map[string]uint32,
 	w *fakeWriter,
 ) RelatedCommandService {
 	tree := &fakeProjectTree{currentDir: currentDir, gitRoot: gitRoot}
 	indexRepo := &fakeIndexRepository{indices: indices}
-	logRepo := &fakeLogRepository{entries: logEntries}
-	return NewRelatedCommandService(tree, indexRepo, logRepo, w)
-}
-
-func buildTestIndex(targetDoc, relatedDoc string) *indexing.InvertedIndex {
-	return buildIndex(5, map[string]int{targetDoc: 10, relatedDoc: 8}, map[string]*indexing.TermStats{
-		"query": {IDF: 1.5, Docs: map[string]*indexing.DocTermStats{
-			targetDoc:  {TF: 3},
-			relatedDoc: {TF: 2},
-		}},
-	})
+	coReadRepo := &fakeCoReadRepository{counts: coReadCounts}
+	return NewRelatedCommandService(tree, indexRepo, coReadRepo, w)
 }
 
 func TestRelatedCommandService_Run_NoIndexedDirs_ReturnsNoResultsMessage(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: ProjectTree.ReadDir returns nothing (no .idx subdirs)
+	// Arrange
 	w := &fakeWriter{}
-	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
-	indexRepo := &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}
-	logRepo := &fakeLogRepository{}
-	svc := NewRelatedCommandService(tree, indexRepo, logRepo, w)
+	svc := newTestService(testRoot, testRoot, map[string]*indexing.InvertedIndex{}, nil, w)
 
 	// Act
 	err := svc.Run("service.go", Options{Format: OutputText, Size: 10})
@@ -515,40 +588,13 @@ func TestRelatedCommandService_Run_NoIndexedDirs_ReturnsNoResultsMessage(t *test
 	assert.Contains(t, w.joined(), msgNoRelatedFound)
 }
 
-func TestRelatedCommandService_Run_WithTermOverlap_ReturnsRelatedFiles(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	w := &fakeWriter{}
-	dir := filepath.Join(testRoot, ".idx", testDir)
-	indices := map[string]*indexing.InvertedIndex{
-		testDir: buildTestIndex(targetFile, candidateA),
-	}
-	tree := &fakeProjectTree{currentDir: testDir, gitRoot: testRoot}
-
-	// ProjectTree needs ReadDir to expose the indexed directory.
-	// Since fakeProjectTree.ReadDir returns nil, IndexedDirectories won't find
-	// any directories — we accept "No related files found." here unless we
-	// implement ReadDir. This test verifies the Run pipeline without disk I/O.
-	_ = dir
-	indexRepo := &fakeIndexRepository{indices: indices}
-	logRepo := &fakeLogRepository{}
-	svc := NewRelatedCommandService(tree, indexRepo, logRepo, w)
-
-	// Act
-	err := svc.Run(targetAbsPath, Options{Format: OutputText, Size: 10})
-
-	// Assert: no error regardless of empty results (no indexed dirs)
-	require.NoError(t, err)
-}
-
 func TestRelatedCommandService_Run_CurrentDirError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentErr: errors.New("cwd failed")}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeLogRepository{}, w)
+	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeCoReadRepository{}, w)
 
 	// Act
 	err := svc.Run("service.go", Options{})
@@ -567,7 +613,7 @@ func TestRelatedCommandService_Run_GitRootError_ReturnsError(t *testing.T) {
 		currentDir: testRoot,
 		gitRootErr: errors.New("not a git repo"),
 	}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeLogRepository{}, w)
+	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeCoReadRepository{}, w)
 
 	// Act
 	err := svc.Run("service.go", Options{})
@@ -577,21 +623,21 @@ func TestRelatedCommandService_Run_GitRootError_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "git root")
 }
 
-func TestRelatedCommandService_Run_LogRepoError_ReturnsError(t *testing.T) {
+func TestRelatedCommandService_Run_CoReadRepoError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
-	logRepo := &fakeLogRepository{loadErr: errors.New("log read failed")}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, logRepo, w)
+	coReadRepo := &fakeCoReadRepository{loadErr: errors.New("matrix read failed")}
+	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, coReadRepo, w)
 
 	// Act
 	err := svc.Run("service.go", Options{})
 
 	// Assert
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "read log")
+	assert.Contains(t, err.Error(), "co-read matrix")
 }
 
 func TestRelatedCommandService_Run_JSONFormat_WritesJSON(t *testing.T) {
@@ -599,15 +645,13 @@ func TestRelatedCommandService_Run_JSONFormat_WritesJSON(t *testing.T) {
 
 	// Arrange
 	w := &fakeWriter{}
-	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, &fakeLogRepository{}, w)
+	svc := newTestService(testRoot, testRoot, map[string]*indexing.InvertedIndex{}, nil, w)
 
 	// Act
 	err := svc.Run("service.go", Options{Format: OutputJSON, Size: 10})
 
 	// Assert
 	require.NoError(t, err)
-	// JSON output from empty results is "null" (nil slice marshaled)
 	assert.Len(t, w.lines, 1)
 }
 
@@ -616,7 +660,7 @@ func TestRelatedCommandService_Run_JSONFormat_WritesJSON(t *testing.T) {
 func TestRelatedChangedFiles_ValidRef_ReturnsFiles(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: real git repo with two commits
+	// Arrange
 	tmpDir := t.TempDir()
 	initGitRepo(t, tmpDir)
 	writeGitFile(t, tmpDir, "a.go", "package a")
@@ -655,7 +699,7 @@ func TestRelatedChangedFiles_InvalidRef_ReturnsError(t *testing.T) {
 func TestRelatedCommandService_Run_InvalidSince_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: real git repo so git subprocess works
+	// Arrange
 	tmpDir := t.TempDir()
 	initGitRepo(t, tmpDir)
 	writeGitFile(t, tmpDir, "service.go", "package main")
@@ -664,7 +708,7 @@ func TestRelatedCommandService_Run_InvalidSince_ReturnsError(t *testing.T) {
 
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentDir: tmpDir, gitRoot: tmpDir}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, &fakeLogRepository{}, w)
+	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, &fakeCoReadRepository{}, w)
 
 	// Act
 	err := svc.Run("service.go", Options{Since: "bad-ref-xyz"})
@@ -672,29 +716,6 @@ func TestRelatedCommandService_Run_InvalidSince_ReturnsError(t *testing.T) {
 	// Assert
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bad-ref-xyz")
-}
-
-// helpers shared with query_executor_test style.
-func initGitRepo(t *testing.T, dir string) {
-	t.Helper()
-	runGit(t, dir, "init")
-	runGit(t, dir, "config", "user.email", "test@test.com")
-	runGit(t, dir, "config", "user.name", "Test")
-}
-
-func writeGitFile(t *testing.T, dir, name, content string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
-		t.Fatalf("writeGitFile: %v", err)
-	}
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) //nolint:gosec
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
 }
 
 // ---- collectTargetTerms error path ----
@@ -705,9 +726,9 @@ func TestCollectTargetTerms_LoadIndexError_ReturnsError(t *testing.T) {
 	// Arrange
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
 	indexRepo := &fakeIndexRepository{loadErr: errors.New("disk full")}
-	svc := NewRelatedCommandService(tree, indexRepo, &fakeLogRepository{}, &fakeWriter{})
+	svc := NewRelatedCommandService(tree, indexRepo, &fakeCoReadRepository{}, &fakeWriter{})
 
-	// Act: call internal method directly (same package)
+	// Act
 	_, err := svc.collectTargetTerms(targetAbsPath, []string{testDir})
 
 	// Assert
@@ -720,10 +741,10 @@ func TestCollectTargetTerms_LoadIndexError_ReturnsError(t *testing.T) {
 func TestScoreAllCandidates_LoadIndexError_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: non-empty targetTerms so the loop is entered
+	// Arrange
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
 	indexRepo := &fakeIndexRepository{loadErr: errors.New("io failure")}
-	svc := NewRelatedCommandService(tree, indexRepo, &fakeLogRepository{}, &fakeWriter{})
+	svc := NewRelatedCommandService(tree, indexRepo, &fakeCoReadRepository{}, &fakeWriter{})
 
 	// Act
 	_, err := svc.scoreAllCandidates(targetAbsPath, []string{testDir}, map[string]int{"search": 2})
@@ -758,7 +779,6 @@ func TestBuildResults_LimitZero_UsesAllResults(t *testing.T) {
 	}
 	results := buildResults(candidates, testRoot, 0)
 
-	// limit 0 = no truncation from candidatesToResults
 	assert.Len(t, results, 2)
 }
 
@@ -857,4 +877,28 @@ func TestApplySkip_SkipBeyondLen_ReturnsEmpty(t *testing.T) {
 
 	results := []Result{{Path: "a.go"}}
 	assert.Empty(t, applySkip(results, 5))
+}
+
+// ---- git helpers shared with test style ----
+
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", "test@test.com")
+	runGit(t, dir, "config", "user.name", "Test")
+}
+
+func writeGitFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("writeGitFile: %v", err)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) //nolint:gosec
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
