@@ -104,7 +104,12 @@ func TestSearchCommandService_Run_ReturnsErrorWhenDependenciesAreNil(t *testing.
 	t.Parallel()
 
 	// Arrange
-	service := search.NewSearchCommandService(nil, nil, nil, nil)
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: nil,
+		Output:      nil,
+		FileReader:  nil,
+		IndexRepo:   nil,
+	})
 
 	// Act & Assert
 	require.Error(t, service.Run("module"))
@@ -203,7 +208,12 @@ func TestSearchCommandService_WithReadLog_StillWorksCorrectly(t *testing.T) {
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
 
-	service := search.NewSearchCommandService(tree, out, fileReader, repo).
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	}).
 		WithReadLog(fakeReadLogRepo{})
 	service.SetCacheEnabled(false)
 

@@ -234,18 +234,21 @@ func runServer(arguments []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	idx := buildIndexingDeps(d)
-	read := buildReadDeps(d)
-	tuning := buildSearchTuning(d.cfg)
-	searchCmd := buildSearchDeps(d, read.readLog, tuning)
-	relatedSvc := buildRelatedDeps(d, read.coReadRepo)
-	skillsSvc := buildSkillsDeps(output)
-	indexServer := buildIndexServer(d, idx, read, tuning)
-	return appcli.NewCommandRunner(arguments, idx.initCommand, idx.destroyCommand, searchCmd).
+	w := serverWiring{
+		shared:   d,
+		indexing: buildIndexingDeps(d),
+		read:     buildReadDeps(d),
+		tuning:   buildSearchTuning(d.cfg),
+	}
+	searchCmd := buildSearchDeps(w.shared, w.read, w.tuning)
+	relatedSvc := buildRelatedDeps(w.shared, w.read)
+	skillsSvc := buildSkillsDeps(w.shared)
+	indexServer := buildIndexServer(w)
+	return appcli.NewCommandRunner(arguments, w.indexing.initCommand, w.indexing.destroyCommand, searchCmd).
 		WithBuildInfo(appcli.BuildInfo{Version: version, BuildDate: buildDate}).
-		WithQuietToggle(multiQuiet{d.writer, idx.progressRunner}).
+		WithQuietToggle(multiQuiet{d.writer, w.indexing.progressRunner}).
 		WithSkillsCommand(skillsSvc).
-		WithReadCommand(read.readService).
+		WithReadCommand(w.read.readService).
 		WithRelatedCommand(relatedSvc).
 		WithIndexServer(indexServer).
 		WithConfig(d.cfg, d.configFilePath, d.overrides).
@@ -263,7 +266,7 @@ func runClient(arguments []string, output io.Writer) error {
 		featdaemon.NewOSServerSpawner(),
 		d.writer,
 	)
-	skillsSvc := buildSkillsDeps(output)
+	skillsSvc := buildSkillsDeps(d)
 	socketPath := idxipc.SocketPath(d.projectRoot)
 	client := remote.NewSocketClient(socketPath)
 	inspectRunner := idxtui.NewInspectRunner()

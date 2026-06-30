@@ -6,23 +6,32 @@ import (
 	idxipc "idx/internal/shared/ipc"
 )
 
-func buildIndexServer(d sharedDepsResult, idx indexingDepsResult, read readDepsResult, tuning featsearch.SearchServiceOptions) appserver.ServerRunner {
-	socketPath := idxipc.SocketPath(d.projectRoot)
+// serverWiring accumulates the results of all wiring builders so each builder
+// receives a single struct instead of individual extracted fields.
+type serverWiring struct {
+	shared   sharedDepsResult
+	indexing indexingDepsResult
+	read     readDepsResult
+	tuning   featsearch.SearchServiceOptions
+}
+
+func buildIndexServer(w serverWiring) appserver.ServerRunner {
+	socketPath := idxipc.SocketPath(w.shared.projectRoot)
 	return appserver.NewServer(appserver.ServerDeps{
-		ProjectTree:     d.projectTree,
-		MatcherFactory:  d.matcherFactory,
-		FileReader:      d.fileReader,
-		Indexer:         idx.indexer,
-		IndexRepo:       d.indexRepo,
-		ChecksumRepo:    d.checksumRepo,
-		DaemonRepo:      idx.serverDaemon,
-		ReadLogRepo:     read.readLog,
-		CoReadRepo:      read.coReadRepo,
-		SearchTuning:    tuning,
+		ProjectTree:     w.shared.projectTree,
+		MatcherFactory:  w.shared.matcherFactory,
+		FileReader:      w.shared.fileReader,
+		Indexer:         w.indexing.indexer,
+		IndexRepo:       w.shared.indexRepo,
+		ChecksumRepo:    w.shared.checksumRepo,
+		DaemonRepo:      w.indexing.serverDaemon,
+		ReadLogRepo:     w.read.readLog,
+		CoReadRepo:      w.read.coReadRepo,
+		SearchTuning:    w.tuning,
 		SocketPath:      socketPath,
-		ProjectRoot:     d.projectRoot,
-		Config:          d.cfg,
-		ConfigFilePath:  d.configFilePath,
-		ConfigOverrides: d.overrides,
+		ProjectRoot:     w.shared.projectRoot,
+		Config:          w.shared.cfg,
+		ConfigFilePath:  w.shared.configFilePath,
+		ConfigOverrides: w.shared.overrides,
 	})
 }

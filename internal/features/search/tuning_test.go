@@ -24,7 +24,12 @@ func TestWithTuning_ZeroValues_PreserveDefaults(t *testing.T) {
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
 
 	// zero-value opts must not override defaults — search must still work
-	service := search.NewSearchCommandService(tree, out, fileReader, repo).
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	}).
 		WithTuning(search.SearchServiceOptions{})
 	service.SetCacheEnabled(false)
 
@@ -45,7 +50,12 @@ func TestWithTuning_CustomMaxWorkers_AppliedCorrectly(t *testing.T) {
 	repo := &fakeSearchIndexRepository{indices: map[string]*indexing.InvertedIndex{rootDir: searchableIndexWithPartialMatch()}}
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
 
-	service := search.NewSearchCommandService(tree, out, fileReader, repo).
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	}).
 		WithTuning(search.SearchServiceOptions{MaxWorkers: 1})
 	service.SetCacheEnabled(false)
 
@@ -67,7 +77,12 @@ func TestWithTuning_CustomBM25_DoesNotPanic(t *testing.T) {
 
 	extractFirstFile := func(opts search.SearchServiceOptions) string {
 		out := &capturingTextOutput{}
-		svc := search.NewSearchCommandService(tree, out, fileReader, repo).WithTuning(opts)
+		svc := search.NewSearchCommandService(search.SearchDeps{
+			ProjectTree: tree,
+			Output:      out,
+			FileReader:  fileReader,
+			IndexRepo:   repo,
+		}).WithTuning(opts)
 		svc.SetCacheEnabled(false)
 		require.NoError(t, svc.RunWithOptions("go search", search.Options{Format: search.OutputJSON, Size: 1}))
 		var response map[string]any
@@ -92,7 +107,12 @@ func TestWithTuning_CustomCacheTTL_IsRespected(t *testing.T) {
 	fileReader := fakeSearchFileReader{files: map[string]string{filepath.Join(rootDir, "go.mod"): "module idx"}}
 
 	shortTTL := 10 * time.Millisecond
-	service := search.NewSearchCommandService(tree, out, fileReader, repo).
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	}).
 		WithTuning(search.SearchServiceOptions{CacheTTL: shortTTL, MaxWorkers: 1})
 	service.SetCacheEnabled(true)
 

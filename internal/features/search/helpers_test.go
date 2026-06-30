@@ -62,7 +62,12 @@ func newSearchCommandServiceForFunctionalTests(
 	fileReader fakeSearchFileReader,
 	repo *fakeSearchIndexRepository,
 ) search.SearchCommandService {
-	service := search.NewSearchCommandService(tree, out, fileReader, repo)
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	})
 	service.SetCacheEnabled(false)
 	return service
 }
@@ -73,7 +78,12 @@ func newSearchCommandServiceForCacheTests(
 	fileReader fakeSearchFileReader,
 	repo *fakeSearchIndexRepository,
 ) search.SearchCommandService {
-	service := search.NewSearchCommandService(tree, out, fileReader, repo)
+	service := search.NewSearchCommandService(search.SearchDeps{
+		ProjectTree: tree,
+		Output:      out,
+		FileReader:  fileReader,
+		IndexRepo:   repo,
+	})
 	service.SetCacheEnabled(true)
 	return service
 }

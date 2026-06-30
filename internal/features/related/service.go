@@ -20,19 +20,22 @@ type RelatedCommandService struct {
 	output      output.Writer
 }
 
+// RelatedDeps holds the required collaborators for RelatedCommandService.
+type RelatedDeps struct {
+	ProjectTree sharedfs.ProjectTree
+	IndexRepo   indexing.IndexRepository
+	CoReadRepo  coread.MatrixRepository
+	Output      output.Writer
+}
+
 // NewRelatedCommandService creates the related command use case.
-// Example: svc := NewRelatedCommandService(tree, indexRepo, coReadRepo, out).
-func NewRelatedCommandService(
-	projectTree sharedfs.ProjectTree,
-	indexRepo indexing.IndexRepository,
-	coReadRepo coread.MatrixRepository,
-	out output.Writer,
-) RelatedCommandService {
+// Example: svc := NewRelatedCommandService(RelatedDeps{ProjectTree: tree, IndexRepo: repo, CoReadRepo: cr, Output: out}).
+func NewRelatedCommandService(deps RelatedDeps) RelatedCommandService {
 	return RelatedCommandService{
-		projectTree: projectTree,
-		indexRepo:   indexRepo,
-		coReadRepo:  coReadRepo,
-		output:      out,
+		projectTree: deps.ProjectTree,
+		indexRepo:   deps.IndexRepo,
+		coReadRepo:  deps.CoReadRepo,
+		output:      deps.Output,
 	}
 }
 

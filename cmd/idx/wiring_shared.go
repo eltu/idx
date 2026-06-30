@@ -11,6 +11,7 @@ import (
 )
 
 type sharedDepsResult struct {
+	rawOutput      io.Writer
 	writer         *appcli.LineWriter
 	projectTree    sharedfs.ProjectTree
 	matcherFactory sharedfs.IgnoreMatcherBuilder
@@ -49,6 +50,7 @@ func sharedDeps(output io.Writer) (sharedDepsResult, error) {
 	)
 
 	return sharedDepsResult{
+		rawOutput:      output,
 		writer:         writer,
 		projectTree:    projectTree,
 		matcherFactory: matcherFactory,

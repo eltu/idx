@@ -1,7 +1,6 @@
 package main
 
 import (
-	featread "idx/internal/features/read"
 	featsearch "idx/internal/features/search"
 	sharedconfig "idx/internal/shared/config"
 )
@@ -17,8 +16,13 @@ func buildSearchTuning(cfg sharedconfig.IdxConfig) featsearch.SearchServiceOptio
 	}
 }
 
-func buildSearchDeps(d sharedDepsResult, readLog *featread.ReadLogRepository, tuning featsearch.SearchServiceOptions) featsearch.SearchCommandService {
-	return featsearch.NewSearchCommandService(d.projectTree, d.writer, d.fileReader, d.indexRepo).
+func buildSearchDeps(d sharedDepsResult, read readDepsResult, tuning featsearch.SearchServiceOptions) featsearch.SearchCommandService {
+	return featsearch.NewSearchCommandService(featsearch.SearchDeps{
+		ProjectTree: d.projectTree,
+		Output:      d.writer,
+		FileReader:  d.fileReader,
+		IndexRepo:   d.indexRepo,
+	}).
 		WithTuning(tuning).
-		WithReadLog(readLog)
+		WithReadLog(read.readLog)
 }

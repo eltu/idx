@@ -542,7 +542,12 @@ func newTestService(
 	tree := &fakeProjectTree{currentDir: currentDir, gitRoot: gitRoot}
 	indexRepo := &fakeIndexRepository{indices: indices}
 	coReadRepo := &fakeCoReadRepository{counts: coReadCounts}
-	return NewRelatedCommandService(tree, indexRepo, coReadRepo, w)
+	return NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   indexRepo,
+		CoReadRepo:  coReadRepo,
+		Output:      w,
+	})
 }
 
 func TestRelatedCommandService_Run_NoIndexedDirs_ReturnsNoResultsMessage(t *testing.T) {
@@ -566,7 +571,12 @@ func TestRelatedCommandService_Run_CurrentDirError_ReturnsError(t *testing.T) {
 	// Arrange
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentErr: errors.New("cwd failed")}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeCoReadRepository{}, w)
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   &fakeIndexRepository{},
+		CoReadRepo:  &fakeCoReadRepository{},
+		Output:      w,
+	})
 
 	// Act
 	err := svc.Run("service.go", Options{})
@@ -585,7 +595,12 @@ func TestRelatedCommandService_Run_GitRootError_ReturnsError(t *testing.T) {
 		currentDir: testRoot,
 		gitRootErr: errors.New("not a git repo"),
 	}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{}, &fakeCoReadRepository{}, w)
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   &fakeIndexRepository{},
+		CoReadRepo:  &fakeCoReadRepository{},
+		Output:      w,
+	})
 
 	// Act
 	err := svc.Run("service.go", Options{})
@@ -602,7 +617,12 @@ func TestRelatedCommandService_Run_CoReadRepoError_ReturnsError(t *testing.T) {
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
 	coReadRepo := &fakeCoReadRepository{loadErr: errors.New("matrix read failed")}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, coReadRepo, w)
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}},
+		CoReadRepo:  coReadRepo,
+		Output:      w,
+	})
 
 	// Act
 	err := svc.Run("service.go", Options{})
@@ -641,7 +661,12 @@ func TestRelatedCommandService_Run_InvalidSince_ReturnsError(t *testing.T) {
 
 	w := &fakeWriter{}
 	tree := &fakeProjectTree{currentDir: tmpDir, gitRoot: tmpDir}
-	svc := NewRelatedCommandService(tree, &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}}, &fakeCoReadRepository{}, w)
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   &fakeIndexRepository{indices: map[string]*indexing.InvertedIndex{}},
+		CoReadRepo:  &fakeCoReadRepository{},
+		Output:      w,
+	})
 
 	// Act
 	err := svc.Run("service.go", Options{Since: "bad-ref-xyz"})
@@ -659,7 +684,12 @@ func TestCollectTargetTerms_LoadIndexError_ReturnsError(t *testing.T) {
 	// Arrange
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
 	indexRepo := &fakeIndexRepository{loadErr: errors.New("disk full")}
-	svc := NewRelatedCommandService(tree, indexRepo, &fakeCoReadRepository{}, &fakeWriter{})
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   indexRepo,
+		CoReadRepo:  &fakeCoReadRepository{},
+		Output:      &fakeWriter{},
+	})
 
 	// Act
 	_, err := svc.collectTargetTerms(targetAbsPath, []string{testDir})
@@ -677,7 +707,12 @@ func TestScoreAllCandidates_LoadIndexError_ReturnsError(t *testing.T) {
 	// Arrange
 	tree := &fakeProjectTree{currentDir: testRoot, gitRoot: testRoot}
 	indexRepo := &fakeIndexRepository{loadErr: errors.New("io failure")}
-	svc := NewRelatedCommandService(tree, indexRepo, &fakeCoReadRepository{}, &fakeWriter{})
+	svc := NewRelatedCommandService(RelatedDeps{
+		ProjectTree: tree,
+		IndexRepo:   indexRepo,
+		CoReadRepo:  &fakeCoReadRepository{},
+		Output:      &fakeWriter{},
+	})
 
 	// Act
 	_, err := svc.scoreAllCandidates(targetAbsPath, []string{testDir}, map[string]int{"search": 2})

@@ -25,7 +25,12 @@ func (s *indexServer) handleSearch(_ context.Context, params json.RawMessage) (a
 	}
 
 	capture := &captureWriter{}
-	svc := featsearch.NewSearchCommandService(s.deps.ProjectTree, capture, s.deps.FileReader, s.deps.IndexRepo).
+	svc := featsearch.NewSearchCommandService(featsearch.SearchDeps{
+		ProjectTree: s.deps.ProjectTree,
+		Output:      capture,
+		FileReader:  s.deps.FileReader,
+		IndexRepo:   s.deps.IndexRepo,
+	}).
 		WithTuning(s.deps.SearchTuning).
 		WithReadLog(s.deps.ReadLogRepo)
 
@@ -120,9 +125,12 @@ func (s *indexServer) handleRelated(_ context.Context, params json.RawMessage) (
 	}
 
 	capture := &captureWriter{}
-	svc := featrelated.NewRelatedCommandService(
-		s.deps.ProjectTree, s.deps.IndexRepo, s.deps.CoReadRepo, capture,
-	)
+	svc := featrelated.NewRelatedCommandService(featrelated.RelatedDeps{
+		ProjectTree: s.deps.ProjectTree,
+		IndexRepo:   s.deps.IndexRepo,
+		CoReadRepo:  s.deps.CoReadRepo,
+		Output:      capture,
+	})
 	opts := featrelated.Options{
 		Format:  featrelated.OutputJSON,
 		Size:    req.Size,
