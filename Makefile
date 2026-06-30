@@ -7,10 +7,10 @@ VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS    := -X main.version=$(VERSION) -X main.buildDate=$(BUILD_DATE)
 
-.PHONY: all build fmt lint test complexity clean check pre-push hooks bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci skill-lint
+.PHONY: all build fmt lint test complexity clean check pre-push hooks bench-sync bench-search-vs-grep test-concurrency test-concurrency-race test-concurrency-heavy test-concurrency-ci skill-lint e2e
 
 ## Default: format, lint, test, and build
-all: fmt lint test build
+all: fmt lint test complexity skill-lint build
 
 ## Build the main binary
 build:
@@ -83,8 +83,12 @@ test-concurrency-heavy:
 skill-lint: build
 	@bash scripts/validate-skill-assets.sh
 
+## Run end-to-end tests against the real binary and a live server
+e2e: build
+	@bash scripts/e2e --no-rebuild
+
 ## Format + lint + test (no build) — also used as the pre-push gate
-check: fmt lint test
+check: fmt lint test complexity skill-lint
 
 ## Git pre-push hook entry point — delegates to check
 pre-push: check

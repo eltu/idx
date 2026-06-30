@@ -339,7 +339,7 @@ func TestInstall_ReturnsErrorWhenClaudeSettingsWriteFails(t *testing.T) {
 	require.ErrorIs(t, err, writeErr)
 }
 
-// ---- Project-level enforcement (PreToolCall + UserPromptSubmit hooks) ----
+// ---- Project-level enforcement (PreToolUse + UserPromptSubmit hooks) ----
 
 func TestInstall_WithProjectRoot_RegistersUserPromptSubmitHook(t *testing.T) {
 	t.Parallel()
@@ -390,7 +390,7 @@ func TestInstall_WithProjectRoot_DoesNotWriteCLAUDEMD(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "install should not create CLAUDE.md")
 }
 
-func TestInstall_WithProjectRoot_RegistersPreToolCallHook(t *testing.T) {
+func TestInstall_WithProjectRoot_RegistersPreToolUseHook(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
@@ -403,7 +403,7 @@ func TestInstall_WithProjectRoot_RegistersPreToolCallHook(t *testing.T) {
 	// Assert
 	data, err := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "PreToolCall")
+	assert.Contains(t, string(data), "PreToolUse")
 	assert.Contains(t, string(data), "idx-block.sh")
 }
 
@@ -443,7 +443,7 @@ func TestInstall_WithProjectRoot_PreservesExistingProjectSettings(t *testing.T) 
 	content := string(data)
 	assert.Contains(t, content, "theme")
 	assert.Contains(t, content, "Bash(go *)")
-	assert.Contains(t, content, "PreToolCall")
+	assert.Contains(t, content, "PreToolUse")
 }
 
 func TestInstall_WithEmptyProjectRoot_SkipsProjectConfig(t *testing.T) {
@@ -479,6 +479,106 @@ func TestInstall_CopiesHookScriptToClaudeDir(t *testing.T) {
 	info, err := os.Stat(hookPath)
 	require.NoError(t, err, "expected hook script at %q", hookPath)
 	assert.NotZero(t, info.Size(), "expected non-empty hook script")
+}
+
+func TestInstall_CopiesReadHookScriptToClaudeDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, homeDir := newTestEmbedInstaller(t)
+
+	// Act
+	require.NoError(t, installer.Install("claude", ""))
+
+	// Assert
+	hookPath := filepath.Join(homeDir, ".claude", "idx-read-block.sh")
+	info, err := os.Stat(hookPath)
+	require.NoError(t, err, "expected Read hook script at %q", hookPath)
+	assert.NotZero(t, info.Size(), "expected non-empty Read hook script")
+}
+
+func TestInstall_CopiesGrepHookScriptToClaudeDir(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, homeDir := newTestEmbedInstaller(t)
+
+	// Act
+	require.NoError(t, installer.Install("claude", ""))
+
+	// Assert
+	hookPath := filepath.Join(homeDir, ".claude", "idx-grep-block.sh")
+	info, err := os.Stat(hookPath)
+	require.NoError(t, err, "expected Grep hook script at %q", hookPath)
+	assert.NotZero(t, info.Size(), "expected non-empty Grep hook script")
+}
+
+func TestInstall_WithProjectRoot_RegistersReadToolHook(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _ := newTestEmbedInstaller(t)
+	projectDir := t.TempDir()
+
+	// Act
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Assert
+	data, err := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "idx-read-block.sh")
+	assert.Contains(t, string(data), `"Read"`)
+}
+
+func TestInstall_WithProjectRoot_RegistersGrepToolHook(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _ := newTestEmbedInstaller(t)
+	projectDir := t.TempDir()
+
+	// Act
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Assert
+	data, err := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "idx-grep-block.sh")
+	assert.Contains(t, string(data), `"Grep"`)
+}
+
+func TestInstall_WithProjectRoot_DoesNotDuplicateReadHook(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _ := newTestEmbedInstaller(t)
+	projectDir := t.TempDir()
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Act — install again
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Assert
+	data, _ := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
+	assert.Equal(t, 1, strings.Count(string(data), "idx-read-block.sh"),
+		"expected exactly one Read hook entry after two installs")
+}
+
+func TestInstall_WithProjectRoot_DoesNotDuplicateGrepHook(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	installer, _ := newTestEmbedInstaller(t)
+	projectDir := t.TempDir()
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Act — install again
+	require.NoError(t, installer.Install("claude", projectDir))
+
+	// Assert
+	data, _ := os.ReadFile(filepath.Join(projectDir, ".claude", "settings.json"))
+	assert.Equal(t, 1, strings.Count(string(data), "idx-grep-block.sh"),
+		"expected exactly one Grep hook entry after two installs")
 }
 
 func TestInstall_WithProjectRoot_ReturnsErrorWhenProjectSettingsReadFails(t *testing.T) {

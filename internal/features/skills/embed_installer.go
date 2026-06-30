@@ -16,14 +16,23 @@ const (
 	assetClaudeProjectDir = "claude-project"
 	assetHookSrc          = "assets/idx/claude-project/block-shell-tools.sh"
 	assetContextHookSrc   = "assets/idx/claude-project/context-hook.sh"
+	assetReadHookSrc      = "assets/idx/claude-project/block-read-tool.sh"
+	assetGrepHookSrc      = "assets/idx/claude-project/block-grep-tool.sh"
 	skillName             = "idx"
 	claudePermission      = "Bash(idx *)"
 	projectHookName       = "idx-block.sh"
 	contextHookName       = "idx-context-hook.sh"
+	readHookName          = "idx-read-block.sh"
+	grepHookName          = "idx-grep-block.sh"
 	projectHookCommand    = "~/.claude/" + projectHookName
 	contextHookCommand    = "~/.claude/" + contextHookName
-	hookEventPreToolCall  = "PreToolCall"
+	readHookCommand       = "~/.claude/" + readHookName
+	grepHookCommand       = "~/.claude/" + grepHookName
+	hookEventPreToolCall  = "PreToolUse"
 	hookEventUserPrompt   = "UserPromptSubmit"
+	matcherBash           = "Bash"
+	matcherRead           = "Read"
+	matcherGrep           = "Grep"
 	editorClaude          = "claude"
 	claudeDir             = ".claude"
 )
@@ -115,7 +124,7 @@ func (i *EmbedSkillsInstaller) copyEntry(srcPath string, d fs.DirEntry, targetDi
 }
 
 // configureClaude patches ~/.claude/settings.json to allow Bash(idx *) permissions
-// and installs both enforcement hook scripts to ~/.claude/.
+// and installs all enforcement hook scripts to ~/.claude/.
 func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
 	settingsPath := filepath.Join(homeDir, claudeDir, "settings.json")
 	settings, err := i.loadClaudeSettings(settingsPath)
@@ -128,20 +137,18 @@ func (i *EmbedSkillsInstaller) configureClaude(homeDir string) error {
 			return err
 		}
 	}
-	if err := i.installHookScript(homeDir); err != nil {
-		return err
+	scripts := []struct{ src, name string }{
+		{assetHookSrc, projectHookName},
+		{assetContextHookSrc, contextHookName},
+		{assetReadHookSrc, readHookName},
+		{assetGrepHookSrc, grepHookName},
 	}
-	return i.installContextHookScript(homeDir)
-}
-
-// installHookScript copies the embedded PreToolCall hook to ~/.claude/idx-block.sh.
-func (i *EmbedSkillsInstaller) installHookScript(homeDir string) error {
-	return i.installEmbeddedScript(assetHookSrc, filepath.Join(homeDir, claudeDir, projectHookName))
-}
-
-// installContextHookScript copies the embedded UserPromptSubmit hook to ~/.claude/idx-context-hook.sh.
-func (i *EmbedSkillsInstaller) installContextHookScript(homeDir string) error {
-	return i.installEmbeddedScript(assetContextHookSrc, filepath.Join(homeDir, claudeDir, contextHookName))
+	for _, s := range scripts {
+		if err := i.installEmbeddedScript(s.src, filepath.Join(homeDir, claudeDir, s.name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) error {
@@ -155,21 +162,28 @@ func (i *EmbedSkillsInstaller) installEmbeddedScript(assetSrc, destPath string) 
 	return i.writeFile(destPath, data, 0750)
 }
 
-// configureClaudeProject registers the PreToolCall and UserPromptSubmit hooks
-// in the project's .claude/settings.json. No project files are modified beyond that.
+// configureClaudeProject registers PreToolUse hooks (Bash, Read, Grep) and the
+// UserPromptSubmit hook in the project's .claude/settings.json.
 // Hook commands use literal "~" so the file is portable and can be versioned.
 func (i *EmbedSkillsInstaller) configureClaudeProject(projectRoot string) error {
 	projectSettingsPath := filepath.Join(projectRoot, claudeDir, "settings.json")
-	if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, projectHookCommand, true); err != nil {
-		return err
+	preToolHooks := []struct{ cmd, matcher string }{
+		{projectHookCommand, matcherBash},
+		{readHookCommand, matcherRead},
+		{grepHookCommand, matcherGrep},
 	}
-	return i.upsertProjectHook(projectSettingsPath, hookEventUserPrompt, contextHookCommand, false)
+	for _, h := range preToolHooks {
+		if err := i.upsertProjectHook(projectSettingsPath, hookEventPreToolCall, h.cmd, h.matcher); err != nil {
+			return err
+		}
+	}
+	return i.upsertProjectHook(projectSettingsPath, hookEventUserPrompt, contextHookCommand, "")
 }
 
 // upsertProjectHook registers a hook command under the given event type in the project
-// .claude/settings.json. withMatcher adds a "matcher":"Bash" field (used for PreToolCall).
+// .claude/settings.json. matcher sets the "matcher" field when non-empty (PreToolUse hooks).
 // It is idempotent: running it again does not add a duplicate entry.
-func (i *EmbedSkillsInstaller) upsertProjectHook(path, eventType, hookCmd string, withMatcher bool) error {
+func (i *EmbedSkillsInstaller) upsertProjectHook(path, eventType, hookCmd, matcher string) error {
 	settings, err := i.loadClaudeSettings(path)
 	if err != nil {
 		return err
@@ -177,11 +191,11 @@ func (i *EmbedSkillsInstaller) upsertProjectHook(path, eventType, hookCmd string
 	if hookEntryExists(settings, eventType, hookCmd) {
 		return nil
 	}
-	addHookEntry(settings, eventType, hookCmd, withMatcher)
+	addHookEntry(settings, eventType, hookCmd, matcher)
 	return i.saveClaudeSettings(path, settings)
 }
 
-func hookEntryExists(settings map[string]interface{}, eventType, hookCmd string) bool {
+func hookEntryExists(settings map[string]any, eventType, hookCmd string) bool {
 	for _, entry := range hookEventEntries(settings, eventType) {
 		if hooksSliceContains(entry, hookCmd) {
 			return true
@@ -190,47 +204,47 @@ func hookEntryExists(settings map[string]interface{}, eventType, hookCmd string)
 	return false
 }
 
-func addHookEntry(settings map[string]interface{}, eventType, hookCmd string, withMatcher bool) {
+func addHookEntry(settings map[string]any, eventType, hookCmd, matcher string) {
 	hooks := hooksSectionMap(settings)
 	entries := hookEventEntries(settings, eventType)
-	newEntry := map[string]interface{}{
-		"hooks": []interface{}{
-			map[string]interface{}{"type": "command", "command": hookCmd},
+	newEntry := map[string]any{
+		"hooks": []any{
+			map[string]any{"type": "command", "command": hookCmd},
 		},
 	}
-	if withMatcher {
-		newEntry["matcher"] = "Bash"
+	if matcher != "" {
+		newEntry["matcher"] = matcher
 	}
 	hooks[eventType] = append(entries, newEntry)
 	settings["hooks"] = hooks
 }
 
-func hooksSectionMap(settings map[string]interface{}) map[string]interface{} {
-	if h, ok := settings["hooks"].(map[string]interface{}); ok {
+func hooksSectionMap(settings map[string]any) map[string]any {
+	if h, ok := settings["hooks"].(map[string]any); ok {
 		return h
 	}
-	return map[string]interface{}{}
+	return map[string]any{}
 }
 
-func hookEventEntries(settings map[string]interface{}, eventType string) []interface{} {
+func hookEventEntries(settings map[string]any, eventType string) []any {
 	h := hooksSectionMap(settings)
-	if entries, ok := h[eventType].([]interface{}); ok {
+	if entries, ok := h[eventType].([]any); ok {
 		return entries
 	}
-	return []interface{}{}
+	return []any{}
 }
 
-func hooksSliceContains(entry interface{}, hookCmd string) bool {
-	m, ok := entry.(map[string]interface{})
+func hooksSliceContains(entry any, hookCmd string) bool {
+	m, ok := entry.(map[string]any)
 	if !ok {
 		return false
 	}
-	hooks, ok := m["hooks"].([]interface{})
+	hooks, ok := m["hooks"].([]any)
 	if !ok {
 		return false
 	}
 	for _, h := range hooks {
-		hm, ok := h.(map[string]interface{})
+		hm, ok := h.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -241,7 +255,7 @@ func hooksSliceContains(entry interface{}, hookCmd string) bool {
 	return false
 }
 
-func (i *EmbedSkillsInstaller) loadClaudeSettings(path string) (map[string]interface{}, error) {
+func (i *EmbedSkillsInstaller) loadClaudeSettings(path string) (map[string]any, error) {
 	data, err := i.readFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return defaultClaudeSettings(), nil
@@ -249,20 +263,20 @@ func (i *EmbedSkillsInstaller) loadClaudeSettings(path string) (map[string]inter
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %q: %w", path, err)
 	}
-	var settings map[string]interface{}
+	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, fmt.Errorf("failed to parse %q: %w", path, err)
 	}
 	return settings, nil
 }
 
-func defaultClaudeSettings() map[string]interface{} {
-	return map[string]interface{}{
-		"permissions": map[string]interface{}{"allow": []interface{}{}},
+func defaultClaudeSettings() map[string]any {
+	return map[string]any{
+		"permissions": map[string]any{"allow": []any{}},
 	}
 }
 
-func hasClaudePermission(settings map[string]interface{}) bool {
+func hasClaudePermission(settings map[string]any) bool {
 	for _, p := range claudeAllowList(settings) {
 		if p == claudePermission {
 			return true
@@ -271,27 +285,27 @@ func hasClaudePermission(settings map[string]interface{}) bool {
 	return false
 }
 
-func addClaudePermission(settings map[string]interface{}) {
+func addClaudePermission(settings map[string]any) {
 	perms := claudePermissionsMap(settings)
 	perms["allow"] = append(claudeAllowList(settings), claudePermission)
 	settings["permissions"] = perms
 }
 
-func claudePermissionsMap(settings map[string]interface{}) map[string]interface{} {
-	if p, ok := settings["permissions"].(map[string]interface{}); ok {
+func claudePermissionsMap(settings map[string]any) map[string]any {
+	if p, ok := settings["permissions"].(map[string]any); ok {
 		return p
 	}
-	return map[string]interface{}{}
+	return map[string]any{}
 }
 
-func claudeAllowList(settings map[string]interface{}) []interface{} {
-	if allow, ok := claudePermissionsMap(settings)["allow"].([]interface{}); ok {
+func claudeAllowList(settings map[string]any) []any {
+	if allow, ok := claudePermissionsMap(settings)["allow"].([]any); ok {
 		return allow
 	}
-	return []interface{}{}
+	return []any{}
 }
 
-func (i *EmbedSkillsInstaller) saveClaudeSettings(path string, settings map[string]interface{}) error {
+func (i *EmbedSkillsInstaller) saveClaudeSettings(path string, settings map[string]any) error {
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)

@@ -51,6 +51,7 @@ user-invocable: true
 - The user asks where something is defined, used, imported, or referenced.
 - The user asks "find all X", "search for Y", "where is Z", or similar.
 - The user asks you to read or open a file in the repository.
+- The user is editing a file and wants to discover related or contextually coupled files — use `idx related <file>`.
 
 **SKIP — do NOT invoke this skill when:**
 - Filtering the **output of a command** through a pipe — the source must be a command, not a file (e.g. `go build 2>&1 | grep error`, `ls | grep -v _test.go`, `some_cmd | grep pattern`).
@@ -91,6 +92,8 @@ user-invocable: true
 - Use `idx destroy` only with explicit user confirmation.
 - Use `idx inspect` to examine raw index payloads when diagnosing index content.
 - Use `idx status --profile` for a detailed per-directory index report when the user wants to audit coverage.
+- Use `idx related <file>` to discover contextually related files when the user is editing or needs to understand coupling. Add `--format json` for programmatic use or `--limit N` to constrain output.
+- Use `idx search --since <ref>` to restrict results to files changed since a git ref (branch, commit SHA, tag, `HEAD~N`) when the user wants to scope a search to recent changes.
 
 ## Procedure
 
@@ -145,8 +148,10 @@ Then add flags as needed:
 8. Need more results? Use `--skip 2`, `--skip 4`, etc. to paginate (each page shows 2 results with `--limit 2`).
 9. Need file-level overview first? Use `--files-only` (combine with `--compact`, `--limit 2`, `--ext`).
 10. Need surrounding code context? Use `--context N`.
-11. User wants to audit index content? Use `idx inspect [path]`.
-12. User wants to remove index? Use `idx destroy` only after explicit confirmation.
+11. User is editing a file and wants related files? Use `idx related <file>`.
+12. User wants search scoped to recent changes? Use `idx search --since <ref>`.
+13. User wants to audit index content? Use `idx inspect [path]`.
+14. User wants to remove index? Use `idx destroy` only after explicit confirmation.
 
 ## Reference Commands
 
@@ -172,3 +177,5 @@ See [idx-commands.md](./references/idx-commands.md).
 - `idx status --profile` is used for detailed coverage audits when requested.
 - `idx destroy` is used only under explicit user request/confirmation.
 - Index integrity/sync is evaluated with `status` when stale index is suspected.
+- `idx related <file>` is used when the user is editing a file and wants to discover related or coupled files.
+- `idx search --since <ref>` is used when the user wants to scope results to files changed since a git ref.

@@ -4,6 +4,7 @@ All stable releases of idx. Each entry links to the full release notes.
 
 | Version | Date | Highlights |
 |---|---|---|
+| [v0.10.0](v0.10.0.md) | June 30, 2026 | `idx related` command, `idx search --since`, 4 enforcement hooks for Claude, 14 config keys |
 | [v0.9.0](v0.9.0.md) | June 26, 2026 | `idx read --compact`, project-level Claude enforcement hooks, skill-lint CI, skill renamed to `idx` |
 | [v0.8.0](v0.8.0.md) | June 11, 2026 | `idx agent` rename, `idx init` bootstrap fix, relaxation as int, `--hits` removed |
 | [v0.7.0](v0.7.0.md) | June 1, 2026 | Search flag expansion, `idx watch` removed, read popularity boost, `idx config` |

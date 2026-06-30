@@ -32,4 +32,6 @@ type Options struct {
 	RelaxationEnabled      bool
 	RelaxationMinExclusive int
 	PopularityWeight       float64
+	// Since restricts results to files changed since the given git ref (e.g. HEAD~1, main).
+	Since string
 }

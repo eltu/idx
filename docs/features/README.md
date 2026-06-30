@@ -8,6 +8,7 @@ Detailed end-user command reference, organized by command.
 - [sync](sync.md)
 - [status](status.md)
 - [search](search.md)
+- [related](related.md)
 - [read](read.md)
 - [inspect](inspect.md)
 - [destroy](destroy.md)
@@ -32,7 +33,7 @@ All commands inherit the root global flags:
 | --- | --- |
 | Index Setup | `init`, `destroy` |
 | Index Sync | `sync` / `update`, `status` |
-| Search | `search` / `find`, `inspect`, `read` / `open` / `cat` |
+| Search | `search` / `find`, `related`, `inspect`, `read` / `open` / `cat` |
 | About | `version` |
 | Tools | `skills`, `agent` |
 | Config | `config show`, `config get` |

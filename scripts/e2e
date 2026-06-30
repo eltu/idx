@@ -1,0 +1,507 @@
+#!/usr/bin/env bash
+# scripts/e2e — Testes end-to-end do idx CLI.
+# Cobre: agent, init, sync, status, search, read, related, config, skills, version.
+# Uso: bash scripts/e2e [--no-rebuild]
+#
+# Saída:  ✓ verde para cada teste que passa, ✗ vermelho para os que falham.
+# Exit:   0 se todos passam, 1 se qualquer teste falhar.
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+# ── Configuração ─────────────────────────────────────────────────────────────
+BINARY="${PWD}/bin/idx"
+REBUILD=true
+[[ "${1:-}" == "--no-rebuild" ]] && REBUILD=false
+
+# ── Cores ────────────────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'
+BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
+
+# ── Contadores ───────────────────────────────────────────────────────────────
+PASS=0; FAIL=0
+declare -a FAILURES=()
+
+# ── Helpers de output ────────────────────────────────────────────────────────
+section()  { echo -e "\n${BOLD}▸ $*${RESET}"; }
+pass_msg() { PASS=$((PASS+1)); echo -e "  ${GREEN}✓${RESET} $1"; }
+fail_msg() { FAIL=$((FAIL+1)); FAILURES+=("$1 → $2")
+             echo -e "  ${RED}✗${RESET} $1\n    ${DIM}$2${RESET}"; }
+
+# ── Assertions ───────────────────────────────────────────────────────────────
+
+# assert_contains NAME SUBSTR CMD [args...]
+assert_contains() {
+  local name="$1" want="$2"; shift 2
+  local out; out=$("$@" 2>&1) || true
+  if printf '%s' "${out}" | grep -qF "${want}"; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "esperado '${want}', recebeu: $(printf '%s' "${out}" | head -2 | tr '\n' '|')"
+  fi
+}
+
+# assert_not_contains NAME SUBSTR CMD [args...]
+assert_not_contains() {
+  local name="$1" bad="$2"; shift 2
+  local out; out=$("$@" 2>&1) || true
+  if ! printf '%s' "${out}" | grep -qF "${bad}"; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "não deveria conter '${bad}': $(printf '%s' "${out}" | grep -F "${bad}" | head -1)"
+  fi
+}
+
+# assert_exit_ok NAME CMD [args...]
+assert_exit_ok() {
+  local name="$1"; shift
+  if "$@" >/dev/null 2>&1; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "esperava exit 0, mas falhou"
+  fi
+}
+
+# assert_exit_fail NAME CMD [args...]
+assert_exit_fail() {
+  local name="$1"; shift
+  local code=0
+  "$@" >/dev/null 2>&1 || code=$?
+  if [[ "${code}" -ne 0 ]]; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "esperava exit não-zero, mas saiu com 0"
+  fi
+}
+
+# assert_json NAME CMD [args...]
+assert_json() {
+  local name="$1"; shift
+  local out; out=$("$@" 2>&1) || true
+  if printf '%s' "${out}" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "saída não é JSON válido: $(printf '%s' "${out}" | head -1)"
+  fi
+}
+
+# assert_no_line_with NAME PATTERN CMD [args...]
+# Falha se qualquer linha do output casa com PATTERN (ERE).
+assert_no_line_with() {
+  local name="$1" pattern="$2"; shift 2
+  local out; out=$("$@" 2>&1) || true
+  if ! printf '%s' "${out}" | grep -qE "${pattern}"; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "linha inesperada com '${pattern}': $(printf '%s' "${out}" | grep -E "${pattern}" | head -1)"
+  fi
+}
+
+# assert_has_result NAME CMD [args...]
+# Verifica que a saída contém ao menos 1 caminho de arquivo (.go, .md etc.).
+assert_has_result() {
+  local name="$1"; shift
+  local out; out=$("$@" 2>&1) || true
+  if printf '%s' "${out}" | grep -qE '[a-z][a-z0-9_/.-]+\.(go|md|sh|yml|yaml|json|toml)'; then
+    pass_msg "${name}"
+  else
+    fail_msg "${name}" "esperava ao menos 1 documento, recebeu: $(printf '%s' "${out}" | head -2 | tr '\n' '|')"
+  fi
+}
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+section "Build"
+if [[ "${REBUILD}" == true ]]; then
+  echo -e "  ${DIM}compilando ./cmd/idx → ${BINARY}${RESET}"
+  if go build -o "${BINARY}" ./cmd/idx/ 2>&1; then
+    pass_msg "build do binário"
+  else
+    fail_msg "build do binário" "falha na compilação"
+    echo -e "\n${RED}Build falhou — abortando.${RESET}"
+    exit 1
+  fi
+else
+  echo -e "  ${DIM}--no-rebuild: usando binário existente em ${BINARY}${RESET}"
+fi
+
+IDX="${BINARY}"
+
+# ── Agent ─────────────────────────────────────────────────────────────────────
+section "Agent"
+echo -e "  ${DIM}reiniciando agente para estado limpo...${RESET}"
+"${IDX}" agent stop >/dev/null 2>&1 || true
+sleep 1
+"${IDX}" agent start >/dev/null 2>&1
+sleep 1
+
+assert_contains "agent start → running" "Agent running" \
+  "${IDX}" agent status
+
+assert_exit_ok "server (alias de agent) status" \
+  "${IDX}" server status
+
+assert_exit_ok "agent stop funciona" \
+  "${IDX}" agent stop
+
+sleep 0.5
+assert_not_contains "agent status após stop → não 'running'" "Agent running" \
+  "${IDX}" agent status
+
+"${IDX}" agent start >/dev/null 2>&1
+sleep 1
+assert_contains "agent restart → running" "Agent running" \
+  "${IDX}" agent status
+
+# ── Init ──────────────────────────────────────────────────────────────────────
+section "Init"
+
+assert_exit_ok "idx init não retorna erro" \
+  "${IDX}" init
+
+assert_exit_ok "idx init reexecução (idempotente) não crasha" \
+  "${IDX}" init
+
+# ── Sync & Status ─────────────────────────────────────────────────────────────
+section "Sync & Status"
+
+assert_contains "idx sync → 'synchronized'" "synchronized" \
+  "${IDX}" sync
+
+assert_contains "idx sync segundo run → 'up to date'" "up to date" \
+  "${IDX}" sync
+
+assert_exit_ok "idx update (alias de sync) funciona" \
+  "${IDX}" update
+
+assert_contains "idx status → 'up to date'" "up to date" \
+  "${IDX}" status
+
+assert_exit_ok "idx status --profile não crasha" \
+  "${IDX}" status --profile
+
+# syncAllDirectoriesBeforeWatch resincroniza na inicialização do servidor,
+# tornando o cenário stale impossível de reproduzir via E2E com servidor ativo.
+# Cobrimos detecção de stale via unit tests (mais confiável):
+stale_unit=$(go test -v -run "TestStatus_FailsWhenFileChangedAfterLastIndex|TestStatus_FailsWhenNewDirectoryIsNotIndexed" ./internal/features/indexing/ 2>&1) || true
+if printf '%s' "${stale_unit}" | grep -qF "PASS"; then
+  pass_msg "status stale detectado corretamente (unit tests de indexação)"
+else
+  fail_msg "status stale detectado corretamente (unit tests de indexação)" \
+    "$(printf '%s' "${stale_unit}" | tail -5 | tr '\n' '|')"
+fi
+
+# ── Search — output flags ──────────────────────────────────────────────────────
+section "Search — output flags"
+
+assert_has_result "search básica retorna resultados" \
+  "${IDX}" search "BM25Score" --compact --limit 3
+
+assert_contains "search --files-only retorna caminhos" "internal/" \
+  "${IDX}" search "BM25Score" --files-only --compact --limit 5
+assert_has_result "search --files-only retorna ao menos 1 documento" \
+  "${IDX}" search "BM25Score" --files-only --compact --limit 5
+assert_no_line_with "search --files-only sem linhas número:conteúdo" \
+  "^[0-9]+:" \
+  "${IDX}" search "BM25Score" --files-only --compact --limit 5
+
+assert_json "search --format json" \
+  "${IDX}" search "BM25" --format json --compact --limit 2
+assert_json "search --json (shorthand)" \
+  "${IDX}" search "BM25" --json --limit 2
+assert_json "search --json --pretty" \
+  "${IDX}" search "BM25" --json --pretty --limit 1
+
+assert_contains "search --explain contém score" "score" \
+  "${IDX}" search "BM25" --explain --compact --limit 1
+assert_exit_ok "search --time funciona" \
+  "${IDX}" search "BM25" --time --compact --limit 1
+
+count_out=$("${IDX}" search "BM25Score" --count --compact 2>&1)
+if printf '%s' "${count_out}" | grep -qE '^[0-9]+$'; then
+  pass_msg "search --count retorna apenas um número inteiro"
+else
+  fail_msg "search --count retorna apenas um número inteiro" "recebeu: ${count_out}"
+fi
+
+# ── Search — filter flags ──────────────────────────────────────────────────────
+section "Search — filter flags"
+
+assert_contains "search --path filtra por caminho" "internal/" \
+  "${IDX}" search "index" --path "internal/features/search/*" --compact --limit 3
+assert_has_result "search --path retorna ao menos 1 documento" \
+  "${IDX}" search "index" --path "internal/features/search/*" --compact --limit 3
+
+assert_contains "search --ext .go filtra extensão" ".go" \
+  "${IDX}" search "BM25" --ext .go --files-only --compact --limit 3
+
+assert_contains "search --since HEAD~1 retorna arquivos" "internal/" \
+  "${IDX}" search "gitutil" --since HEAD~1 --compact --limit 5
+assert_has_result "search --since HEAD~1 retorna ao menos 1 documento" \
+  "${IDX}" search "gitutil" --since HEAD~1 --compact --limit 5
+
+assert_contains "search --since SHA explícito funciona" "internal/" \
+  "${IDX}" search "CoChangedFiles" --since 9f50d35 --compact --limit 5
+assert_has_result "search --since SHA explícito retorna ao menos 1 documento" \
+  "${IDX}" search "CoChangedFiles" --since 9f50d35 --compact --limit 5
+
+assert_contains "search --since ref inválida → erro com 'invalid git ref'" "invalid git ref" \
+  "${IDX}" search "service" --since "ref-inexistente-xyz" --compact --limit 2
+assert_contains "search --since ref inválida → menciona a ref" "ref-inexistente-xyz" \
+  "${IDX}" search "service" --since "ref-inexistente-xyz" --compact --limit 2
+
+# ── Search — ranking flags ────────────────────────────────────────────────────
+section "Search — ranking flags"
+
+assert_exit_ok "search --operator AND funciona" \
+  "${IDX}" search "BM25 score" --operator AND --compact --limit 2
+assert_exit_ok "search --operator OR funciona" \
+  "${IDX}" search "BM25 score" --operator OR --compact --limit 2
+assert_exit_ok "search --any (shorthand de OR) funciona" \
+  "${IDX}" search "BM25 score" --any --compact --limit 2
+assert_exit_ok "search --relax N funciona" \
+  "${IDX}" search "BM25 score weight" --relax 2 --compact --limit 2
+assert_exit_ok "search --popularity-weight funciona" \
+  "${IDX}" search "BM25" --popularity-weight 0.5 --compact --limit 2
+
+# ── Search — pagination ───────────────────────────────────────────────────────
+section "Search — pagination"
+
+assert_exit_ok "search --limit funciona" \
+  "${IDX}" search "BM25" --limit 3 --compact
+assert_exit_ok "search --skip + --limit funciona" \
+  "${IDX}" search "BM25" --skip 2 --limit 2 --compact
+
+first_page=$("${IDX}" search "BM25" --limit 1 --compact 2>&1)
+second_page=$("${IDX}" search "BM25" --skip 1 --limit 1 --compact 2>&1)
+if [[ "${first_page}" != "${second_page}" ]]; then
+  pass_msg "search --skip desloca página (resultados distintos)"
+else
+  fail_msg "search --skip desloca página" "primeira e segunda página são idênticas"
+fi
+
+# Flags deprecated não devem crashar
+assert_exit_ok "search --size (deprecated) não crasha" \
+  "${IDX}" search "BM25" --size 3 --compact
+assert_exit_ok "search --from (deprecated) não crasha" \
+  "${IDX}" search "BM25" --from 1 --compact
+
+# ── Search — sem resultados ───────────────────────────────────────────────────
+section "Search — sem resultados"
+
+# --ext .go restringe à Go files onde o termo não existe (evita encontrar scripts/e2e)
+assert_exit_ok "search sem resultados não crasha" \
+  "${IDX}" search "xyznonexistentterm999" --ext .go --compact --limit 2
+assert_contains "search sem resultados → 'No results'" "No results" \
+  "${IDX}" search "xyznonexistentterm999" --ext .go --compact --limit 2
+assert_exit_ok "search --files-only sem resultados não crasha" \
+  "${IDX}" search "xyznonexistentterm999" --ext .go --files-only --compact --limit 2
+assert_exit_ok "search --since sem resultados não crasha" \
+  "${IDX}" search "xyznonexistentterm999" --ext .go --since HEAD~1 --compact --limit 2
+
+count_zero=$("${IDX}" search "xyznonexistentterm999" --ext .go --count --compact 2>&1) || true
+if printf '%s' "${count_zero}" | grep -qE '^0$'; then
+  pass_msg "search --count zero resultados retorna 0"
+else
+  fail_msg "search --count zero resultados retorna 0" "recebeu: ${count_zero}"
+fi
+
+# ── Search — flags inválidas ──────────────────────────────────────────────────
+section "Search — flags inválidas"
+
+assert_exit_fail "search --context -1 retorna erro" \
+  "${IDX}" search "BM25" --context -1 --compact --limit 1
+assert_exit_fail "search --format inválido retorna erro" \
+  "${IDX}" search "BM25" --format xml --compact --limit 1
+assert_exit_fail "search --operator inválido retorna erro" \
+  "${IDX}" search "BM25" --operator XOR --compact --limit 1
+
+# ── Read ──────────────────────────────────────────────────────────────────────
+section "Read"
+
+assert_exit_ok "idx read lê arquivo" \
+  "${IDX}" read internal/features/search/service.go --compact
+assert_contains "idx read retorna conteúdo Go" "package" \
+  "${IDX}" read internal/features/search/service.go --compact
+
+assert_exit_ok "idx read --start/--end funciona" \
+  "${IDX}" read internal/features/search/service.go --start 1 --end 20 --compact
+
+assert_exit_ok "idx open (alias de read) funciona" \
+  "${IDX}" open internal/features/search/service.go --compact
+assert_exit_ok "idx cat (alias de read) funciona" \
+  "${IDX}" cat internal/features/search/service.go --compact
+
+# --compact suprime o header decorativo; conteúdo Go começa direto com "package"
+compact_read=$("${IDX}" read internal/features/search/service.go --compact 2>&1)
+if printf '%s' "${compact_read}" | head -1 | grep -qE '^package '; then
+  pass_msg "idx read --compact: primeira linha é 'package ...'"
+else
+  fail_msg "idx read --compact: primeira linha é 'package ...'" \
+    "recebeu: $(printf '%s' "${compact_read}" | head -1)"
+fi
+
+# ── Related ───────────────────────────────────────────────────────────────────
+section "Related — resultados"
+
+assert_contains "related retorna caminhos" "internal/" \
+  "${IDX}" related internal/features/related/service.go --limit 5
+assert_has_result "related retorna ao menos 1 documento" \
+  "${IDX}" related internal/features/related/service.go --limit 5
+
+assert_contains "related gitutil.go → resultados" "internal/" \
+  "${IDX}" related internal/shared/gitutil/gitutil.go --limit 5
+assert_has_result "related gitutil.go → ao menos 1 documento" \
+  "${IDX}" related internal/shared/gitutil/gitutil.go --limit 5
+
+section "Related — formato e campos"
+
+assert_json "related --format json → JSON válido" \
+  "${IDX}" related internal/features/related/service.go --format json --limit 3
+assert_contains "related json tem campo 'path'" '"path"' \
+  "${IDX}" related internal/features/related/service.go --format json --limit 3
+assert_contains "related json tem campo 'score'" '"score"' \
+  "${IDX}" related internal/features/related/service.go --format json --limit 3
+assert_contains "related json tem campo 'reason'" '"reason"' \
+  "${IDX}" related internal/features/related/service.go --format json --limit 3
+
+reason_out=$("${IDX}" related internal/features/related/service.go --format json --limit 5 2>&1)
+if printf '%s' "${reason_out}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+valid = {'git','co-read','term-overlap','both'}
+bad = [r['reason'] for r in data if r.get('reason') not in valid]
+sys.exit(1 if bad else 0)
+" 2>/dev/null; then
+  pass_msg "related reasons válidos (git / co-read / term-overlap / both)"
+else
+  fail_msg "related reasons válidos" "reason inesperado em: ${reason_out}"
+fi
+
+compact_rel=$("${IDX}" related internal/features/related/service.go --compact --limit 3 2>&1)
+if printf '%s' "${compact_rel}" | grep -qE '^  '; then
+  fail_msg "related --compact sem padding de alinhamento" \
+    "linha com espaço inicial: $(printf '%s' "${compact_rel}" | head -1)"
+else
+  pass_msg "related --compact sem padding de alinhamento"
+fi
+
+section "Related — filtros e paginação"
+
+ext_out=$("${IDX}" related internal/features/related/service.go --ext .go --compact --limit 10 2>&1)
+if printf '%s' "${ext_out}" | grep -vE '\.go$|No related' | grep -qE '.'; then
+  fail_msg "related --ext .go → somente .go" \
+    "extensão diferente: $(printf '%s' "${ext_out}" | grep -vE '\.go$|No related' | head -1)"
+else
+  pass_msg "related --ext .go → somente arquivos .go"
+fi
+
+assert_exit_ok "related --since válido não crasha" \
+  "${IDX}" related internal/features/related/service.go --since HEAD~2 --limit 5
+
+first_rel=$("${IDX}" related internal/features/related/service.go --compact --limit 1 2>&1)
+skip_rel=$("${IDX}" related internal/features/related/service.go --compact --limit 1 --skip 1 2>&1)
+if [[ "${first_rel}" != "${skip_rel}" ]]; then
+  pass_msg "related --skip desloca resultados (distintos)"
+else
+  fail_msg "related --skip desloca resultados" "primeiro e segundo resultado são idênticos"
+fi
+
+section "Related — sem resultados"
+
+assert_exit_ok "related arquivo inexistente não crasha" \
+  "${IDX}" related internal/nonexistent/ghost.go
+assert_contains "related arquivo inexistente → 'No related'" "No related" \
+  "${IDX}" related internal/nonexistent/ghost.go
+
+assert_contains "related --ext .rb sem match → 'No related'" "No related" \
+  "${IDX}" related internal/features/related/service.go --ext .rb --compact --limit 5
+
+# ── Config ────────────────────────────────────────────────────────────────────
+section "Config"
+
+assert_exit_ok "config show não crasha" \
+  "${IDX}" config show
+assert_contains "config show menciona .idx.yml" "idx.yml" \
+  "${IDX}" config show
+
+assert_exit_ok "config get bm25.k1 funciona" \
+  "${IDX}" config get bm25.k1
+assert_exit_ok "config get watch.debounce funciona" \
+  "${IDX}" config get watch.debounce
+assert_exit_ok "config get bm25.popularity_weight funciona" \
+  "${IDX}" config get bm25.popularity_weight
+
+# ── Skills ────────────────────────────────────────────────────────────────────
+section "Skills"
+
+assert_exit_ok "skills --help não crasha" \
+  "${IDX}" skills --help
+assert_exit_ok "skills install --help não crasha" \
+  "${IDX}" skills install --help
+assert_contains "skills install --help lista editor 'claude'" "claude" \
+  "${IDX}" skills install --help
+assert_contains "skills install --help lista editor 'copilot'" "copilot" \
+  "${IDX}" skills install --help
+assert_contains "skills install --help lista editor 'cursor'" "cursor" \
+  "${IDX}" skills install --help
+
+# ── Version ───────────────────────────────────────────────────────────────────
+section "Version"
+
+assert_exit_ok "idx version não crasha" \
+  "${IDX}" version
+assert_contains "idx version exibe 'IDX'" "IDX" \
+  "${IDX}" version
+
+# ── Global flags ──────────────────────────────────────────────────────────────
+section "Global flags"
+
+assert_exit_ok "IDX_LOG_LEVEL=debug não impede comando" \
+  env IDX_LOG_LEVEL=debug "${IDX}" agent status
+assert_exit_ok "IDX_LOG_LEVEL=invalid usa fallback sem crashar" \
+  env IDX_LOG_LEVEL=invalid "${IDX}" agent status
+assert_exit_ok "--quiet suprime output" \
+  "${IDX}" search "BM25" --quiet --compact --limit 1
+
+log_dir="${HOME}/.idx/logs"
+if [[ -d "${log_dir}" ]]; then
+  pass_msg "diretório de logs criado (${log_dir})"
+else
+  fail_msg "diretório de logs criado" "${log_dir} não encontrado"
+fi
+
+# ── Smoke test integrado ──────────────────────────────────────────────────────
+section "Smoke test integrado"
+smoke_ok=true
+"${IDX}" sync >/dev/null 2>&1                                                              || smoke_ok=false
+"${IDX}" search "CoChangedFiles" --compact --limit 2 >/dev/null 2>&1                      || smoke_ok=false
+"${IDX}" search "candidateScore" --files-only --compact --limit 5 >/dev/null 2>&1         || smoke_ok=false
+"${IDX}" search "BM25" --since HEAD~3 --compact --limit 2 >/dev/null 2>&1                 || smoke_ok=false
+"${IDX}" related internal/features/related/service.go --compact --limit 5 >/dev/null 2>&1 || smoke_ok=false
+"${IDX}" related internal/shared/gitutil/gitutil.go --format json --limit 3 >/dev/null 2>&1 || smoke_ok=false
+"${IDX}" read internal/features/search/service.go --compact >/dev/null 2>&1               || smoke_ok=false
+"${IDX}" config show >/dev/null 2>&1                                                       || smoke_ok=false
+
+if [[ "${smoke_ok}" == true ]]; then
+  pass_msg "pipeline completo (sync → search → related → read → config)"
+else
+  fail_msg "pipeline completo" "um ou mais comandos do pipeline falharam"
+fi
+
+# ── Relatório final ───────────────────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+total=$((PASS + FAIL))
+if [[ "${FAIL}" -eq 0 ]]; then
+  echo -e "${GREEN}${BOLD}✅ ${PASS}/${total} testes passaram${RESET}"
+else
+  echo -e "${RED}${BOLD}❌ ${FAIL}/${total} testes falharam${RESET}"
+  echo ""
+  echo -e "${BOLD}Falhas:${RESET}"
+  for f in "${FAILURES[@]}"; do
+    echo -e "  ${RED}•${RESET} ${f}"
+  done
+fi
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+[[ "${FAIL}" -eq 0 ]]

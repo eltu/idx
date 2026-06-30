@@ -37,6 +37,7 @@ idx find   [query terms] [flags]   # alias
 | --- | --- | --- | --- | --- |
 | `--path` | `-p` | string array | `[]` | Repeatable metadata-path filter |
 | `--ext` | `-e` | string array | `[]` | Repeatable extension filter — accepts `go` or `.go` |
+| `--since` | | string | `""` | Restrict results to files changed since a git ref (commit SHA, branch, tag, `HEAD~N`) |
 
 ### Ranking flags
 
@@ -151,6 +152,7 @@ internal/features/search/service.go
 | `--limit` zero when explicitly set | `invalid --limit value ... expected a positive integer` |
 | Unsupported operator | `unsupported --operator value ... expected one of [AND OR]` |
 | `--relax` / `--relaxation` with OR operator | `invalid search.relaxation with --operator "OR": expected "AND"` |
+| `--since` with invalid git ref | `invalid git ref "<ref>": <git stderr>` |
 | Agent not running | `✗ idx agent is not running` |
 
 ## Examples
@@ -194,4 +196,9 @@ idx search --time --explain "BM25 scoring"
 # Metadata-only (no query)
 idx search --ext go
 idx search --path internal/core
+
+# Git-aware: restrict to files changed since a ref
+idx search "error handling" --since HEAD~1
+idx search "middleware" --since main --ext go
+idx search "config" --since abc1234
 ```

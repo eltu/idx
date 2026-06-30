@@ -3,13 +3,16 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 
 	featindexing "idx/internal/features/indexing"
 	featlifecycle "idx/internal/features/lifecycle"
 	featread "idx/internal/features/read"
+	featrelated "idx/internal/features/related"
 	featsearch "idx/internal/features/search"
 	sharedconfig "idx/internal/shared/config"
+	"idx/internal/shared/coread"
 	sharedfs "idx/internal/shared/filesystem"
 	idxipc "idx/internal/shared/ipc"
 	"idx/internal/shared/readlog"
@@ -22,7 +25,12 @@ func (s *indexServer) handleSearch(_ context.Context, params json.RawMessage) (a
 	}
 
 	capture := &captureWriter{}
-	svc := featsearch.NewSearchCommandService(s.deps.ProjectTree, capture, s.deps.FileReader, s.deps.IndexRepo).
+	svc := featsearch.NewSearchCommandService(featsearch.SearchDeps{
+		ProjectTree: s.deps.ProjectTree,
+		Output:      capture,
+		FileReader:  s.deps.FileReader,
+		IndexRepo:   s.deps.IndexRepo,
+	}).
 		WithTuning(s.deps.SearchTuning).
 		WithReadLog(s.deps.ReadLogRepo)
 
@@ -48,7 +56,24 @@ func (s *indexServer) handleRead(_ context.Context, params json.RawMessage) (any
 		return idxipc.ReadResponse{Lines: []string{}}, nil
 	}
 
+	// Best-effort: update co-read matrix so idx related improves over time.
+	if relPath, err := relativeFilePath(req.FilePath, s.deps.ProjectRoot); err == nil {
+		_ = s.deps.CoReadRepo.RecordCoRead(s.deps.ProjectRoot, relPath)
+	}
+
 	return idxipc.ReadResponse{Lines: capture.lines}, nil
+}
+
+// relativeFilePath converts filePath to a forward-slash relative path under projectRoot.
+func relativeFilePath(filePath, projectRoot string) (string, error) {
+	if !filepath.IsAbs(filePath) {
+		return filepath.ToSlash(filePath), nil
+	}
+	rel, err := filepath.Rel(projectRoot, filePath)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 func (s *indexServer) handleInit(_ context.Context, _ json.RawMessage) (any, error) {
@@ -93,6 +118,53 @@ func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, 
 	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
 }
 
+func (s *indexServer) handleRelated(_ context.Context, params json.RawMessage) (any, error) {
+	var req idxipc.RelatedRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, err
+	}
+
+	capture := &captureWriter{}
+	svc := featrelated.NewRelatedCommandService(featrelated.RelatedDeps{
+		ProjectTree: s.deps.ProjectTree,
+		IndexRepo:   s.deps.IndexRepo,
+		CoReadRepo:  s.deps.CoReadRepo,
+		Output:      capture,
+	})
+	opts := featrelated.Options{
+		Format:  featrelated.OutputJSON,
+		Size:    req.Size,
+		Skip:    req.Skip,
+		Since:   req.Since,
+		Ext:     req.Ext,
+		Compact: req.Compact,
+	}
+	if err := svc.Run(req.FilePath, opts); err != nil {
+		return nil, err
+	}
+
+	return parseRelatedJSON(capture.firstLine())
+}
+
+func parseRelatedJSON(line string) (idxipc.RelatedResponse, error) {
+	if line == "" {
+		return idxipc.RelatedResponse{Results: []idxipc.RelatedResult{}}, nil
+	}
+	var results []struct {
+		Path   string  `json:"path"`
+		Score  float64 `json:"score"`
+		Reason string  `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(line), &results); err != nil {
+		return idxipc.RelatedResponse{}, err
+	}
+	out := make([]idxipc.RelatedResult, 0, len(results))
+	for _, r := range results {
+		out = append(out, idxipc.RelatedResult{Path: r.Path, Score: r.Score, Reason: r.Reason})
+	}
+	return idxipc.RelatedResponse{Count: len(out), Results: out}, nil
+}
+
 func (s *indexServer) handleConfig(_ context.Context, _ json.RawMessage) (any, error) {
 	var sb strings.Builder
 	if err := sharedconfig.FormatOutput(&sb, s.deps.Config, s.deps.ConfigFilePath, s.deps.ConfigOverrides); err != nil {
@@ -130,6 +202,7 @@ func searchOptionsFromRequest(req idxipc.SearchRequest) featsearch.Options {
 		PopularityWeight:       req.PopularityWeight,
 		RelaxationEnabled:      req.RelaxationEnabled,
 		RelaxationMinExclusive: req.RelaxationMin,
+		Since:                  req.Since,
 	}
 }
 
@@ -195,8 +268,10 @@ type ServerDeps struct {
 	ChecksumRepo    featindexing.DirectoryChecksumRepository
 	DaemonRepo      featindexing.ProjectMonitorChecker
 	ReadLogRepo     readlog.LogRepository
+	CoReadRepo      coread.MatrixRepository
 	SearchTuning    featsearch.SearchServiceOptions
 	SocketPath      string
+	ProjectRoot     string
 	Config          sharedconfig.IdxConfig
 	ConfigFilePath  string
 	ConfigOverrides []string

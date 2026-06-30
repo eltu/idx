@@ -90,37 +90,27 @@ func (service InitCommandService) Run() error {
 }
 
 func (service InitCommandService) validateDependencies() error {
-	if service.projectTree == nil {
-		return fmt.Errorf("failed to run init command: got nil projectTree dependency, expected non-nil filesystem.ProjectTree")
-	}
+	return validateInitDeps(service)
+}
 
-	if service.matcherFactory == nil {
-		return fmt.Errorf("failed to run init command: got nil matcherFactory dependency, expected non-nil filesystem.IgnoreMatcherBuilder")
+func validateInitDeps(s InitCommandService) error {
+	type dep struct {
+		v          any
+		name, want string
 	}
-
-	if service.output == nil {
-		return fmt.Errorf("failed to run init command: got nil output dependency, expected non-nil output.Writer")
+	for _, d := range []dep{
+		{s.projectTree, "projectTree", "filesystem.ProjectTree"},
+		{s.matcherFactory, "matcherFactory", "filesystem.IgnoreMatcherBuilder"},
+		{s.output, "output", "output.Writer"},
+		{s.fileReader, "fileReader", "filesystem.FileReader"},
+		{s.indexer, "indexer", "Indexer"},
+		{s.indexRepo, "index repository", "IndexRepository"},
+		{s.checksumRepo, "checksum repository", "DirectoryChecksumRepository"},
+		{s.inspectUI, "inspect UI", "InspectUIRunner"},
+	} {
+		if d.v == nil {
+			return fmt.Errorf("failed to run init command: got nil %s dependency, expected non-nil %s", d.name, d.want)
+		}
 	}
-
-	if service.fileReader == nil {
-		return fmt.Errorf("failed to run init command: got nil fileReader dependency, expected non-nil filesystem.FileReader")
-	}
-
-	if service.indexer == nil {
-		return fmt.Errorf("failed to run init command: got nil indexer dependency, expected non-nil Indexer")
-	}
-
-	if service.indexRepo == nil {
-		return fmt.Errorf("failed to run init command: got nil index repository dependency, expected non-nil IndexRepository")
-	}
-
-	if service.checksumRepo == nil {
-		return fmt.Errorf("failed to run init command: got nil checksum repository dependency, expected non-nil DirectoryChecksumRepository")
-	}
-
-	if service.inspectUI == nil {
-		return fmt.Errorf("failed to run init command: got nil inspect UI dependency, expected non-nil InspectUIRunner")
-	}
-
 	return nil
 }

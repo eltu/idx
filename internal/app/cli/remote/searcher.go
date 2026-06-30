@@ -66,6 +66,7 @@ func searchRequestFromOptions(query string, opts featsearch.Options) idxipc.Sear
 		From:              opts.From,
 		RelaxationEnabled: opts.RelaxationEnabled,
 		RelaxationMin:     opts.RelaxationMinExclusive,
+		Since:             opts.Since,
 	}
 }
 

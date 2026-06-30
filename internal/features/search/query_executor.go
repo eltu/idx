@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"idx/internal/features/indexing"
+	"idx/internal/shared/gitutil"
 	"idx/internal/shared/readlog"
 )
 
@@ -127,9 +128,40 @@ func (service SearchCommandService) computeRankedResults(projectRoot string, ter
 		return nil, err
 	}
 
+	var changedFiles map[string]bool
+	if options.Since != "" {
+		changedFiles, err = gitutil.ChangedFilesSince(projectRoot, options.Since)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	popularityMap := service.loadPopularityMap(projectRoot)
 	now := time.Now()
-	return service.rankedResults(directories, terms, options, popularityMap, now)
+	results, err := service.rankedResults(directories, terms, options, popularityMap, now)
+	if err != nil {
+		return nil, err
+	}
+
+	if changedFiles != nil {
+		results = filterByChangedFiles(results, projectRoot, changedFiles)
+	}
+
+	return results, nil
+}
+
+func filterByChangedFiles(results []searchResult, projectRoot string, changedFiles map[string]bool) []searchResult {
+	filtered := make([]searchResult, 0, len(results))
+	for _, r := range results {
+		rel, err := filepath.Rel(projectRoot, filepath.Join(r.directoryPath, r.fileName))
+		if err != nil {
+			continue
+		}
+		if changedFiles[filepath.ToSlash(rel)] {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
 }
 
 func (service SearchCommandService) searchDirectoryIndex(directoryPath string, terms []string, options Options, popularityMap map[string]readlog.LogEntry, now time.Time) ([]searchResult, error) {

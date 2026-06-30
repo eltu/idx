@@ -86,16 +86,24 @@ type matchedLine struct {
 	isMatch    bool
 }
 
+// SearchDeps holds the required collaborators for SearchCommandService.
+type SearchDeps struct {
+	ProjectTree filesystem.ProjectTree
+	Output      output.Writer
+	FileReader  filesystem.FileReader
+	IndexRepo   IndexLoader
+}
+
 // NewSearchCommandService builds the search use case with built-in defaults.
 // Use WithTuning to override BM25 parameters or cache settings from .idx.yml.
-// Example: service := NewSearchCommandService(projectTree, output, fileReader, indexRepo).
-func NewSearchCommandService(projectTree filesystem.ProjectTree, output output.Writer, fileReader filesystem.FileReader, indexRepo IndexLoader) SearchCommandService {
+// Example: service := NewSearchCommandService(SearchDeps{ProjectTree: tree, Output: out, FileReader: fr, IndexRepo: repo}).
+func NewSearchCommandService(deps SearchDeps) SearchCommandService {
 	tuning := defaultSearchTuning()
 	return SearchCommandService{
-		projectTree:  projectTree,
-		output:       output,
-		fileReader:   fileReader,
-		indexRepo:    indexRepo,
+		projectTree:  deps.ProjectTree,
+		output:       deps.Output,
+		fileReader:   deps.FileReader,
+		indexRepo:    deps.IndexRepo,
 		cache:        &searchCache{entries: make(map[string]cacheEntry), ttl: tuning.cacheTTL},
 		cacheEnabled: true,
 		tuning:       tuning,

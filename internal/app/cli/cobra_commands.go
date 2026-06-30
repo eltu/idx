@@ -52,7 +52,7 @@ func (runner CommandRunner) newRootCommand() *cobra.Command {
 
 	addCommandToGroup(root, groupIndexSetup, runner.newInitCommand(), runner.newDestroyCommand())
 	addCommandToGroup(root, groupIndexSync, runner.newSyncCommand(), runner.newStatusCommand())
-	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand(), runner.newReadCommand())
+	addCommandToGroup(root, groupSearch, runner.newSearchCommand(), runner.newInspectCommand(), runner.newReadCommand(), runner.newRelatedCommand())
 	addCommandToGroup(root, groupAbout, runner.newVersionCommand())
 	addCommandToGroup(root, groupTools, runner.newSkillsCommand(), runner.newServerCommand())
 	addCommandToGroup(root, groupConfig, runner.newConfigCommand())
