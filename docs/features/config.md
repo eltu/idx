@@ -34,7 +34,7 @@ idx config get <key>
 - Precedence chain: built-in defaults → `.idx.yml` → CLI flags.
 ### `idx config show`
 
-- 13 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
+- 14 configurable keys are displayed with their resolved value, source, and original default for overridden keys.
 
 ### `idx config get <key>`
 
@@ -104,9 +104,9 @@ $ idx config get bm25.k1
 | `bm25.k1` | float | `1.5` | BM25 term-frequency saturation |
 | `bm25.b` | float | `0.75` | BM25 document-length normalization |
 | `bm25.proximity_weight` | float | `3.0` | BM25 proximity bonus weight |
+| `bm25.popularity_weight` | float | `0.3` | Read-popularity boost weight; `0` disables; maps to `--popularity-weight` |
 | `log.level` | string | `error` | `debug`, `info`, `warn`, `error` |
 
-> **Note:** `bm25.popularity_weight` (default `0.3`) is read from `.idx.yml` and controls the read-popularity boost in search ranking, but it is **not** accessible via `idx config get` or shown in `idx config show`. Use `--popularity-weight` on `idx search` to override it at the CLI level.
 
 ## `.idx.yml` Format
 

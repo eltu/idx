@@ -33,13 +33,19 @@ When `editor` is `claude`, the installer also:
 
 1. **Global settings** (`~/.claude/settings.json`):
    - Adds `"Bash(idx *)"` to `permissions.allow` if not already present.
-   - Copies `~/.claude/idx-block.sh` — a `PreToolCall` hook that blocks `grep`, `rg`, `ag`, `cat`, `head`, `tail` and other shell tools from reading repository files, redirecting Claude to `idx search` / `idx read` instead.
-   - Copies `~/.claude/idx-context-hook.sh` — a `UserPromptSubmit` hook that injects the idx enforcement rules into every session turn as additional context.
+   - Copies four enforcement hook scripts to `~/.claude/`:
+     - `idx-block.sh` — blocks Bash shell tools (`grep`, `rg`, `ag`, `cat`, `head`, `tail`, etc.) from reading repository files.
+     - `idx-read-block.sh` — blocks Claude's built-in **Read** tool on repository files.
+     - `idx-grep-block.sh` — blocks Claude's built-in **Grep** tool on repository files.
+     - `idx-context-hook.sh` — injects idx enforcement rules into every session turn.
    - Creates `~/.claude/settings.json` with a minimal structure if the file does not exist. Existing fields are preserved.
 
 2. **Project settings** (`.claude/settings.json` at the git root, when run inside a git repository):
-   - Registers `~/.claude/idx-block.sh` as a `PreToolCall` hook (matcher: `Bash`).
-   - Registers `~/.claude/idx-context-hook.sh` as a `UserPromptSubmit` hook.
+   - Registers three `PreToolUse` hooks:
+     - `~/.claude/idx-block.sh` (matcher: `Bash`)
+     - `~/.claude/idx-read-block.sh` (matcher: `Read`)
+     - `~/.claude/idx-grep-block.sh` (matcher: `Grep`)
+   - Registers `~/.claude/idx-context-hook.sh` as a `UserPromptSubmit` hook (no matcher).
    - Hook commands use literal `~` so the file is portable and can be versioned.
    - All operations are idempotent: re-running install never duplicates entries.
    - `CLAUDE.md` is never modified.
@@ -54,10 +60,12 @@ When `editor` is `claude`, the installer also:
 
 ### Hook scripts installed for Claude
 
-| File | Event | Purpose |
-| --- | --- | --- |
-| `~/.claude/idx-block.sh` | `PreToolCall` (Bash) | Blocks grep/cat/tail; exit 2 feeds feedback to Claude |
-| `~/.claude/idx-context-hook.sh` | `UserPromptSubmit` | Injects enforcement rules into each session turn |
+| File | Event | Matcher | Purpose |
+| --- | --- | --- | --- |
+| `~/.claude/idx-block.sh` | `PreToolUse` | `Bash` | Blocks shell tools (grep, cat, head, tail, rg…); redirects to `idx search` / `idx read` |
+| `~/.claude/idx-read-block.sh` | `PreToolUse` | `Read` | Blocks Claude's built-in Read tool on repo files |
+| `~/.claude/idx-grep-block.sh` | `PreToolUse` | `Grep` | Blocks Claude's built-in Grep tool on repo files |
+| `~/.claude/idx-context-hook.sh` | `UserPromptSubmit` | — | Injects idx enforcement rules into each session turn |
 
 ## Output
 
