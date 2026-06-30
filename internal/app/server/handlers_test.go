@@ -175,6 +175,60 @@ func TestInitDepsWithCapture_WiresOutput(t *testing.T) {
 	assert.Equal(t, capture, result.Output)
 }
 
+// --- handleRelated ---
+
+func TestHandleRelated_BadParamsType_ReturnsRPCError(t *testing.T) {
+	t.Parallel()
+	s := NewServer(ServerDeps{}).(*indexServer)
+	resp := dispatchToServer(t, s, idxipc.MethodRelated, 42)
+	assert.NotNil(t, resp)
+	assert.NotNil(t, resp.Error, "expected RPC error for wrong params type")
+}
+
+// --- parseRelatedJSON ---
+
+func TestParseRelatedJSON_EmptyLine_ReturnsEmptyResults(t *testing.T) {
+	t.Parallel()
+
+	resp, err := parseRelatedJSON("")
+
+	require.NoError(t, err)
+	assert.Empty(t, resp.Results)
+	assert.Equal(t, 0, resp.Count)
+}
+
+func TestParseRelatedJSON_ValidJSON_ParsesCorrectly(t *testing.T) {
+	t.Parallel()
+
+	line := `[{"path":"internal/features/search/service.go","score":0.85,"reason":"git"},{"path":"internal/features/search/port.go","score":0.60,"reason":"co-read"}]`
+	resp, err := parseRelatedJSON(line)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, resp.Count)
+	require.Len(t, resp.Results, 2)
+	assert.Equal(t, "internal/features/search/service.go", resp.Results[0].Path)
+	assert.Equal(t, 0.85, resp.Results[0].Score)
+	assert.Equal(t, "git", resp.Results[0].Reason)
+}
+
+func TestParseRelatedJSON_InvalidJSON_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseRelatedJSON("not-valid-json")
+
+	require.Error(t, err)
+}
+
+func TestParseRelatedJSON_EmptyArray_ReturnsZeroCount(t *testing.T) {
+	t.Parallel()
+
+	resp, err := parseRelatedJSON(`[]`)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, resp.Count)
+	assert.Empty(t, resp.Results)
+}
+
 // --- Serve ---
 
 func TestServe_BindsSocket_ReturnsOnContextCancel(t *testing.T) {
