@@ -24,10 +24,11 @@ const (
 	contextHookName       = "idx-context-hook.sh"
 	readHookName          = "idx-read-block.sh"
 	grepHookName          = "idx-grep-block.sh"
-	projectHookCommand    = "~/.claude/" + projectHookName
-	contextHookCommand    = "~/.claude/" + contextHookName
-	readHookCommand       = "~/.claude/" + readHookName
-	grepHookCommand       = "~/.claude/" + grepHookName
+	homeClaudeDirPrefix   = "~/.claude/"
+	projectHookCommand    = homeClaudeDirPrefix + projectHookName
+	contextHookCommand    = homeClaudeDirPrefix + contextHookName
+	readHookCommand       = homeClaudeDirPrefix + readHookName
+	grepHookCommand       = homeClaudeDirPrefix + grepHookName
 	hookEventPreToolCall  = "PreToolUse"
 	hookEventUserPrompt   = "UserPromptSubmit"
 	matcherBash           = "Bash"
