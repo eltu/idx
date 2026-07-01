@@ -8,11 +8,26 @@ import (
 	"strings"
 )
 
+// resolveGitBinary returns the absolute path to the git executable, resolved
+// once via PATH lookup so callers never hand a bare "git" to exec.CommandContext
+// (avoids SonarQube go:S4036 -- PATH must only be searched through a controlled API).
+func resolveGitBinary() (string, error) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return "", fmt.Errorf("git executable not found in PATH: %w", err)
+	}
+	return gitPath, nil
+}
+
 // ChangedFilesSince returns the set of relative paths changed between ref and HEAD.
 // Example: files, err := ChangedFilesSince("/repo", "HEAD~1").
 func ChangedFilesSince(projectRoot, ref string) (map[string]bool, error) {
+	gitPath, err := resolveGitBinary()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext( // #nosec G204 -- intentional git invocation; ref comes from validated CLI flag
-		context.Background(), "git", "-C", projectRoot, "diff", "--name-only", ref+"...HEAD",
+		context.Background(), gitPath, "-C", projectRoot, "diff", "--name-only", ref+"...HEAD",
 	)
 	out, err := cmd.Output()
 	if err != nil {
@@ -49,8 +64,12 @@ func CoChangedFiles(projectRoot, relPath string) (map[string]int, int, error) {
 
 // commitSHAs returns SHA-1 hashes of commits that touched relPath.
 func commitSHAs(projectRoot, relPath string) ([]string, error) {
+	gitPath, err := resolveGitBinary()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext( // #nosec G204 -- intentional git invocation; relPath is a sanitized relative path
-		context.Background(), "git", "-C", projectRoot, "log", "--format=%H", "--", relPath,
+		context.Background(), gitPath, "-C", projectRoot, "log", "--format=%H", "--", relPath,
 	)
 	out, err := cmd.Output()
 	if err != nil {
@@ -66,9 +85,13 @@ func commitSHAs(projectRoot, relPath string) ([]string, error) {
 // commitFiles returns all file names touched by the given commits.
 // git diff-tree outputs each SHA as a header line, then the file list.
 func commitFiles(projectRoot string, shas []string) (string, error) {
+	gitPath, err := resolveGitBinary()
+	if err != nil {
+		return "", err
+	}
 	// --root includes root commits (no parent) in the diff output.
 	args := append([]string{"-C", projectRoot, "diff-tree", "--root", "-r", "--name-only"}, shas...) //nolint:gocritic
-	cmd := exec.CommandContext(context.Background(), "git", args...)                                 // #nosec G204
+	cmd := exec.CommandContext(context.Background(), gitPath, args...)                               // #nosec G204
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git diff-tree failed: %w", err)

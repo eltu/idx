@@ -35,6 +35,31 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// ---- resolveGitBinary ----
+
+func TestResolveGitBinary_GitOnPath_ReturnsAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	gitPath, err := resolveGitBinary()
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, filepath.IsAbs(gitPath))
+}
+
+func TestResolveGitBinary_GitMissingFromPath_ReturnsError(t *testing.T) {
+	// Arrange
+	t.Setenv("PATH", t.TempDir())
+
+	// Act
+	_, err := resolveGitBinary()
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "git executable not found in PATH")
+}
+
 // ---- ChangedFilesSince ----
 
 func TestChangedFilesSince_ReturnsChangedFiles(t *testing.T) {
