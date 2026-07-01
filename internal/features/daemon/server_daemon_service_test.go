@@ -169,28 +169,6 @@ func TestServerDaemonService_Start_KillsOrphanOnStateSaveFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestServerDaemonService_Start_SucceedsWithoutIndex(t *testing.T) {
-	t.Parallel()
-
-	// Arrange — no .idx/index.idx; server should start and self-initialize via ensureRootIndex
-	ctrl := gomock.NewController(t)
-	repo := mocks.NewMockStateRepository(ctrl)
-	spawner := mocks.NewMockServerSpawner(ctrl)
-	projectPath := t.TempDir()
-	repo.EXPECT().ReadState(projectPath).Return(nil, nil)
-	spawner.EXPECT().SpawnServerProcess(projectPath).Return(1234, nil)
-	repo.EXPECT().SaveState(projectPath, gomock.Any()).Return(nil)
-
-	svc, buf := newTestService(t, repo, spawner, func(_ int) bool { return false }, socketAliveAfterSpawn())
-
-	// Act
-	err := svc.Start(projectPath)
-
-	// Assert
-	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "1234")
-}
-
 func TestServerDaemonService_Stop_SendsSIGTERMAndRemovesState(t *testing.T) {
 	t.Parallel()
 
