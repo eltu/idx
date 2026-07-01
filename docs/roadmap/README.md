@@ -19,8 +19,8 @@ idx is a fast BM25 full-text search engine for Git repositories, designed to ser
 | Version | Theme | Status |
 |---|---|---|
 | [v0.8.0](../releases/v0.8.0.md) | Stable CLI foundation | Released |
-| [v0.9.0](v0.9.0.md) | AI integration layer | Planned |
-| [v0.10.0](v0.10.0.md) | Git-aware primitives | Planned |
+| [v0.9.0](v0.9.0.md) | AI integration layer | Released |
+| [v0.10.0](v0.10.0.md) | Git-aware primitives | Released |
 | [v0.11.0](v0.11.0.md) | Agent-optimized output | Planned |
 | [v1.0.0](v1.0.0.md) | Multi-agent: worktree isolation + hybrid MCP search | Planned |
 
