@@ -1,6 +1,6 @@
 module idx
 
-go 1.26.1
+go 1.26.4
 
 require (
 	charm.land/bubbletea/v2 v2.0.7
