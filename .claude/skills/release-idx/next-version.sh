@@ -8,7 +8,7 @@ set -euo pipefail
 
 LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]' | head -1)
 
-if [ -z "$LAST_TAG" ]; then
+if [[ -z "$LAST_TAG" ]]; then
   echo "v0.1.0"
   exit 0
 fi
@@ -21,12 +21,12 @@ PATCH=$(echo "$VERSION" | cut -d. -f3)
 BUMP="patch"
 
 while IFS= read -r commit; do
-  [ -z "$commit" ] && continue
+  [[ -z "$commit" ]] && continue
   if echo "$commit" | grep -qE '^(feat|fix)!:|BREAKING CHANGE'; then
     BUMP="major"
     break
   fi
-  if [ "$BUMP" != "major" ] && echo "$commit" | grep -qE '^feat(\(.+\))?:'; then
+  if [[ "$BUMP" != "major" ]] && echo "$commit" | grep -qE '^feat(\(.+\))?:'; then
     BUMP="minor"
   fi
 done < <(git log "${LAST_TAG}..HEAD" --format="%s")
@@ -35,6 +35,7 @@ case "$BUMP" in
   major) NEXT="v$((MAJOR + 1)).0.0" ;;
   minor) NEXT="v${MAJOR}.$((MINOR + 1)).0" ;;
   patch) NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+  *) echo "unexpected bump type: $BUMP" >&2; exit 1 ;;
 esac
 
 echo "$NEXT"

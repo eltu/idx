@@ -5,7 +5,7 @@ set -euo pipefail
 
 LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]' | head -1)
 
-if [ -z "$LAST_TAG" ]; then
+if [[ -z "$LAST_TAG" ]]; then
   echo "No previous tag found — skipping gap analysis."
   exit 0
 fi
