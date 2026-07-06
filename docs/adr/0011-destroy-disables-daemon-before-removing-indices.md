@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0026](0026-destroy-stops-watch-loop-before-removing-indices.md).
+The `internal/core/services/daemon`/`DaemonService.Disable` mechanism and the
+`idx daemon enable/disable` commands described below were removed by ADR
+0019/0020's migration to the client-server architecture, and this decision's
+guarantee regressed silently along with them until ADR 0026 restored it
+using the current architecture's primitives. Kept for historical context.
 
 ## Context
 

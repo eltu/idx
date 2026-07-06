@@ -30,3 +30,7 @@ New ADRs are added sequentially. Superseded decisions are noted in the relevant 
 | [0020](0020-server-as-self-managing-daemon.md) | Server as Self-Managing Daemon with Embedded Watch |
 | [0021](0021-remove-idx-watch-command.md) | Remove `idx watch` Command |
 | [0022](0022-idx-init-bootstrap-exception.md) | `idx init` Executes In-Process as a Bootstrap Exception |
+| [0023](0023-skills-project-enforcement-and-skill-asset-drift-detection.md) | Skills Project-Level Enforcement and Skill Asset Drift Detection |
+| [0024](0024-related-command-co-read-term-overlap.md) | `idx related` — Co-Read Affinity + BM25 Term Co-Occurrence |
+| [0025](0025-related-signals-git-cochange-persistent-coread.md) | `idx related` — Git Co-Change + Persistent Co-Read Matrix |
+| [0026](0026-destroy-stops-watch-loop-before-removing-indices.md) | `idx destroy` Stops the Watch Loop Before Removing Indices (supersedes 0011) |

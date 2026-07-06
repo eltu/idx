@@ -4,6 +4,7 @@ All stable releases of idx. Each entry links to the full release notes.
 
 | Version | Date | Highlights |
 |---|---|---|
+| [v0.10.2](v0.10.2.md) | July 6, 2026 | `idx destroy` fixes: no more orphaned agent processes, no more resurrected `.idx` directories |
 | [v0.10.1](v0.10.1.md) | June 30, 2026 | SonarQube fixes: PATH-safe git subprocess resolution, deduplicated literals, safer shell conditionals |
 | [v0.10.0](v0.10.0.md) | June 30, 2026 | `idx related` command, `idx search --since`, 4 enforcement hooks for Claude, 14 config keys |
 | [v0.9.0](v0.9.0.md) | June 26, 2026 | `idx read --compact`, project-level Claude enforcement hooks, skill-lint CI, skill renamed to `idx` |
