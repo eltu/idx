@@ -266,6 +266,77 @@ func TestHandleDestroy_NilProjectTree_DoesNotShutDownListener(t *testing.T) {
 	assert.Nil(t, resp.Error, "expected success CommandResponse (not RPC error)")
 }
 
+// destroyOrderProjectTree is a minimal fake exposing a single ".idx" entry at
+// the project root, used to verify handleDestroy's call ordering.
+type destroyOrderProjectTree struct {
+	root              string
+	onRemoveAll       func(path string)
+	removedBeforeStop bool
+	stopWatchCalled   *bool
+}
+
+func (t *destroyOrderProjectTree) CurrentDir() (string, error)        { return t.root, nil }
+func (t *destroyOrderProjectTree) FindGitRoot(string) (string, error) { return t.root, nil }
+func (t *destroyOrderProjectTree) Exists(string) (bool, error)        { return true, nil }
+func (t *destroyOrderProjectTree) WriteFile(string, []byte) error     { return nil }
+
+func (t *destroyOrderProjectTree) ReadDir(path string) ([]sharedfs.DirectoryEntry, error) {
+	if path != t.root {
+		return nil, nil
+	}
+	return []sharedfs.DirectoryEntry{
+		{Name: ".idx", Path: t.root + "/.idx", IsDir: true},
+	}, nil
+}
+
+func (t *destroyOrderProjectTree) RemoveAll(path string) error {
+	if !*t.stopWatchCalled {
+		t.removedBeforeStop = true
+	}
+	if t.onRemoveAll != nil {
+		t.onRemoveAll(path)
+	}
+	return nil
+}
+
+// TestHandleDestroy_StopsWatchBeforeRemovingIndexes is a regression test: the
+// file watcher must be stopped before index files are removed, otherwise it
+// resyncs (and thereby recreates) the very directory whose .idx was just
+// deleted, because a removed path resolves to its parent directory in
+// eventDirectory (the path no longer stat's).
+func TestHandleDestroy_StopsWatchBeforeRemovingIndexes(t *testing.T) {
+	t.Parallel()
+
+	stopWatchCalled := false
+	tree := &destroyOrderProjectTree{root: "/repo", stopWatchCalled: &stopWatchCalled}
+	s := NewServer(ServerDeps{ProjectTree: tree}).(*indexServer)
+	s.SetWatchStopper(func() { stopWatchCalled = true })
+
+	resp := dispatchToServer(t, s, idxipc.MethodDestroy, struct{}{})
+
+	assert.Nil(t, resp.Error, "expected success CommandResponse")
+	assert.True(t, stopWatchCalled, "expected the watch loop to be stopped")
+	assert.False(t, tree.removedBeforeStop, "expected watch to stop before RemoveAll ran")
+}
+
+func TestHandleDestroy_NilWatchStopper_StillRemovesIndexes(t *testing.T) {
+	t.Parallel()
+
+	removed := false
+	stopWatchCalled := false
+	tree := &destroyOrderProjectTree{
+		root:            "/repo",
+		stopWatchCalled: &stopWatchCalled,
+		onRemoveAll:     func(string) { removed = true },
+	}
+	s := NewServer(ServerDeps{ProjectTree: tree}).(*indexServer)
+
+	resp := dispatchToServer(t, s, idxipc.MethodDestroy, struct{}{})
+
+	assert.Nil(t, resp.Error, "expected success CommandResponse")
+	assert.True(t, removed, "expected RemoveAll to run even without a watch stopper")
+}
+
 func TestShutdownAfterDestroy_NilListener_NoPanic(t *testing.T) {
 	t.Parallel()
 	s := NewServer(ServerDeps{}).(*indexServer)

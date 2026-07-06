@@ -112,6 +112,14 @@ func (s *indexServer) handleInspect(_ context.Context, params json.RawMessage) (
 }
 
 func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, error) {
+	// Stop the watch loop before removing any files: otherwise fsnotify sees
+	// each .idx removal, resolves it to its parent directory (the removed
+	// path no longer stat's), and resyncs that directory -- recreating the
+	// very .idx destroy just deleted.
+	if s.stopWatch != nil {
+		s.stopWatch()
+	}
+
 	capture := &captureWriter{}
 	svc := featlifecycle.NewDestroyCommandService(s.deps.ProjectTree, capture)
 	err := svc.Run()

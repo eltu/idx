@@ -23,6 +23,16 @@ type indexServer struct {
 	deps       ServerDeps
 	dispatcher *sharedjsonrpc.Dispatcher
 	listener   net.Listener
+	stopWatch  func()
+}
+
+// SetWatchStopper wires the callback that stops the embedded file-watch loop.
+// handleDestroy calls it before removing index files, so the watcher cannot
+// react to a .idx deletion by resyncing (and thereby recreating) the very
+// directory destroy just removed. The callback is expected to block until the
+// watch loop has fully exited.
+func (s *indexServer) SetWatchStopper(stop func()) {
+	s.stopWatch = stop
 }
 
 // NewServer creates a ServerRunner that serves JSON-RPC requests on a Unix socket.

@@ -39,6 +39,13 @@ type serverStatusJSONProvider interface {
 	StatusJSON(projectPath string) ([]byte, error)
 }
 
+// watchStopSetter is an optional enhancement — implementations that embed a
+// file-watch loop can accept a callback to stop it gracefully before
+// destroying index files (see newServerRunCommand and handleDestroy).
+type watchStopSetter interface {
+	SetWatchStopper(stop func())
+}
+
 func (runner CommandRunner) newServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "agent",
@@ -146,11 +153,22 @@ func (runner CommandRunner) newServerRunCommand() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
+			watchCtx, cancelWatch := context.WithCancel(ctx)
+			defer cancelWatch()
+			watchDone := make(chan struct{})
 			go func() {
-				if err := runner.indexCommand.WatchWithContext(ctx, defaultServerWatchDebounce); err != nil && ctx.Err() == nil {
+				defer close(watchDone)
+				if err := runner.indexCommand.WatchWithContext(watchCtx, defaultServerWatchDebounce); err != nil && watchCtx.Err() == nil {
 					zap.L().Error("watch loop exited with error", zap.Error(err))
 				}
 			}()
+
+			if setter, ok := runner.indexServer.(watchStopSetter); ok {
+				setter.SetWatchStopper(func() {
+					cancelWatch()
+					<-watchDone
+				})
+			}
 
 			return runner.indexServer.Serve(ctx)
 		},
