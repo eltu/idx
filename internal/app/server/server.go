@@ -22,6 +22,7 @@ const socketDialTimeout = 300 * time.Millisecond
 type indexServer struct {
 	deps       ServerDeps
 	dispatcher *sharedjsonrpc.Dispatcher
+	listener   net.Listener
 }
 
 // NewServer creates a ServerRunner that serves JSON-RPC requests on a Unix socket.
@@ -55,6 +56,7 @@ func (s *indexServer) Serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.listener = listener
 	defer func() {
 		_ = listener.Close()
 		_ = os.Remove(s.deps.SocketPath)
@@ -87,6 +89,18 @@ func (s *indexServer) Serve(ctx context.Context) error {
 
 	wg.Wait()
 	return nil
+}
+
+// shutdownAfterDestroy closes the listener so Serve's accept loop exits and the
+// daemon process terminates on its own. Destroy deletes the .idx directory that
+// holds server.sock and server.state, so an external client can no longer detect
+// or signal this process afterward — the server must stop itself instead.
+// Closing the listener does not affect the in-flight connection that is still
+// writing the destroy response, since that connection was already accepted.
+func (s *indexServer) shutdownAfterDestroy() {
+	if s.listener != nil {
+		_ = s.listener.Close()
+	}
 }
 
 // prepareSocket removes a stale socket file if present and no process is listening,

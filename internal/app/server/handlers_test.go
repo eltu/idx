@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -253,4 +254,70 @@ func TestServe_BindsSocket_ReturnsOnContextCancel(t *testing.T) {
 	// Assert
 	err = <-done
 	assert.NoError(t, err, "expected Serve to return nil after cancel")
+}
+
+// --- handleDestroy ---
+
+func TestHandleDestroy_NilProjectTree_DoesNotShutDownListener(t *testing.T) {
+	t.Parallel()
+	s := NewServer(ServerDeps{}).(*indexServer)
+	resp := dispatchToServer(t, s, idxipc.MethodDestroy, struct{}{})
+	assert.NotNil(t, resp)
+	assert.Nil(t, resp.Error, "expected success CommandResponse (not RPC error)")
+}
+
+func TestShutdownAfterDestroy_NilListener_NoPanic(t *testing.T) {
+	t.Parallel()
+	s := NewServer(ServerDeps{}).(*indexServer)
+	assert.NotPanics(t, s.shutdownAfterDestroy)
+}
+
+// TestServe_HandleDestroy_ShutsDownServerAfterSuccess is a regression test:
+// destroying the project's .idx directory removes server.sock and
+// server.state, so an external client can no longer detect or signal this
+// process. The server must close its own listener as part of handling
+// idx.destroy so Serve returns and the daemon process exits on its own,
+// instead of being orphaned.
+func TestServe_HandleDestroy_ShutsDownServerAfterSuccess(t *testing.T) {
+	// Arrange
+	dir, err := os.MkdirTemp("/tmp", "idx-destroy")
+	require.NoError(t, err, "mkdirtemp")
+	defer os.RemoveAll(dir)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ".idx"), 0o750))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o750))
+	t.Chdir(dir)
+
+	sockPath := filepath.Join(dir, "s.sock")
+	srv := NewServer(ServerDeps{SocketPath: sockPath, ProjectTree: sharedfs.NewOSProjectTree()})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ctx) }()
+	waitForSocket(t, sockPath)
+
+	// Act — send idx.destroy over a real connection, as the CLI would.
+	conn, err := net.Dial("unix", sockPath)
+	require.NoError(t, err, "dial socket")
+	id := json.RawMessage(`1`)
+	msg := sharedjsonrpc.Message{JSONRPC: sharedjsonrpc.Version, ID: &id, Method: idxipc.MethodDestroy}
+	require.NoError(t, sharedjsonrpc.WriteMessage(conn, msg), "write destroy request")
+	resp, readErr := sharedjsonrpc.ReadMessage(bufio.NewReader(conn))
+	_ = conn.Close()
+	require.NoError(t, readErr, "read destroy response")
+	require.Nil(t, resp.Error, "expected success CommandResponse, not RPC error")
+
+	resultBytes, err := json.Marshal(resp.Result)
+	require.NoError(t, err, "marshal RPC result")
+	var cmdResp idxipc.CommandResponse
+	require.NoError(t, json.Unmarshal(resultBytes, &cmdResp), "unmarshal CommandResponse")
+	require.True(t, cmdResp.Success, "expected destroy to succeed, got output: %s", cmdResp.Output)
+
+	// Assert — Serve returns on its own, without needing ctx to be canceled.
+	select {
+	case serveErr := <-done:
+		assert.NoError(t, serveErr)
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected Serve to return after destroy, but the server is still running")
+	}
 }

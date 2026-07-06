@@ -115,6 +115,9 @@ func (s *indexServer) handleDestroy(_ context.Context, _ json.RawMessage) (any, 
 	capture := &captureWriter{}
 	svc := featlifecycle.NewDestroyCommandService(s.deps.ProjectTree, capture)
 	err := svc.Run()
+	if err == nil {
+		s.shutdownAfterDestroy()
+	}
 	return idxipc.CommandResponse{Success: err == nil, Output: capture.joined()}, nil
 }
 
